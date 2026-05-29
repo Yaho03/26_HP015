@@ -30,8 +30,8 @@
 | 부품 | 수량 | 단가(원) | 소계(원) | 용도 | 링크 |
 |------|------|---------|---------|------|------|
 | ESP32 DevKitCV4 | 1 | 15,000 | 15,000 | 메인 가스 노드 | [AliExpress](https://ko.aliexpress.com/item/1005008889403671.html) |
-| ESP32 UWB 모듈 WROOM | 3 | ~121,000 | ~363,000 | 서브 센서 노드 3개 | [AliExpress] (https://ko.aliexpress.com/item/1005008756823618.html?gatewayAdapt=glo2kor) |
-| ESP32 UWB 모듈 WROVER | 1 | ~126,000 | ~126,000 | 웨어러블 노드 (PSRAM 필요) | A[AliExpress] (https://ko.aliexpress.com/item/1005008756823618.html?gatewayAdapt=glo2kor) |
+| ESP32 UWB 모듈 WROOM | 3 | ~121,000 | ~363,000 | 서브 센서 노드 3개 | [AliExpress](https://ko.aliexpress.com/item/1005008756823618.html?gatewayAdapt=glo2kor) |
+| ESP32 UWB 모듈 WROVER | 1 | ~126,000 | ~126,000 | 웨어러블 노드 (PSRAM 필요) | [AliExpress](https://ko.aliexpress.com/item/1005008756823618.html?gatewayAdapt=glo2kor) |
 
 > WROVER 선택 이유: MLX90640 열화상 프레임 버퍼링에 PSRAM(4MB) 유리
 
