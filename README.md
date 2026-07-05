@@ -14,8 +14,8 @@
 
 | 문서 | 내용 |
 |------|------|
-| [PRD.md](./PRD.md) | 제품 요구사항 정의서 — 기능 요구사항, 임계값, 데이터 흐름, 마일스톤 |
-| [HARDWARE.md](./HARDWARE.md) | 하드웨어 구매 부품 목록 (BOM) — 구간별 구매 계획, 핀 연결 요약 |
+| [docs/PRD.md](./docs/PRD.md) | 제품 요구사항 정의서 — 기능 요구사항, 임계값, 데이터 흐름, 마일스톤 |
+| [docs/HARDWARE.md](./docs/HARDWARE.md) | 하드웨어 구매 부품 목록 (BOM) — 구간별 구매 계획, 핀 연결 요약 |
 | [docs/ARCHITECTURE.md](./docs/ARCHITECTURE.md) | 시스템 아키텍처 — 전체 구성도, 데이터 흐름, MQTT 토픽, 기술 스택 |
 
 ---
