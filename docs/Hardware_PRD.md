@@ -1,4 +1,4 @@
-# Hardware PRD
+# Hardware PRD(수정중)
 
 ## 1. Overview
 
