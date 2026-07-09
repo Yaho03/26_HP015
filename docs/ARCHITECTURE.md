@@ -13,7 +13,7 @@
 ```mermaid
 graph TD
     %% 에지 디바이스 계층
-    subgraph Edge_Devices [Edge Layer (ESP32 Firmware)]
+    subgraph Edge_Devices ["Edge Layer (ESP32 Firmware)"]
         SN1[Sensor Node 1 <br/> Anchor 1]
         SN2[Sensor Node 2 <br/> Anchor 2]
         SN3[Sensor Node 3 <br/> Anchor 3]
