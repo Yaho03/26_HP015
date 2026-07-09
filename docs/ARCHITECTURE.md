@@ -29,7 +29,7 @@ graph TD
     end
 
     %% 시각화 관제 계층
-    subgraph UI_Layer [Visualization Layer (React 19)]
+    subgraph UI_Layer ["Visualization Layer (React 19)"]
         Zustand[Zustand State Engine]
         Dashboard[2D Monitor <br/> Recharts]
         DigitalTwin[3D Digital Twin <br/> Three.js / Unity]
