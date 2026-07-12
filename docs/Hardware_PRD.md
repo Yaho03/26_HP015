@@ -81,7 +81,6 @@
 
    ┌────────────────┐        ┌────────────────┐        ┌────────────────┐
    │ Sensor Node 1  │        │ Sensor Node 2  │        │ Sensor Node 3  │
-   │                │        │                │        │                │
    │ Full-Spec      │        │ Full-Spec      │        │ Full-Spec      │
    │ Gas Monitoring │        │ Gas Monitoring │        │ Gas Monitoring │
    │ UWB Anchor     │        │ UWB Anchor     │        │ UWB Anchor     │
