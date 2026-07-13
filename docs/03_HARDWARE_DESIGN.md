@@ -262,17 +262,28 @@ EMA 필터 (-> Kalman Filter 순차 적용)
 ### 7.1 회로도
 
 ```
-ESP32 GPIO25
-    |
-    1kΩ (베이스 저항)
-    |
-    B --- S8050 NPN 트랜지스터
-    C --------- +5V 레일 (또는 3.3V)
-    E --------- 진동 모터 (+) 단자
-                진동 모터 (-) 단자 --------- GND
++5V 레일
+  |
+  진동 모터 (+) 단자
+  |
+  진동 모터 (-) 단자
+  |
+  S8050 NPN 트랜지스터 Collector (C)
+  |
+  S8050 NPN 트랜지스터 Emitter (E) --------- GND
+  |
+  S8050 NPN 트랜지스터 Base (B)
+  |
+  1kΩ 베이스 저항
+  |
+  ESP32 GPIO25
 
-1N4007 다이오드: 모터 양단에 역병렬 (역기전력 보호)
+1N4007 다이오드:
+  Cathode (음극, 띠 표시) --------- +5V 레일
+  Anode (양극) --------- Collector (모터 (-) 단자와 트랜지스터 C 사이)
 ```
+
+> NPN 트랜지스터는 low-side switch로 동작한다. 모터는 +5V와 Collector 사이에 연결하고, Emitter는 GND에 연결한다. 다이오드는 모터 양단에 역병렬(역기전력 보호)로 설치한다: Cathode를 +5V측, Anode를 Collector(모터 하단)측에 연결한다.
 
 ### 7.2 주의사항
 
@@ -357,12 +368,19 @@ graph TD
 
 ### 11.1 MQ 센서 (MQ-7, MQ-136, MQ-2)
 
-1. 예열: 전원 인가 후 30초 이상 대기 (안정화에는 수 시간 권장)
-2. R0 측정: 깨끗한 공기 환경에서 Rs 측정 -> R0로 저장
-3. 온습도 보정: BME680 데이터를 활용하여 Rs 보정
-4. 대상 가스 교정: 알려진 농도 환경에서 Rs/R0 vs 농도 커브 작성
-5. 교정 전에는 `calibration_status: "uncalibrated"`, `estimated_ppm: null`
+**MVP 정책: raw 데이터만 제공, 임계값 기반 경보 제외**
 
+MQ 센서 교정에는 알려진 농도의 대상 가스(CO, H2S 등)가 필요하다. 본 프로젝트에서는 실제 유해 가스 사용을 금지하므로, MVP 기간 동안 MQ 센서는 raw 값(ADC, voltage, Rs/R0)만 제공한다.
+
+| 단계 | 상세 | MVP 적용 여부 |
+|------|------|--------------|
+| 1. 예열 | 전원 인가 후 30초 이상 대기 (안정화에는 수 시간 권장) | 적용 |
+| 2. R0 측정 | 깨끗한 공기 환경에서 Rs 측정하여 R0로 저장 | 적용 (clean air only) |
+| 3. 온습도 보정 | BME680 데이터를 활용하여 Rs 보정 | 적용 |
+| 4. 대상 가스 교정 | 알려진 농도 환경에서 Rs/R0 vs 농도 커브 작성 | **미적용** (실제 가스 필요) |
+| 5. 경보 활성화 | estimated_ppm 기반 임계값 경보 | **미적용** (교정 전) |
+
+> 교정 전에는 `calibration_status: "uncalibrated"`, `estimated_ppm: null`이다. CO/H2S 경보 파이프라인은 소프트웨어 데이터 주입(`source_mode: "simulation"`)으로만 검증한다. (`06_ALERT_RULES.md` 섹션 4.3 참조)
 ### 11.2 MH-Z19B (CO₂)
 
 - 자동 교정 기능 (ABC, Automatic Baseline Correction) 내장

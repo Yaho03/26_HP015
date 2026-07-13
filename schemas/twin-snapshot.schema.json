@@ -1,0 +1,171 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://hp015.local/schemas/twin-snapshot.schema.json",
+  "title": "Digital Twin Snapshot Message",
+  "description": "WebSocket message for full digital twin state. Sent on initial connection or reconnection.",
+  "type": "object",
+  "required": [
+    "type",
+    "revision",
+    "timestamp",
+    "space",
+    "sensor_nodes",
+    "wearable",
+    "active_alerts",
+    "hazard_zones"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "type": { "type": "string", "const": "snapshot" },
+    "revision": {
+      "type": "integer",
+      "minimum": 1,
+      "description": "Snapshot revision number. Subsequent deltas start at revision+1."
+    },
+    "timestamp": { "type": "string", "format": "date-time" },
+    "space": {
+      "type": "object",
+      "required": ["dimensions", "overall_risk_level"],
+      "additionalProperties": false,
+      "properties": {
+        "dimensions": {
+          "type": "object",
+          "required": ["width_m", "depth_m", "height_m"],
+          "additionalProperties": false,
+          "properties": {
+            "width_m": { "type": "number" },
+            "depth_m": { "type": "number" },
+            "height_m": { "type": "number" }
+          }
+        },
+        "overall_risk_level": {
+          "type": "string",
+          "enum": ["normal", "level1_caution", "level2_warning", "level3_critical"]
+        }
+      }
+    },
+    "sensor_nodes": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "object_id",
+          "physical_id",
+          "position",
+          "position_coordinate_system",
+          "latest_values",
+          "alert_level",
+          "connection_status",
+          "calibration_status"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "object_id": { "type": "string", "pattern": "^tw\\." },
+          "physical_id": { "type": "string", "pattern": "^sensor-\\d{2}$" },
+          "position": {
+            "type": "object",
+            "required": ["x_m", "y_m", "z_m"],
+            "additionalProperties": false,
+            "properties": {
+              "x_m": { "type": "number" },
+              "y_m": { "type": "number" },
+              "z_m": { "type": "number" }
+            }
+          },
+          "position_coordinate_system": { "type": "string", "const": "model-local" },
+          "latest_values": { "type": "object", "additionalProperties": true },
+          "alert_level": {
+            "type": "string",
+            "enum": ["normal", "level1_caution", "level2_warning", "level3_critical"]
+          },
+          "connection_status": { "type": "string", "enum": ["online", "offline"] },
+          "calibration_status": {
+            "type": "string",
+            "enum": ["uncalibrated", "calibrating", "calibrated"]
+          }
+        }
+      }
+    },
+    "wearable": {
+      "type": "object",
+      "required": [
+        "object_id",
+        "physical_id",
+        "position",
+        "position_coordinate_system",
+        "location_quality",
+        "o2_pct",
+        "fall_detected",
+        "battery_pct"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "object_id": { "type": "string", "pattern": "^tw\\." },
+        "physical_id": { "type": "string", "pattern": "^wearable-\\d{2}$" },
+        "position": {
+          "type": "object",
+          "required": ["x_m", "y_m", "z_m"],
+          "additionalProperties": false,
+          "properties": {
+            "x_m": { "type": "number" },
+            "y_m": { "type": "number" },
+            "z_m": { "type": "number" }
+          }
+        },
+        "position_coordinate_system": { "type": "string", "const": "model-local" },
+        "location_quality": {
+          "type": "object",
+          "required": ["quality_score", "anchor_count", "is_filtered"],
+          "additionalProperties": false,
+          "properties": {
+            "quality_score": { "type": "number", "minimum": 0, "maximum": 1 },
+            "anchor_count": { "type": "integer", "minimum": 3, "maximum": 4 },
+            "is_filtered": { "type": "boolean" }
+          }
+        },
+        "o2_pct": { "type": "number", "minimum": 0, "maximum": 30 },
+        "fall_detected": { "type": "boolean" },
+        "battery_pct": { "type": "integer", "minimum": 0, "maximum": 100 }
+      }
+    },
+    "active_alerts": {
+      "type": "array",
+      "items": { "type": "object", "additionalProperties": true }
+    },
+    "hazard_zones": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["object_id", "source_node_id", "geometry", "trigger_level", "active"],
+        "additionalProperties": false,
+        "properties": {
+          "object_id": { "type": "string", "pattern": "^tw\\." },
+          "source_node_id": { "type": "string", "pattern": "^sensor-\\d{2}$" },
+          "geometry": {
+            "type": "object",
+            "required": ["type", "center", "radius_m"],
+            "additionalProperties": false,
+            "properties": {
+              "type": { "type": "string", "const": "circle" },
+              "center": {
+                "type": "object",
+                "required": ["x_m", "y_m"],
+                "additionalProperties": false,
+                "properties": {
+                  "x_m": { "type": "number" },
+                  "y_m": { "type": "number" }
+                }
+              },
+              "radius_m": { "type": "number", "minimum": 0, "maximum": 5 }
+            }
+          },
+          "trigger_level": {
+            "type": "string",
+            "enum": ["level2_warning", "level3_critical"]
+          },
+          "active": { "type": "boolean" }
+        }
+      }
+    }
+  }
+}

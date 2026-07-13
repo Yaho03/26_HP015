@@ -2,64 +2,62 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://hp015.local/schemas/wearable-location.schema.json",
   "title": "Wearable Location Data Message",
-  "description": "MQTT payload for wearable/{node_id}/location topic. Contains UWB DS-TWR 2D positioning data.",
+  "description": "MQTT payload for wearable/{node_id}/location topic. Contains UWB DS-TWR 2D positioning data in physical coordinate system (Z-up).",
   "type": "object",
   "required": [
     "schema_version",
     "message_id",
     "node_id",
+    "boot_id",
     "sequence",
     "sampled_at",
     "published_at",
+    "source_mode",
+    "simulation",
     "quality",
     "data"
   ],
   "additionalProperties": false,
   "properties": {
-    "schema_version": {
-      "type": "string",
-      "const": "1.0",
-      "description": "Schema version identifier"
-    },
-    "message_id": {
-      "type": "string",
-      "pattern": "^[0-9A-Z]{26}$",
-      "description": "ULID format unique message identifier"
-    },
-    "node_id": {
-      "type": "string",
-      "pattern": "^(wearable|sim)-\\d{2}$",
-      "description": "Sending node identifier"
-    },
-    "sequence": {
-      "type": "integer",
-      "minimum": 0,
-      "maximum": 4294967295,
-      "description": "Per-node incrementing sequence number"
-    },
-    "sampled_at": {
-      "type": "string",
-      "format": "date-time",
-      "description": "UWB measurement timestamp (ISO 8601 UTC)"
-    },
-    "published_at": {
-      "type": "string",
-      "format": "date-time",
-      "description": "MQTT publish timestamp (ISO 8601 UTC)"
+    "schema_version": { "type": "string", "const": "1.1" },
+    "message_id": { "type": "string", "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$" },
+    "node_id": { "type": "string", "pattern": "^wearable-\\d{2}$" },
+    "boot_id": { "type": "string", "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$" },
+    "sequence": { "type": "integer", "minimum": 0, "maximum": 4294967295 },
+    "sampled_at": { "type": "string", "format": "date-time" },
+    "published_at": { "type": "string", "format": "date-time" },
+    "source_mode": { "type": "string", "enum": ["live", "simulation"] },
+    "simulation": {
+      "oneOf": [
+        {
+          "type": "object",
+          "required": ["run_id", "scenario_id"],
+          "additionalProperties": false,
+          "properties": {
+            "run_id": { "type": "string" },
+            "scenario_id": { "type": "string" }
+          }
+        },
+        { "type": "null" }
+      ]
     },
     "quality": {
       "type": "object",
-      "required": ["calibrated", "sensor_status"],
+      "required": ["message_status", "time_synced", "sensors"],
       "additionalProperties": false,
       "properties": {
-        "calibrated": {
-          "type": "boolean",
-          "description": "Whether UWB antenna delay is calibrated"
-        },
-        "sensor_status": {
-          "type": "string",
-          "enum": ["warming_up", "stable", "error", "offline"],
-          "description": "UWB module operational status"
+        "message_status": { "type": "string", "enum": ["complete", "partial", "degraded"] },
+        "time_synced": { "type": "boolean" },
+        "sensors": {
+          "type": "object",
+          "required": ["dwm1000"],
+          "additionalProperties": false,
+          "properties": {
+            "dwm1000": {
+              "type": "string",
+              "enum": ["valid", "warming_up", "uncalibrated", "error", "not_connected"]
+            }
+          }
         }
       }
     },
@@ -79,21 +77,21 @@
       "properties": {
         "x_m": {
           "type": "number",
-          "description": "X-axis position in meters (UWB measured)"
+          "description": "X-axis position in meters (physical coordinate system Z-up, UWB measured)"
         },
         "y_m": {
           "type": "number",
-          "description": "Y-axis position in meters (UWB measured)"
+          "description": "Y-axis position in meters (physical coordinate system Z-up, UWB measured)"
         },
         "z_m": {
           "type": "number",
           "const": 0,
-          "description": "Z-axis position, always 0.0 (2D positioning, z is rendering-only fixed value)"
+          "description": "Z-axis position, always 0.0 (2D positioning, rendering-only fixed value)"
         },
         "coordinate_system": {
           "type": "string",
           "const": "model-local",
-          "description": "Coordinate system identifier"
+          "description": "Physical coordinate system identifier (Z-up)"
         },
         "method": {
           "type": "string",

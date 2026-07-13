@@ -1,8 +1,8 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://hp015.local/schemas/sensor-env.schema.json",
-  "title": "Sensor Environment Data Message",
-  "description": "MQTT payload for sensors/{node_id}/env topic. Contains temperature, humidity, and pressure from BME680.",
+  "$id": "https://hp015.local/schemas/wearable-vital.schema.json",
+  "title": "Wearable Vital Data Message",
+  "description": "MQTT payload for wearable/{node_id}/vital topic. Contains O2 concentration from SEN0322.",
   "type": "object",
   "required": [
     "schema_version",
@@ -21,7 +21,7 @@
   "properties": {
     "schema_version": { "type": "string", "const": "1.1" },
     "message_id": { "type": "string", "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$" },
-    "node_id": { "type": "string", "pattern": "^sensor-\\d{2}$" },
+    "node_id": { "type": "string", "pattern": "^wearable-\\d{2}$" },
     "boot_id": { "type": "string", "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$" },
     "sequence": { "type": "integer", "minimum": 0, "maximum": 4294967295 },
     "sampled_at": { "type": "string", "format": "date-time" },
@@ -50,10 +50,10 @@
         "time_synced": { "type": "boolean" },
         "sensors": {
           "type": "object",
-          "required": ["bme680"],
+          "required": ["sen0322"],
           "additionalProperties": false,
           "properties": {
-            "bme680": {
+            "sen0322": {
               "type": "string",
               "enum": ["valid", "warming_up", "uncalibrated", "error", "not_connected"]
             }
@@ -63,12 +63,15 @@
     },
     "data": {
       "type": "object",
-      "required": ["temperature_c", "humidity_pct", "pressure_hpa"],
+      "required": ["o2_pct"],
       "additionalProperties": false,
       "properties": {
-        "temperature_c": { "type": "number", "minimum": -40, "maximum": 85 },
-        "humidity_pct": { "type": "number", "minimum": 0, "maximum": 100 },
-        "pressure_hpa": { "type": "number", "minimum": 800, "maximum": 1200 }
+        "o2_pct": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 30,
+          "description": "O2 concentration in percent (SEN0322, ambient air around worker)"
+        }
       }
     }
   }

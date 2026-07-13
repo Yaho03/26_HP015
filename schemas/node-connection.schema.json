@@ -1,0 +1,44 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://hp015.local/schemas/node-connection.schema.json",
+  "title": "Node Connection State Message",
+  "description": "MQTT payload for nodes/{node_id}/connection topic. Used for LWT (Last Will and Testament) and online/offline state. Retain=true. Does NOT use the common telemetry envelope.",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "node_id",
+    "status",
+    "reason",
+    "boot_id",
+    "timestamp"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": { "type": "string", "const": "1.1" },
+    "node_id": {
+      "type": "string",
+      "pattern": "^(sensor|wearable)-\\d{2}$",
+      "description": "Node identifier"
+    },
+    "status": {
+      "type": "string",
+      "enum": ["online", "offline"],
+      "description": "Connection status"
+    },
+    "reason": {
+      "type": "string",
+      "enum": ["connect", "lwt", "timeout"],
+      "description": "Reason for status change: connect (normal connect), lwt (broker-published will), timeout (backend timeout detection)"
+    },
+    "boot_id": {
+      "type": "string",
+      "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$",
+      "description": "ULID format boot identifier of the node"
+    },
+    "timestamp": {
+      "type": "string",
+      "format": "date-time",
+      "description": "Status change timestamp (ISO 8601 UTC)"
+    }
+  }
+}

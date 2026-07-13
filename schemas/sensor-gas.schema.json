@@ -8,9 +8,12 @@
     "schema_version",
     "message_id",
     "node_id",
+    "boot_id",
     "sequence",
     "sampled_at",
     "published_at",
+    "source_mode",
+    "simulation",
     "quality",
     "data"
   ],
@@ -18,48 +21,86 @@
   "properties": {
     "schema_version": {
       "type": "string",
-      "const": "1.0",
+      "const": "1.1",
       "description": "Schema version identifier"
     },
     "message_id": {
       "type": "string",
-      "pattern": "^[0-9A-Z]{26}$",
-      "description": "ULID format unique message identifier"
+      "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$",
+      "description": "ULID format unique message identifier (Crockford Base32)"
     },
     "node_id": {
       "type": "string",
-      "pattern": "^(sensor|sim)-\\d{2}$",
+      "pattern": "^sensor-\\d{2}$",
       "description": "Sending node identifier"
+    },
+    "boot_id": {
+      "type": "string",
+      "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$",
+      "description": "ULID format boot identifier. New value on each node restart."
     },
     "sequence": {
       "type": "integer",
       "minimum": 0,
       "maximum": 4294967295,
-      "description": "Per-node incrementing sequence number"
+      "description": "Per-node incrementing sequence number (resets on boot_id change)"
     },
     "sampled_at": {
       "type": "string",
       "format": "date-time",
-      "description": "Sensor sampling timestamp (ISO 8601 UTC)"
+      "description": "Sensor sampling timestamp (ISO 8601 UTC, millisecond precision)"
     },
     "published_at": {
       "type": "string",
       "format": "date-time",
-      "description": "MQTT publish timestamp (ISO 8601 UTC)"
+      "description": "MQTT publish timestamp (ISO 8601 UTC, millisecond precision)"
+    },
+    "source_mode": {
+      "type": "string",
+      "enum": ["live", "simulation"],
+      "description": "Data source mode: live (real sensor) or simulation (software injection)"
+    },
+    "simulation": {
+      "oneOf": [
+        {
+          "type": "object",
+          "required": ["run_id", "scenario_id"],
+          "additionalProperties": false,
+          "properties": {
+            "run_id": { "type": "string", "description": "Simulation run identifier" },
+            "scenario_id": { "type": "string", "description": "Scenario identifier" }
+          }
+        },
+        { "type": "null" }
+      ],
+      "description": "Simulation metadata. null when source_mode is live."
     },
     "quality": {
       "type": "object",
-      "required": ["calibrated", "sensor_status"],
+      "required": ["message_status", "time_synced", "sensors"],
       "additionalProperties": false,
       "properties": {
-        "calibrated": {
-          "type": "boolean",
-          "description": "Whether sensors are calibrated"
-        },
-        "sensor_status": {
+        "message_status": {
           "type": "string",
-          "enum": ["warming_up", "stable", "error", "offline"],
-          "description": "Sensor operational status"
+          "enum": ["complete", "partial", "degraded"],
+          "description": "Overall message quality status"
+        },
+        "time_synced": {
+          "type": "boolean",
+          "description": "NTP time synchronization status"
+        },
+        "sensors": {
+          "type": "object",
+          "required": ["mh-z19b", "mq-7", "mq-136", "mq-2", "bme680", "ads1115"],
+          "additionalProperties": false,
+          "properties": {
+            "mh-z19b": { "$ref": "#/$defs/sensor_status" },
+            "mq-7": { "$ref": "#/$defs/sensor_status" },
+            "mq-136": { "$ref": "#/$defs/sensor_status" },
+            "mq-2": { "$ref": "#/$defs/sensor_status" },
+            "bme680": { "$ref": "#/$defs/sensor_status" },
+            "ads1115": { "$ref": "#/$defs/sensor_status" }
+          }
         }
       }
     },
@@ -204,6 +245,13 @@
           "description": "BME680 BSEC accuracy level (0-3, valid when >= 2)"
         }
       }
+    }
+  },
+  "$defs": {
+    "sensor_status": {
+      "type": "string",
+      "enum": ["valid", "warming_up", "uncalibrated", "error", "not_connected"],
+      "description": "Per-sensor operational status"
     }
   }
 }

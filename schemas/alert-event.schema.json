@@ -1,0 +1,89 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://hp015.local/schemas/alert-event.schema.json",
+  "title": "Alert Event Message",
+  "description": "MQTT payload for alerts/events/{node_id} (no retain) and alerts/state/{node_id}/{alert_key} (retain) topics. Published by the backend server. Does NOT use the common telemetry envelope.",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "message_id",
+    "alert_id",
+    "source_node_id",
+    "alert_key",
+    "alert_type",
+    "level",
+    "message",
+    "status",
+    "activated_at",
+    "published_at"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": { "type": "string", "const": "1.1" },
+    "message_id": {
+      "type": "string",
+      "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$",
+      "description": "ULID format message identifier"
+    },
+    "alert_id": {
+      "type": "string",
+      "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$",
+      "description": "ULID format alert identifier"
+    },
+    "source_node_id": {
+      "type": "string",
+      "pattern": "^(sensor|wearable)-\\d{2}$",
+      "description": "Node ID that triggered this alert"
+    },
+    "alert_key": {
+      "type": "string",
+      "enum": ["co2_ppm", "co_ppm", "h2s_ppm", "temperature_c", "o2_low", "o2_high", "fall_detection", "zone_intrusion", "connection_lost"],
+      "description": "Alert key for retain topic path"
+    },
+    "alert_type": {
+      "type": "string",
+      "enum": ["gas_threshold", "fall_detection", "o2_low", "o2_high", "zone_intrusion", "connection_lost"],
+      "description": "Type of alert"
+    },
+    "level": {
+      "type": "string",
+      "enum": ["level1_caution", "level2_warning", "level3_critical"],
+      "description": "Alert severity level"
+    },
+    "trigger_value": {
+      "oneOf": [{ "type": "number" }, { "type": "null" }],
+      "description": "The measurement value that triggered the alert"
+    },
+    "threshold": {
+      "oneOf": [{ "type": "number" }, { "type": "null" }],
+      "description": "The threshold that was exceeded"
+    },
+    "metric": {
+      "oneOf": [{ "type": "string" }, { "type": "null" }],
+      "description": "Measurement metric name (e.g., co2_ppm, o2_pct)"
+    },
+    "message": {
+      "type": "string",
+      "description": "Human-readable alert message"
+    },
+    "status": {
+      "type": "string",
+      "enum": ["active", "resolved"],
+      "description": "Current alert status"
+    },
+    "activated_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "When the alert was activated (ISO 8601 UTC)"
+    },
+    "resolved_at": {
+      "oneOf": [{ "type": "string", "format": "date-time" }, { "type": "null" }],
+      "description": "When the alert was resolved (null if still active)"
+    },
+    "published_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "When the server published this message (ISO 8601 UTC)"
+    }
+  }
+}

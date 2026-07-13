@@ -1,0 +1,89 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://hp015.local/schemas/sensor-status.schema.json",
+  "title": "Sensor Node Status Message",
+  "description": "MQTT payload for sensors/{node_id}/status topic. Contains battery, WiFi RSSI, uptime, and sensor health. Retain=true.",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "message_id",
+    "node_id",
+    "boot_id",
+    "sequence",
+    "sampled_at",
+    "published_at",
+    "source_mode",
+    "simulation",
+    "quality",
+    "data"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": { "type": "string", "const": "1.1" },
+    "message_id": { "type": "string", "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$" },
+    "node_id": { "type": "string", "pattern": "^sensor-\\d{2}$" },
+    "boot_id": { "type": "string", "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$" },
+    "sequence": { "type": "integer", "minimum": 0, "maximum": 4294967295 },
+    "sampled_at": { "type": "string", "format": "date-time" },
+    "published_at": { "type": "string", "format": "date-time" },
+    "source_mode": { "type": "string", "enum": ["live", "simulation"] },
+    "simulation": {
+      "oneOf": [
+        {
+          "type": "object",
+          "required": ["run_id", "scenario_id"],
+          "additionalProperties": false,
+          "properties": {
+            "run_id": { "type": "string" },
+            "scenario_id": { "type": "string" }
+          }
+        },
+        { "type": "null" }
+      ]
+    },
+    "quality": {
+      "type": "object",
+      "required": ["message_status", "time_synced", "sensors"],
+      "additionalProperties": false,
+      "properties": {
+        "message_status": { "type": "string", "enum": ["complete", "partial", "degraded"] },
+        "time_synced": { "type": "boolean" },
+        "sensors": {
+          "type": "object",
+          "required": ["mh-z19b", "mq-7", "mq-136", "mq-2", "bme680", "ads1115", "dwm1000"],
+          "additionalProperties": false,
+          "properties": {
+            "mh-z19b": { "type": "string", "enum": ["valid", "warming_up", "uncalibrated", "error", "not_connected"] },
+            "mq-7": { "type": "string", "enum": ["valid", "warming_up", "uncalibrated", "error", "not_connected"] },
+            "mq-136": { "type": "string", "enum": ["valid", "warming_up", "uncalibrated", "error", "not_connected"] },
+            "mq-2": { "type": "string", "enum": ["valid", "warming_up", "uncalibrated", "error", "not_connected"] },
+            "bme680": { "type": "string", "enum": ["valid", "warming_up", "uncalibrated", "error", "not_connected"] },
+            "ads1115": { "type": "string", "enum": ["valid", "warming_up", "uncalibrated", "error", "not_connected"] },
+            "dwm1000": { "type": "string", "enum": ["valid", "warming_up", "uncalibrated", "error", "not_connected"] }
+          }
+        }
+      }
+    },
+    "data": {
+      "type": "object",
+      "required": ["battery_pct", "wifi_rssi_dbm", "uptime_s", "free_heap_bytes", "sensors_online", "sensors_error"],
+      "additionalProperties": false,
+      "properties": {
+        "battery_pct": { "type": "integer", "minimum": 0, "maximum": 100 },
+        "wifi_rssi_dbm": { "type": "integer", "minimum": -120, "maximum": 0 },
+        "uptime_s": { "type": "integer", "minimum": 0 },
+        "free_heap_bytes": { "type": "integer", "minimum": 0 },
+        "sensors_online": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "List of sensor identifiers currently online"
+        },
+        "sensors_error": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "List of sensor identifiers currently in error state"
+        }
+      }
+    }
+  }
+}

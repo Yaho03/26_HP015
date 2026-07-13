@@ -124,7 +124,7 @@ graph TD
        |-- WebSocket Push --> Zustand --> Dashboard (Recharts)
        |                                  |--> 3D Digital Twin (R3F)
        |
-       |-- 임계값 판정 --> alerts/{node_id} --> MQTT Broker
+       |-- 임계값 판정 --> alerts/events/{node_id} --> MQTT Broker
                                                     |
                                                웨어러블 노드
                                                     |-- 진동 모터
@@ -155,7 +155,7 @@ graph TD
 | 3D 모델 단위 | 1 Three.js unit = 1 meter |
 | 좌표계 식별자 | `model-local` |
 
-> UWB 측위 결과는 2D (x, y)이며, z는 항상 0.0이다. 3D 렌더링 시 바닥 높이에 고정 매핑한다.
+> UWB 측위 결과는 2D (x, y)이며, z는 항상 0.0이다. 물리 좌표계는 Z-up이며, Three.js 렌더링 시 Y-up으로 변환한다 (three_x=physical_x, three_y=physical_z, three_z=-physical_y).
 
 ---
 

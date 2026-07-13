@@ -153,14 +153,18 @@ ARCHITECTURE에 정의된 복합 위험 점수의 한계:
   - 온도 상승 시 Rs 감소 보상
 
 4단계: 대상 가스 교정
-  - 알려진 농도 환경에서 Rs/R0 vs 농도 커브 작성
-  - 센서 데이터시트의 characteristic curve 참조
-  - 개별 센서별 보정 계수 적용
+  - **MVP에서는 실제 유해 가스 사용 금지로 인해 미수행**
+  - 알려진 농도 환경에서 Rs/R0 vs 농도 커브 작성이 필요하나,
+    본 프로젝트에서는 실제 가스 사용 불가
+  - CO/H2S 경보 파이프라인은 소프트웨어 데이터 주입으로만 검증
 
-5단계: 검증
-  - 교정 후 측정값의 반복성 확인
-  - calibration_status를 "calibrated"로 변경
+5단계: MVP 정책
+  - calibration_status: "uncalibrated" 유지
+  - estimated_ppm: null 유지
+  - raw_adc, voltage_v, rs_ohm, rs_r0_ratio 값만 제공
 ```
+
+> MQ 센서의 대상 가스 교정에는 알려진 농도의 CO/H2S 가스가 필요하다. 본 프로젝트에서는 안전상 실제 유해 가스를 사용할 수 없으므로, MVP 기간 동안 MQ 센서는 raw 값만 제공하며 경보 대상에서 제외한다. (`06_ALERT_RULES.md` 섹션 4.3 참조)
 
 ### 5.2 MH-Z19B (CO2)
 
@@ -200,9 +204,9 @@ ARCHITECTURE에 정의된 복합 위험 점수의 한계:
 ### 6.2 데이터 주입 방식
 
 - MQTT 클라이언트를 통해 시나리오 데이터를 publish
-- node_id에 `sim-` prefix 사용 (예: `sim-01`)하여 실제 센서와 구분
+- 실제 물리 node_id를 그대로 사용하되 `source_mode: "simulation"` 필드로 실제 센서와 구분
 - 주입 데이터는 사전 정의된 시나리오 스크립트 사용
-- 주입 데이터의 `quality.calibrated`를 `true`로 설정하여 경보 로직 테스트
+- 주입 데이터의 `quality` 필드에 정상 상태 값을 설정하여 경보 로직 테스트
 
 ### 6.3 진동 모터 안전
 
