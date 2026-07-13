@@ -1,0 +1,122 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://hp015.local/schemas/wearable-location.schema.json",
+  "title": "Wearable Location Data Message",
+  "description": "MQTT payload for wearable/{node_id}/location topic. Contains UWB DS-TWR 2D positioning data.",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "message_id",
+    "node_id",
+    "sequence",
+    "sampled_at",
+    "published_at",
+    "quality",
+    "data"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {
+      "type": "string",
+      "const": "1.0",
+      "description": "Schema version identifier"
+    },
+    "message_id": {
+      "type": "string",
+      "pattern": "^[0-9A-Z]{26}$",
+      "description": "ULID format unique message identifier"
+    },
+    "node_id": {
+      "type": "string",
+      "pattern": "^(wearable|sim)-\\d{2}$",
+      "description": "Sending node identifier"
+    },
+    "sequence": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 4294967295,
+      "description": "Per-node incrementing sequence number"
+    },
+    "sampled_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "UWB measurement timestamp (ISO 8601 UTC)"
+    },
+    "published_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "MQTT publish timestamp (ISO 8601 UTC)"
+    },
+    "quality": {
+      "type": "object",
+      "required": ["calibrated", "sensor_status"],
+      "additionalProperties": false,
+      "properties": {
+        "calibrated": {
+          "type": "boolean",
+          "description": "Whether UWB antenna delay is calibrated"
+        },
+        "sensor_status": {
+          "type": "string",
+          "enum": ["warming_up", "stable", "error", "offline"],
+          "description": "UWB module operational status"
+        }
+      }
+    },
+    "data": {
+      "type": "object",
+      "required": [
+        "x_m",
+        "y_m",
+        "z_m",
+        "coordinate_system",
+        "method",
+        "anchor_count",
+        "quality_score",
+        "is_filtered"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "x_m": {
+          "type": "number",
+          "description": "X-axis position in meters (UWB measured)"
+        },
+        "y_m": {
+          "type": "number",
+          "description": "Y-axis position in meters (UWB measured)"
+        },
+        "z_m": {
+          "type": "number",
+          "const": 0,
+          "description": "Z-axis position, always 0.0 (2D positioning, z is rendering-only fixed value)"
+        },
+        "coordinate_system": {
+          "type": "string",
+          "const": "model-local",
+          "description": "Coordinate system identifier"
+        },
+        "method": {
+          "type": "string",
+          "const": "ds_twr",
+          "description": "Positioning method (DS-TWR only in MVP)"
+        },
+        "anchor_count": {
+          "type": "integer",
+          "minimum": 3,
+          "maximum": 4,
+          "description": "Number of anchors used in position calculation"
+        },
+        "quality_score": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1,
+          "description": "Position quality score (0.0-1.0)"
+        },
+        "is_filtered": {
+          "type": "boolean",
+          "description": "Whether EMA/Kalman filter was applied"
+        }
+      }
+    }
+  }
+}

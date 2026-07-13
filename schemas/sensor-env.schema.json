@@ -1,0 +1,92 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://hp015.local/schemas/sensor-env.schema.json",
+  "title": "Sensor Environment Data Message",
+  "description": "MQTT payload for sensors/{node_id}/env topic. Contains temperature, humidity, and pressure from BME680.",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "message_id",
+    "node_id",
+    "sequence",
+    "sampled_at",
+    "published_at",
+    "quality",
+    "data"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {
+      "type": "string",
+      "const": "1.0",
+      "description": "Schema version identifier"
+    },
+    "message_id": {
+      "type": "string",
+      "pattern": "^[0-9A-Z]{26}$",
+      "description": "ULID format unique message identifier"
+    },
+    "node_id": {
+      "type": "string",
+      "pattern": "^(sensor|wearable|sim)-\\d{2}$",
+      "description": "Sending node identifier"
+    },
+    "sequence": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 4294967295,
+      "description": "Per-node incrementing sequence number"
+    },
+    "sampled_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "Sensor sampling timestamp (ISO 8601 UTC)"
+    },
+    "published_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "MQTT publish timestamp (ISO 8601 UTC)"
+    },
+    "quality": {
+      "type": "object",
+      "required": ["calibrated", "sensor_status"],
+      "additionalProperties": false,
+      "properties": {
+        "calibrated": {
+          "type": "boolean",
+          "description": "Whether sensors are calibrated"
+        },
+        "sensor_status": {
+          "type": "string",
+          "enum": ["warming_up", "stable", "error", "offline"],
+          "description": "Sensor operational status"
+        }
+      }
+    },
+    "data": {
+      "type": "object",
+      "required": ["temperature_c", "humidity_pct", "pressure_hpa"],
+      "additionalProperties": false,
+      "properties": {
+        "temperature_c": {
+          "type": "number",
+          "minimum": -40,
+          "maximum": 85,
+          "description": "Temperature in Celsius (BME680)"
+        },
+        "humidity_pct": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 100,
+          "description": "Relative humidity percentage (BME680)"
+        },
+        "pressure_hpa": {
+          "type": "number",
+          "minimum": 800,
+          "maximum": 1200,
+          "description": "Atmospheric pressure in hPa (BME680)"
+        }
+      }
+    }
+  }
+}

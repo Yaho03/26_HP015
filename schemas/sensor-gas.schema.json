@@ -1,0 +1,209 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://hp015.local/schemas/sensor-gas.schema.json",
+  "title": "Sensor Gas Data Message",
+  "description": "MQTT payload for sensors/{node_id}/gas topic. Contains gas concentration and resistance measurements from sensor nodes.",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "message_id",
+    "node_id",
+    "sequence",
+    "sampled_at",
+    "published_at",
+    "quality",
+    "data"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {
+      "type": "string",
+      "const": "1.0",
+      "description": "Schema version identifier"
+    },
+    "message_id": {
+      "type": "string",
+      "pattern": "^[0-9A-Z]{26}$",
+      "description": "ULID format unique message identifier"
+    },
+    "node_id": {
+      "type": "string",
+      "pattern": "^(sensor|sim)-\\d{2}$",
+      "description": "Sending node identifier"
+    },
+    "sequence": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 4294967295,
+      "description": "Per-node incrementing sequence number"
+    },
+    "sampled_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "Sensor sampling timestamp (ISO 8601 UTC)"
+    },
+    "published_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "MQTT publish timestamp (ISO 8601 UTC)"
+    },
+    "quality": {
+      "type": "object",
+      "required": ["calibrated", "sensor_status"],
+      "additionalProperties": false,
+      "properties": {
+        "calibrated": {
+          "type": "boolean",
+          "description": "Whether sensors are calibrated"
+        },
+        "sensor_status": {
+          "type": "string",
+          "enum": ["warming_up", "stable", "error", "offline"],
+          "description": "Sensor operational status"
+        }
+      }
+    },
+    "data": {
+      "type": "object",
+      "required": [
+        "co2_ppm",
+        "co_raw_adc",
+        "co_voltage_v",
+        "co_rs_ohm",
+        "co_rs_r0_ratio",
+        "co_estimated_ppm",
+        "co_calibration_status",
+        "h2s_raw_adc",
+        "h2s_voltage_v",
+        "h2s_rs_ohm",
+        "h2s_rs_r0_ratio",
+        "h2s_estimated_ppm",
+        "h2s_calibration_status",
+        "mq2_raw_adc",
+        "mq2_voltage_v",
+        "mq2_rs_ohm",
+        "mq2_rs_r0_ratio",
+        "mq2_estimated_concentration",
+        "mq2_calibration_status",
+        "gas_resistance_ohm",
+        "iaq_index",
+        "iaq_accuracy"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "co2_ppm": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 10000,
+          "description": "CO2 concentration in ppm (MH-Z19B)"
+        },
+        "co_raw_adc": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 32767,
+          "description": "MQ-7 raw ADC value (ADS1115 16-bit, signed)"
+        },
+        "co_voltage_v": {
+          "type": "number",
+          "minimum": 0,
+          "description": "MQ-7 voltage after voltage divider"
+        },
+        "co_rs_ohm": {
+          "type": "number",
+          "minimum": 0,
+          "description": "MQ-7 sensor resistance in ohms"
+        },
+        "co_rs_r0_ratio": {
+          "type": "number",
+          "minimum": 0,
+          "description": "MQ-7 Rs/R0 ratio"
+        },
+        "co_estimated_ppm": {
+          "oneOf": [{ "type": "number", "minimum": 0 }, { "type": "null" }],
+          "description": "MQ-7 estimated CO in ppm (null if uncalibrated)"
+        },
+        "co_calibration_status": {
+          "type": "string",
+          "enum": ["uncalibrated", "calibrating", "calibrated"],
+          "description": "MQ-7 calibration status"
+        },
+        "h2s_raw_adc": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 32767,
+          "description": "MQ-136 raw ADC value (ADS1115 16-bit)"
+        },
+        "h2s_voltage_v": {
+          "type": "number",
+          "minimum": 0,
+          "description": "MQ-136 voltage after voltage divider"
+        },
+        "h2s_rs_ohm": {
+          "type": "number",
+          "minimum": 0,
+          "description": "MQ-136 sensor resistance in ohms"
+        },
+        "h2s_rs_r0_ratio": {
+          "type": "number",
+          "minimum": 0,
+          "description": "MQ-136 Rs/R0 ratio"
+        },
+        "h2s_estimated_ppm": {
+          "oneOf": [{ "type": "number", "minimum": 0 }, { "type": "null" }],
+          "description": "MQ-136 estimated H2S in ppm (null if uncalibrated)"
+        },
+        "h2s_calibration_status": {
+          "type": "string",
+          "enum": ["uncalibrated", "calibrating", "calibrated"],
+          "description": "MQ-136 calibration status"
+        },
+        "mq2_raw_adc": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 32767,
+          "description": "MQ-2 raw ADC value (ADS1115 16-bit)"
+        },
+        "mq2_voltage_v": {
+          "type": "number",
+          "minimum": 0,
+          "description": "MQ-2 voltage after voltage divider"
+        },
+        "mq2_rs_ohm": {
+          "type": "number",
+          "minimum": 0,
+          "description": "MQ-2 sensor resistance in ohms"
+        },
+        "mq2_rs_r0_ratio": {
+          "type": "number",
+          "minimum": 0,
+          "description": "MQ-2 Rs/R0 ratio"
+        },
+        "mq2_estimated_concentration": {
+          "oneOf": [{ "type": "number", "minimum": 0 }, { "type": "null" }],
+          "description": "MQ-2 estimated combustible gas concentration (null if uncalibrated, NOT ppm or LEL%)"
+        },
+        "mq2_calibration_status": {
+          "type": "string",
+          "enum": ["uncalibrated", "calibrating", "calibrated"],
+          "description": "MQ-2 calibration status"
+        },
+        "gas_resistance_ohm": {
+          "type": "number",
+          "minimum": 0,
+          "description": "BME680 gas resistance in ohms (NOT voc_ppm)"
+        },
+        "iaq_index": {
+          "type": "number",
+          "minimum": 0,
+          "description": "BME680 IAQ index via BSEC library"
+        },
+        "iaq_accuracy": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 3,
+          "description": "BME680 BSEC accuracy level (0-3, valid when >= 2)"
+        }
+      }
+    }
+  }
+}
