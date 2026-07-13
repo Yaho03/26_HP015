@@ -1,8 +1,8 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://hp015.local/schemas/sensor-env.schema.json",
-  "title": "Sensor Environment Data Message",
-  "description": "MQTT payload for sensors/{node_id}/env topic. Contains temperature, humidity, and pressure from BME680.",
+  "$id": "https://hp015.local/schemas/wearable-imu.schema.json",
+  "title": "Wearable IMU Data Message",
+  "description": "MQTT payload for wearable/{node_id}/imu topic. Contains accelerometer, gyroscope, and fall detection data. QoS 0.",
   "type": "object",
   "required": [
     "schema_version",
@@ -21,7 +21,7 @@
   "properties": {
     "schema_version": { "type": "string", "const": "1.1" },
     "message_id": { "type": "string", "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$" },
-    "node_id": { "type": "string", "pattern": "^sensor-\\d{2}$" },
+    "node_id": { "type": "string", "pattern": "^wearable-\\d{2}$" },
     "boot_id": { "type": "string", "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$" },
     "sequence": { "type": "integer", "minimum": 0, "maximum": 4294967295 },
     "sampled_at": { "type": "string", "format": "date-time" },
@@ -50,10 +50,10 @@
         "time_synced": { "type": "boolean" },
         "sensors": {
           "type": "object",
-          "required": ["bme680"],
+          "required": ["mpu-6050"],
           "additionalProperties": false,
           "properties": {
-            "bme680": {
+            "mpu-6050": {
               "type": "string",
               "enum": ["valid", "warming_up", "uncalibrated", "error", "not_connected"]
             }
@@ -63,12 +63,26 @@
     },
     "data": {
       "type": "object",
-      "required": ["temperature_c", "humidity_pct", "pressure_hpa"],
+      "required": [
+        "accel_x_g",
+        "accel_y_g",
+        "accel_z_g",
+        "accel_magnitude_g",
+        "gyro_x_dps",
+        "gyro_y_dps",
+        "gyro_z_dps",
+        "fall_detected"
+      ],
       "additionalProperties": false,
       "properties": {
-        "temperature_c": { "type": "number", "minimum": -40, "maximum": 85 },
-        "humidity_pct": { "type": "number", "minimum": 0, "maximum": 100 },
-        "pressure_hpa": { "type": "number", "minimum": 800, "maximum": 1200 }
+        "accel_x_g": { "type": "number" },
+        "accel_y_g": { "type": "number" },
+        "accel_z_g": { "type": "number" },
+        "accel_magnitude_g": { "type": "number", "minimum": 0 },
+        "gyro_x_dps": { "type": "number" },
+        "gyro_y_dps": { "type": "number" },
+        "gyro_z_dps": { "type": "number" },
+        "fall_detected": { "type": "boolean", "description": "Whether a fall was detected in this sample" }
       }
     }
   }

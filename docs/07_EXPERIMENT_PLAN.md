@@ -3,7 +3,7 @@
 | 항목 | 내용 |
 |------|------|
 | 문서명 | 실험 계획서 |
-| 버전 | v1.0 |
+| 버전 | v2.0 |
 | 상태 | 확정 |
 | 최종 수정일 | 2026-07-13 |
 
@@ -29,7 +29,7 @@
 |------------|-----------|------|
 | `sampled_at` | 센서 노드 | 센서에서 값을 읽은 시각 |
 | `published_at` | 센서 노드 | ESP32가 MQTT publish 호출 시각 |
-| `broker_received_at` | MQTT Broker | Broker가 메시지 수신 시각 |
+| `backend_received_at` | 백엔드 서버 | 백엔드 서버가 MQTT 메시지를 수신한 시각 (MQTT broker가 자동으로 추가하지 않음, 백엔드에서 기록) |
 | `stored_at` | 백엔드 서버 | DB 저장 완료 시각 |
 | `rendered_at` | 대시보드 | 프론트엔드 화면 렌더링 완료 시각 |
 
@@ -45,7 +45,8 @@
 | EXP-2 | UWB 정적 위치 정확도 | FR-301 |
 | EXP-3 | 동적 위치 추적 | FR-301, FR-302 |
 | EXP-4 | End-to-End 경보 지연 | FR-203 |
-| EXP-5 | IDW 공간 보간 정확도 | FR-501 |
+| EXP-5A | IDW 보간 정확도 (합성 데이터) | FR-501 |
+| EXP-5B | IDW 보간 일관성 (실제 센서) | FR-501 |
 | EXP-6 | 장애 및 복구 | FR-102, 비기능 5.2 |
 
 ---
@@ -62,17 +63,19 @@
 |------|-----|
 | 실행 시간 | 최소 2시간 연속 |
 | 센서 노드 | 4개 동시 |
-| 발행 주기 | 1초 (CO₂, MQ 계열) |
-| 총 예상 메시지 | 노드당 7,200건 이상 |
+| 발행 주기 (per-topic, per-node) | gas: 1초 주기, env: 5초 주기, status: 10초 주기 |
+| 총 예상 메시지 (per node) | gas: 7,200건 / 노드, env: 1,440건 / 노드, status: 720건 / 노드, 합계: 9,360건 / 노드 |
+| 총 예상 메시지 (4 sensor nodes) | 37,440건 |
+| 웨어러블 노드 예상 메시지 | location (5Hz): 36,000건, vital (5s): 1,440건, imu (10Hz): 72,000건 |
 
 ### 측정 항목
 
 | 항목 | 설명 |
 |------|------|
-| 수신율 | 수신 메시지 수 / 예상 메시지 수 |
+| 수신율 | 수신 메시지 수 / 예상 메시지 수 (topic별 및 노드별로 집계) |
 | 중복률 | 중복 message_id 수 / 전체 수신 수 |
 | 순서 역전 | sequence 감소 횟수 |
-| 재접속 시간 | MQTT 연결 끊김 후 재연결까지 시간 |
+| 재접속 시간 (P95) | MQTT 연결 끊김 후 재연결까지 시간 (P95) |
 
 ### 합격 기준
 
@@ -81,14 +84,14 @@
 | 수신율 | >= 99% |
 | P95 메시지 지연 (sampled_at -> stored_at) | <= 3초 |
 | 중복률 | <= 0.1% |
-| 재접속 시간 (평균) | <= 10초 |
+| 재접속 시간 (P95) | <= 10초 |
 
 ### 데이터 저장
 
 각 메시지의 5단계 타임스탬프를 CSV로 저장한다.
 
 ```
-message_id,node_id,sequence,sampled_at,published_at,broker_received_at,stored_at,rendered_at
+message_id,node_id,sequence,sampled_at,published_at,backend_received_at,stored_at,rendered_at
 ```
 
 ---
@@ -164,16 +167,35 @@ UWB DS-TWR 측위 시스템의 정적 위치 정확도를 측정한다.
 - 작업자가 정해진 경로를 일정한 속도(약 0.5m/s)로 이동
 - 각 경로를 3회 반복 측정
 
-### 평가 지표
+### 측정 통계
+
+본 절에서는 위치 추적의 동적 성능(위치 추적 정확도)과 위치 품질에 대한 통계(quality metrics)를 분리하여 기록한다.
+
+- 위치 추적 정확도 지표:
+  - 위치 갱신 빈도: Hz 단위 위치 업데이트 빈도
+  - 실제 경로 대비 평균 오차: 측정 경로와 Ground Truth 경로 간 평균 거리
+  - 순간 점프 횟수: 이전 위치 대비 1m 이상 급변 횟수
+  - 최대 정지 시간: 위치 갱신이 없었던 최대 연속 시간
+  - 화면 반영 지연: 위치 측정 시각부터 화면 표시까지 시간
+  - 위험 구역 진입 감지 지연: 실제 진입 시각부터 경보 발령까지 시간
+
+- 위치 품질 지표:
+  - quality_score 통계: 평균, P5 (하위 5%)
+  - anchor_count 분포: 각측정 시점에서 사용된 앵커 수의 분포
+  - is_filtered 비율: 필터링(거리 이상치/점프 필터 등)에 의해 폐기된 측정의 비율
+
+### 평가 지표 (요약)
 
 | 지표 | 설명 |
 |------|------|
 | 위치 갱신 빈도 | Hz 단위 위치 업데이트 빈도 |
-| 실제 경로 대비 평균 오차 | 측정 경로와 Ground Truth 경로 간 평균 거리 |
-| 순간 점프 횟수 | 이전 위치 대비 1m 이상 급변 횟수 |
-| 최대 정지 시간 | 위치 갱신이 없었던 최대 연속 시간 |
-| 화면 반영 지연 | 위치 측정 시각부터 화면 표시까지 시간 |
-| 위험 구역 진입 감지 지연 | 실제 진입 시각부터 경보 발령까지 시간 |
+| 평균 경로 오차 (P95) | 측정 경로와 Ground Truth 간 거리의 P95 |
+| 순간 점프 횟수 | 1m 이상 급변 횟수 (정규화: 회/분) |
+| 화면 반영 지연 (P95) | 측정->화면 표시 지연의 P95 |
+| 위험 구역 진입 감지 지연 (P95) | 실제 진입->경보 발령 지연 P95 |
+| quality_score 평균, P5 | 위치 품질 점수의 평균 및 하위 5% |
+| anchor_count 분포 | 앵커 수 분포 (히스토그램) |
+| is_filtered 비율 | 필터링된 측정 비율 |
 
 ### 합격 기준
 
@@ -199,9 +221,9 @@ UWB DS-TWR 측위 시스템의 정적 위치 정확도를 측정한다.
 |------|------|
 | T0 | 센서값 생성 (sampled_at) |
 | T1 | MQTT publish (published_at) |
-| T2 | Broker 수신 (broker_received_at) |
-| T3 | 백엔드 수신 |
-| T4 | 위험 판정 완료 |
+| T2 | 백엔드 수신 (backend_received_at) |
+| T3 | DB 저장 완료 (stored_at) |
+| T4 | 위험 판정 완료 (judged_at) |
 | T5 | Alert publish (서버가 alerts 토픽 발행) |
 | T6 | 웨어러블 진동 시작 (진동 모터 구동 확인) |
 | T7 | Web UI 경보 표시 (rendered_at) |
@@ -212,15 +234,15 @@ UWB DS-TWR 측위 시스템의 정적 위치 정확도를 측정한다.
 |-----------|------|
 | Wearable alert latency | T6 - T0 |
 | Dashboard alert latency | T7 - T0 |
-| Backend processing | T4 - T3 |
-| Network latency | T3 - T1 |
+| Backend processing | T4 - T2 |
+| Network latency | T2 - T1 |
 
 ### 측정 방법
 
-1. 데이터 주입 클라이언트로 임계값 초과 가스 데이터 publish (node_id: "sim-01")
-2. 각 단계별 타임스탬프 기록
-3. T6 (진동 시작)은 고속 카메라 또는 진동 센서로 측정
-4. T7 (UI 표시)은 프론트엔드에서 콘솔 타임스탬프 기록
+1. 데이터 주입: 실험용 페이로드에서 실제 센서의 node_id (예: "sensor-01")를 사용하되, envelope에 `source_mode: "simulation"` 필드를 추가하여 시뮬레이션 소스로 표기한다. (예: { node_id: "sensor-01", source_mode: "simulation", ... })
+2. 각 단계별 타임스탬프를 기록한다.
+3. T6 (진동 시작) 측정: 진동 모터 구동 시작 시점을 고속 카메라(최소 120fps)로 촬영하여 프레임 기준으로 시작 시점을 결정한다. 진동 센서(예: 가속도계)를 보조 측정으로 사용하되, 고속 카메라를 Ground Truth로 삼는다.
+4. T7 (UI 표시) 측정: 프론트엔드 콘솔의 타임스탬프를 기록한다.
 
 ### 합격 기준
 
@@ -228,52 +250,63 @@ UWB DS-TWR 측위 시스템의 정적 위치 정확도를 측정한다.
 |------|------|
 | P95 Wearable alert latency (T6-T0) | <= 3초 |
 | P95 Dashboard alert latency (T7-T0) | <= 3초 |
-| Backend processing (T4-T3, 중앙값) | <= 500ms |
+| Backend processing (T4-T2, 중앙값) | <= 500ms |
 
 > O₂ 경보는 센서 응답 시간(최대 15초)으로 인해 3초 목표에서 제외한다.
 
 ---
 
-## EXP-5: IDW 공간 보간 정확도
+## EXP-5A: IDW 보간 정확도 (합성 데이터)
 
 ### 목적
 
-4개 센서의 측정값으로 IDW 보간한 추정값의 정확도를 검증한다.
+합성 가스 필드(소프트웨어로 생성한 CO₂ 농도 그라디언트)를 센서 노드에 주입한 것으로 가정하고, IDW(Inverse Distance Weighting) 보간 수학적 정확성을 검증한다. 알고리즘 자체의 구현 오류를 찾아내기 위한 실험이다.
 
-### 방법: Leave-One-Out
+### 방법
 
-4개 센서 중 하나를 검증용으로 제외하고, 나머지 3개로 해당 위치를 예측한다.
-
-| 반복 | 학습 센서 | 검증 센서 |
-|------|-----------|-----------|
-| 1 | 1, 2, 3 | 4 |
-| 2 | 1, 2, 4 | 3 |
-| 3 | 1, 3, 4 | 2 |
-| 4 | 2, 3, 4 | 1 |
-
-### 측정 데이터
-
-- CO₂ 농도를 기준 지표로 사용 (MH-Z19B는 교정된 신뢰할 수 있는 센서)
-- 최소 2시간 연속 데이터 수집
-- 5초 간격으로 Leave-One-Out 예측 수행
+- 합성 데이터셋 생성: 노드 위치와 알려진 CO₂ 농도 분포(그라디언트 및 랜덤 노이즈 포함)를 소프트웨어로 생성한다.
+- Leave-One-Out: 4개 센서 중 하나를 제거하고 나머지 센서로 제거된 노드의 값을 예측한다. 모든 조합에 대해 수행.
+- 보간 파라미터는 실사용 값(가중치 지수 등)을 사용하며, 파라미터 값 별 성능도 기록한다.
 
 ### 평가 지표
 
 | 지표 | 설명 |
 |------|------|
-| MAE | 예측값과 실측값의 평균 절대 오차 |
+| MAE | Mean Absolute Error |
 | RMSE | Root Mean Square Error |
 | 최대 오차 | 단일 예측의 최대 오차 |
-| 위험 등급 일치율 | 예측 등급과 실제 등급이 일치하는 비율 |
 
-### 합격 기준
+### 합격 기준 및 목적
 
-| 항목 | 기준 |
+- EXP-5A의 목적은 IDW 수치 알고리즘이 수학적으로 올바르게 구현되었는지 검증하는 것임.
+- 합격 기준: 합성 데이터에서 MAE와 RMSE가 사전 정의된 임계값(실험 전 정의) 이하이고, 최대 오차가 허용 범위 이내일 것. (자세한 임계값은 실험 시 정의)
+
+---
+
+## EXP-5B: IDW 보간 일관성 (실제 센서)
+
+### 목적
+
+실제 센서에서 취득한 CO₂ 데이터를 사용하여 IDW 보간의 일관성을 검증한다. 실제 환경에서 센서가 상대적으로 균일한 구역을 대상으로 2시간 이상 데이터를 수집하여 보간의 일관성을 평가한다.
+
+### 방법
+
+- 실제 센서 데이터 수집: 4개 센서에서 2시간 이상 연속 데이터 수집
+- Leave-One-Out: 각 센서를 검증용으로 제외하고 보간 수행
+- 보간 결과와 실제 값을 비교하여 통계 산출
+
+### 평가 지표
+
+| 지표 | 설명 |
 |------|------|
-| MAE | <= 200 ppm (CO₂ 기준) |
-| 위험 등급 일치율 | >= 80% |
+| MAE | Mean Absolute Error |
+| 위험 등급 일치율 | 예측 등급과 실제 등급(안전/주의/위험)이 일치하는 비율 |
 
-> 결과가 합격 기준을 충족하지 못하면, IDW 히트맵은 시각적 참고 자료로만 제한한다. (`05_DIGITAL_TWIN_SPEC.md` 참조)
+### 합격 기준 및 목적
+
+- EXP-5B의 목적은 실세계 데이터에서 보간이 일관되게 동작하는지 확인하는 것임.
+- 합격 기준: MAE가 사전 정의된 임계값 이하이고, 위험 등급 일치율 >= 80%.
+- EXP-5A는 알고리즘 검증을, EXP-5B는 실제 환경에서의 일관성 검증을 각각 담당한다.
 
 ---
 
@@ -289,7 +322,8 @@ UWB DS-TWR 측위 시스템의 정적 위치 정확도를 측정한다.
 |----|------|-----------|-----------|
 | F-1 | Wi-Fi 30초 차단 | 재접속 후 자동 복구 | 복구 시간 <= 30초 |
 | F-2 | MQTT Broker 재시작 | 노드 자동 재연결 | 재연결 시간 <= 15초 |
-| F-3 | 센서 하나 중단 | Offline 표시 | LWT 발행 <= 30초 |
+| F-3a | 센서 노드 전원 차단 | LWT 발행 및 offline 표시 | LWT 발행 <= 30초 |
+| F-3b | 백엔드 timeout 판정 (데이터 수신 없음) | reason: "timeout"으로 offline 판정 | timeout 판정 <= 35초 |
 | F-4 | 중복 메시지 발생 | DB 중복 저장 방지 | 중복 저장 0건 |
 | F-5 | 순서 뒤바뀐 메시지 | event timestamp 기준 처리 | 순서 역전 무시율 100% |
 | F-6 | WebSocket 재연결 | 최신 상태 Snapshot 복구 | 복구 시간 <= 5초 |
@@ -300,7 +334,8 @@ UWB DS-TWR 측위 시스템의 정적 위치 정확도를 측정한다.
 
 - F-1: WiFi 라우터 전원 차단/복구
 - F-2: Mosquitto 프로세스 종료/재시작
-- F-3: 센서 노드 하나의 전원 차단
+- F-3a: 센서 노드 하나의 전원 차단(노드 전원 차단을 통해 LWT가 발행되는지 확인)
+- F-3b: 백엔드에서 데이터 수신이 일정 시간(설정된 timeout 값) 없을 때 timeout 판정 로직을 트리거하여 offline으로 표시하고 reason을 "timeout"으로 기록. 측정은 timeout 판정이 발생하는 시간까지의 지연을 기록한다.
 - F-4: 동일 message_id 메시지 수동 발행
 - F-5: 역순 sequence 메시지 수동 발행
 - F-6: 대시보드 WebSocket 연결 종단 차단
@@ -316,23 +351,27 @@ UWB DS-TWR 측위 시스템의 정적 위치 정확도를 측정한다.
 모든 실험 데이터는 다음 공통 컬럼과 실험별 컬럼을 포함한다.
 
 **공통 컬럼:**
+
 ```
 experiment_id,run_id,timestamp_utc,node_id,firmware_sha,experiment_code_version
 ```
 
 **EXP-1 추가 컬럼:**
+
 ```
-message_id,sequence,sampled_at,published_at,broker_received_at,stored_at,rendered_at
+message_id,sequence,sampled_at,published_at,backend_received_at,stored_at,rendered_at
 ```
 
 **EXP-2, EXP-3 추가 컬럼:**
+
 ```
 grid_x,grid_y,ground_truth_x,ground_truth_y,measured_x,measured_y,error_m,condition
 ```
 
 **EXP-4 추가 컬럼:**
+
 ```
-t0_sampled,t1_published,t2_broker,t3_backend,t4_judged,t5_alert_publish,t6_vibration,t7_ui_render
+t0_sampled,t1_published,t2_backend_received,t3_stored,t4_judged,t5_alert_publish,t6_vibration,t7_ui_render
 ```
 
 ### 실험 메타데이터

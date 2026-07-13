@@ -201,7 +201,8 @@ sensors/{node_id}/status    → 배터리, WiFi RSSI, 업타임, 센서 상태
 wearable/{node_id}/location → UWB x, y, z(fixed=0.0), 품질, 앵커 수
 wearable/{node_id}/imu      → 가속도, 자이로, 낙상 감지 여부
 wearable/{node_id}/vital    → O₂ 농도
-alerts/{node_id}            → 경보 발령 이벤트 (서버 발행)
+alerts/events/{node_id}            → 경보 발령 이벤트 (서버 발행, Retain 없음)
+alerts/state/{node_id}/{alert_key}    → 경보 상태 (서버 발행, Retain, alert_key별 유지)
 ```
 
 #### FR-103 데이터 저장
@@ -236,7 +237,7 @@ alerts/{node_id}            → 경보 발령 이벤트 (서버 발행)
 | O₂ | 19.5–23.5% | 18.0–19.5% | 16.0–18.0% | < 16.0% 또는 > 23.5% |
 
 - **MUST**: 임계값은 코드에 하드코딩하지 않는다. DB 또는 설정 파일에서 관리하며 관리자가 수정할 수 있어야 한다.
-- **MUST**: Hysteresis를 적용한다. 경보 해제는 임계값 - hysteresis 값에서 N회 연속 확인 시 수행한다.
+- **MUST**: Hysteresis를 적용한다. 경보 발생은 시간 기반(enter_for_ms) 지속 조건, 해제는 시간 기반(exit_for_ms) 지속 조건으로 판정한다. 경보 해제 시 한 단계씩만 하향한다(de-escalation).
 
 > 실험 연결: EXP-4 (End-to-End 경보 지연)
 
@@ -286,7 +287,7 @@ alerts/{node_id}            → 경보 발령 이벤트 (서버 발행)
 - **MUST**: 위치 데이터에는 품질 점수(quality), 앵커 수(anchor_count), 필터 적용 여부(is_filtered)가 포함된다.
 - **MUST**: z 좌표는 항상 0.0으로 고정하며, 3D 렌더링용 렌더링 좌표이다.
 - **SHOULD**: 작업자 이동 경로가 일정 시간 동안 궤적으로 표시된다.
-- **SHOULD**: 작업자가 위험 구역(Level 2 이상 경보 발령 노드 반경 2m)에 진입 시 추가 경보를 발령한다.
+- **SHOULD**: 작업자가 위험 구역(Level 2 이상 경보 발령 노드 반경 0.5m)에 진입 시 추가 경보를 발령한다.
 - **OUT OF SCOPE**: 3D 위치 추적
 
 > 실험 연결: EXP-2 (UWB 정적 위치 정확도), EXP-3 (동적 위치 추적)
