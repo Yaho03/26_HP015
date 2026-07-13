@@ -1,0 +1,131 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://hp015.local/schemas/alert.schema.json",
+  "title": "Alert Event Message",
+  "description": "MQTT payload for alerts/{node_id} topic. Published by the backend server when a threshold is exceeded or a fall is detected.",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "message_id",
+    "node_id",
+    "sequence",
+    "sampled_at",
+    "published_at",
+    "quality",
+    "data"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {
+      "type": "string",
+      "const": "1.0",
+      "description": "Schema version identifier"
+    },
+    "message_id": {
+      "type": "string",
+      "pattern": "^[0-9A-Z]{26}$",
+      "description": "ULID format unique message identifier"
+    },
+    "node_id": {
+      "type": "string",
+      "pattern": "^(sensor|wearable|sim)-\\d{2}$",
+      "description": "Node that triggered the alert (used as topic node_id)"
+    },
+    "sequence": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 4294967295,
+      "description": "Server-side alert sequence number"
+    },
+    "sampled_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "Timestamp when the triggering measurement was sampled (ISO 8601 UTC)"
+    },
+    "published_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "Timestamp when the server published this alert (ISO 8601 UTC)"
+    },
+    "quality": {
+      "type": "object",
+      "required": ["calibrated", "sensor_status"],
+      "additionalProperties": false,
+      "properties": {
+        "calibrated": {
+          "type": "boolean",
+          "description": "Whether the triggering sensor was calibrated"
+        },
+        "sensor_status": {
+          "type": "string",
+          "enum": ["warming_up", "stable", "error", "offline"],
+          "description": "Sensor status at time of alert"
+        }
+      }
+    },
+    "data": {
+      "type": "object",
+      "required": [
+        "alert_id",
+        "source_node_id",
+        "alert_type",
+        "level",
+        "message",
+        "status",
+        "activated_at"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "alert_id": {
+          "type": "string",
+          "pattern": "^[0-9A-Z]{26}$",
+          "description": "ULID format alert identifier"
+        },
+        "source_node_id": {
+          "type": "string",
+          "description": "Node ID that triggered this alert"
+        },
+        "alert_type": {
+          "type": "string",
+          "enum": ["gas_threshold", "fall_detection", "o2_low", "zone_intrusion", "connection_lost"],
+          "description": "Type of alert"
+        },
+        "level": {
+          "type": "string",
+          "enum": ["level1_caution", "level2_warning", "level3_critical"],
+          "description": "Alert severity level"
+        },
+        "trigger_value": {
+          "oneOf": [{ "type": "number" }, { "type": "null" }],
+          "description": "The measurement value that triggered the alert"
+        },
+        "threshold": {
+          "oneOf": [{ "type": "number" }, { "type": "null" }],
+          "description": "The threshold that was exceeded"
+        },
+        "metric": {
+          "oneOf": [{ "type": "string" }, { "type": "null" }],
+          "description": "Measurement metric name (e.g., co2_ppm, o2_pct)"
+        },
+        "message": {
+          "type": "string",
+          "description": "Human-readable alert message"
+        },
+        "status": {
+          "type": "string",
+          "enum": ["active", "acknowledged", "resolved"],
+          "description": "Current alert status"
+        },
+        "activated_at": {
+          "type": "string",
+          "format": "date-time",
+          "description": "When the alert was activated (ISO 8601 UTC)"
+        },
+        "resolved_at": {
+          "oneOf": [{ "type": "string", "format": "date-time" }, { "type": "null" }],
+          "description": "When the alert was resolved (null if still active)"
+        }
+      }
+    }
+  }
+}
