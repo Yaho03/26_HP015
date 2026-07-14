@@ -85,7 +85,7 @@
         },
         "z_m": {
           "type": "number",
-          "const": 0,
+          "const": 0.0,
           "description": "Z-axis position, always 0.0 (2D positioning, rendering-only fixed value)"
         },
         "coordinate_system": {
