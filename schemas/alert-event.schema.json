@@ -12,9 +12,13 @@
     "alert_key",
     "alert_type",
     "level",
+    "trigger_value",
+    "threshold",
+    "metric",
     "message",
     "status",
     "activated_at",
+    "resolved_at",
     "published_at"
   ],
   "additionalProperties": false,

@@ -150,7 +150,7 @@ graph TD
 | 원점 | 모형 왼쪽 전면 바닥 |
 | X축 | 모형 가로 방향 (폭) |
 | Y축 | 모형 세로 방향 (깊이) |
-| Z축 | 높이 방향 |
+| Z축 | 높이 방향 (Z-up) |
 | 단위 | meter |
 | 3D 모델 단위 | 1 Three.js unit = 1 meter |
 | 좌표계 식별자 | `model-local` |

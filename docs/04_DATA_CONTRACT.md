@@ -488,6 +488,8 @@ LWT 메시지는 공통 Envelope 구조를 따르지 않는다. 연결 상태 �
 
 본 프로젝트의 모든 JSON Schema는 `additionalProperties: false`를 적용한다. 이는 안전 필수 시스템에서 예상치 못한 필드로 인한 파싱 오류를 방지하기 위함이다.
 
+> 예외: `twin-delta.schema.json`의 `changes`, `twin-snapshot.schema.json`의 `latest_values`, `active_alerts` 항목은 동적 키-값 객체이므로 `additionalProperties: true`를 허용한다. 이는 상태 델타/스냅샷의 유연성을 위한 것이며, 나머지 모든 객체는 `additionalProperties: false`를 적용한다.
+
 **버전 정책:**
 
 | 변경 유형 | 버전 변경 | 호환성 |
