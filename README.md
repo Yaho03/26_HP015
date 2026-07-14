@@ -25,6 +25,7 @@ Full-Spec 센서 노드 4개와 작업자 웨어러블 노드 1개로 구성되�
 | [docs/07_EXPERIMENT_PLAN.md](./docs/07_EXPERIMENT_PLAN.md) | 실험 계획서 — 6개 실험, 합격 기준(P95), Ground Truth |
 | [docs/08_SAFETY_AND_LIMITATIONS.md](./docs/08_SAFETY_AND_LIMITATIONS.md) | 안전 및 제한 사항 — 면책, 센서 신뢰성, IDW 한계 |
 | [docs/09_DEMO_SCENARIOS.md](./docs/09_DEMO_SCENARIOS.md) | 시연 시나리오 — 6개 시나리오, 데이터 주입 방식 |
+| [docs/10_UI_FLOW.md](./docs/10_UI_FLOW.md) | 대시보드 UI/UX 사양서 — 화면 구조, 컴포넌트 배치, 인터랙션 흐름, 상태 관리 |
 | [docs/adr/](./docs/adr/) | 아키텍처 결정 기록 (ADR-001 ~ ADR-005) |
 | [schemas/](./schemas/) | JSON Schema (sensor-gas, sensor-env, sensor-status, wearable-location, wearable-imu, wearable-vital, node-connection, alert-event, twin-delta, twin-snapshot) |
 
