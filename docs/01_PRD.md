@@ -302,6 +302,8 @@ alerts/state/{node_id}/{alert_key}    → 경보 상태 (서버 발행, Retain, 
 
 ### 기능 4: 웹 대시보드
 
+> 상세한 화면 구조, 컴포넌트 배치, 인터랙션 흐름은 `10_UI_FLOW.md`를 참조한다.
+
 #### FR-401 실시간 모니터링 화면
 
 - **MUST**: 전체 노드의 현재 측정값이 카드 형태로 표시된다.
@@ -326,7 +328,7 @@ alerts/state/{node_id}/{alert_key}    → 경보 상태 (서버 발행, Retain, 
 
 ### 기능 5: 3D 디지털 트윈 시각화
 
-> 상세한 디지털 트윈 사양은 `05_DIGITAL_TWIN_SPEC.md`를 참조한다.
+> 상세한 디지털 트윈 사양은 `05_DIGITAL_TWIN_SPEC.md`를, 3D 화면의 컴포넌트 배치 및 인터랙션 흐름은 `10_UI_FLOW.md`를 참조한다.
 
 #### FR-501 디지털 트윈 기본 기능
 

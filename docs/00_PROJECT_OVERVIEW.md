@@ -90,4 +90,5 @@ IoT 센서 시계열 분석 및 3D 디지털 트윈 기반 조선소 밀폐공�
 | [07_EXPERIMENT_PLAN.md](./07_EXPERIMENT_PLAN.md) | 실험 계획서 |
 | [08_SAFETY_AND_LIMITATIONS.md](./08_SAFETY_AND_LIMITATIONS.md) | 안전 및 제한 사항 |
 | [09_DEMO_SCENARIOS.md](./09_DEMO_SCENARIOS.md) | 시연 시나리오 |
+| [10_UI_FLOW.md](./10_UI_FLOW.md) | 대시보드 UI/UX 사양서 |
 | [adr/](./adr/) | 아키텍처 결정 기록 (ADR) |
