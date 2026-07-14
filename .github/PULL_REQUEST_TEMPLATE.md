@@ -27,6 +27,8 @@
 
 - [ ] 본 변경은 safety-critical 코드에 영향을 줌
 - [ ] `docs/06_ALERT_RULES.md`와 일치 확인
+- [ ] `docs/08_SAFETY_AND_LIMITATIONS.md` 제약 위반 없음
+- [ ] 좌표 변환 코드: `three_x=physical_x, three_y=physical_z, three_z=-physical_y` 준수 (3D 관련 시)
 
 ## 체크리스트
 

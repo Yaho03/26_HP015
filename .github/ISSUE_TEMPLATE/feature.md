@@ -6,6 +6,8 @@ labels: ["enhancement"]
 assignees: []
 ---
 
+<!-- 라벨 추가: component(firmware/backend/frontend/3d-twin/hardware/infra) + priority(P0~P3) -->
+
 ## 요구사항
 
 > 출처: `docs/01_PRD.md` 섹션 FR-XXX

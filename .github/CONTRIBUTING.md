@@ -16,7 +16,7 @@
 
 ```bash
 # 저장소 클론
-git clone https://github.com/Yaho03/26_HP15.git
+git clone https://github.com/Yaho03/26_HP015.git
 cd 26_HP015
 
 # 인프라 (TimescaleDB + Mosquitto)
@@ -189,6 +189,8 @@ three_z = -physical_y
 | **Priority** | `P0-critical`, `P1-high`, `P2-medium`, `P3-low` | 우선순위 |
 | **Type** | `enhancement`, `bug`, `task`, `experiment`, `refactor`, `documentation` | 작업 유형 |
 | **Domain** | `safety-critical`, `mqtt`, `uwb` | 도메인 특화 |
+
+> GitHub 기본 라벨(`enhancement`, `bug`, `documentation` 등) 외에 프로젝트 전용 커스텀 라벨을 사용한다. 커스텀 라벨 목록은 GitHub 저장소 Labels 페이지에서 확인한다.
 
 ### 6.2 Milestone
 
