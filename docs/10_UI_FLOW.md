@@ -446,7 +446,7 @@ three_z = -physical_y
 | 사이드바 | 해당 메뉴 노랑 표시 |
 | 팝업 | 없음 |
 | 소리 | 없음 |
-| 진동 | 없음 |
+| 진동 | 웨어러블: 0.5초 진동 x 2회 |
 
 ### 8.2 Level 2 (경고)
 
@@ -595,7 +595,7 @@ interface DashboardStore {
 | 메시지 | 갱신 대상 | 방식 |
 |--------|----------|------|
 | Snapshot | 전체 Store | 전체 교체 |
-| Delta (센서 값) | `sensor_nodes[id].latest_values` | 부분 갑데이트 (revision 확인) |
+| Delta (센서 값) | `sensor_nodes[id].latest_values` | 부분 갱신 (revision 확인) |
 | Delta (경보 레벨) | `sensor_nodes[id].alert_level` | 부분 갱신 |
 | Alert event (active) | `active_alerts[alert_key]` | 추가/갱신 |
 | Alert state (resolved) | `active_alerts[alert_key]` | 제거 또는 status 변경 |
