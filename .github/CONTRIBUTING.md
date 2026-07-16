@@ -124,6 +124,8 @@ Closes #12
 
 모든 schema object는 `additionalProperties: false`를 사용한다.
 
+**개발 단계 정책**: 개발 기간(첫 3개월)에는 `additionalProperties: true`를 사용하여 펌웨어/백엔드/프론트엔드 병렬 개발 시 스키마 충돌을 완화한다. 최종 통합 테스트 달(10월)에 `false`로 전환하여 엄격 모드로 검증한다.
+
 **예외** (동적 키-값 객체):
 - `twin-delta.schema.json`의 `changes` — 변경된 필드명이 동적
 - `twin-snapshot.schema.json`의 `latest_values`, `active_alerts` — 노드 ID, alert_key가 동적
