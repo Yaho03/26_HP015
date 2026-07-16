@@ -261,6 +261,9 @@ if distance <= radius_m: zone intrusion alert
 
 ## 6. IDW 히트맵 렌더링
 
+> **연산 위치**: IDW 보간은 **프론트엔드(React Three Fiber)**에서 계산한다. 백엔드는 4개 센서 노드의 최신 측정값만 WebSocket으로 전송하며, IDW 가중치 계산(1/distance²)과 surface mesh 생성은 클라이언트 측에서 수행한다. 4개 데이터 포인트의 연산량은 미미하므로 백엔드 부하가 없다.
+
+
 ### 6.1 제한 사항
 
 - 4개 센서가 비슷한 높이에 설치되므로 사실상 2D 평면 데이터
