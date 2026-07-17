@@ -26,6 +26,9 @@ Full-Spec 센서 노드 4개와 작업자 웨어러블 노드 1개로 구성되�
 | [docs/08_SAFETY_AND_LIMITATIONS.md](./docs/08_SAFETY_AND_LIMITATIONS.md) | 안전 및 제한 사항 — 면책, 센서 신뢰성, IDW 한계 |
 | [docs/09_DEMO_SCENARIOS.md](./docs/09_DEMO_SCENARIOS.md) | 시연 시나리오 — 6개 시나리오, 데이터 주입 방식 |
 | [docs/10_UI_FLOW.md](./docs/10_UI_FLOW.md) | 대시보드 UI/UX 사양서 — 화면 구조, 컴포넌트 배치, 인터랙션 흐름, 상태 관리 |
+| [docs/GETTING_STARTED.md](./docs/GETTING_STARTED.md) | 시작 가이드 — 사전 지식, 개발 환경 설정, 첫 이슈 실습 |
+| [docs/GLOSSARY.md](./docs/GLOSSARY.md) | 용어집 — 30+ 기술 용어 정의 (MQTT, UWB, Hysteresis, IDW 등) |
+| [docs/APPENDIX_TECHNICAL.md](./docs/APPENDIX_TECHNICAL.md) | 기술 부록 — UWB 수학, Least Squares, Hysteresis 상태도, EWMA, 좌표 변환 계산 예시 |
 | [docs/adr/](./docs/adr/) | 아키텍처 결정 기록 (ADR-001 ~ ADR-005) |
 | [schemas/](./schemas/) | JSON Schema (sensor-gas, sensor-env, sensor-status, wearable-location, wearable-imu, wearable-vital, node-connection, alert-event, twin-delta, twin-snapshot) |
 
