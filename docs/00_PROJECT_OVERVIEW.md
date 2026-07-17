@@ -91,4 +91,7 @@ IoT 센서 시계열 분석 및 3D 디지털 트윈 기반 조선소 밀폐공�
 | [08_SAFETY_AND_LIMITATIONS.md](./08_SAFETY_AND_LIMITATIONS.md) | 안전 및 제한 사항 |
 | [09_DEMO_SCENARIOS.md](./09_DEMO_SCENARIOS.md) | 시연 시나리오 |
 | [10_UI_FLOW.md](./10_UI_FLOW.md) | 대시보드 UI/UX 사양서 |
+| [GETTING_STARTED.md](./GETTING_STARTED.md) | 시작 가이드 (신규 팀원 우선 읽기) |
+| [GLOSSARY.md](./GLOSSARY.md) | 용어집 |
+| [APPENDIX_TECHNICAL.md](./APPENDIX_TECHNICAL.md) | 기술 부록 (수식, 알고리즘 계산 예시) |
 | [adr/](./adr/) | 아키텍처 결정 기록 (ADR) |
