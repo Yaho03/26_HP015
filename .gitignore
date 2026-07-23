@@ -3,3 +3,16 @@
 
 # Claude Code
 .claude/
+
+# Secrets (all components)
+.env
+
+# Backend (Python / FastAPI)
+.venv/
+__pycache__/
+
+# Frontend (Node / Vite)
+node_modules/
+
+# Firmware (PlatformIO)
+.pio/
