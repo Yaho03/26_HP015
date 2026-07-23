@@ -16,3 +16,4 @@ node_modules/
 
 # Firmware (PlatformIO)
 .pio/
+.platformio-core/
