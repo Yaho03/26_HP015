@@ -248,8 +248,8 @@ docker compose ps
 #### .env 파일 설정
 
 ```bash
-# .env.example을 복사하여 .env 생성
-cp .env.example .env
+# backend/.env.example을 복사하여 backend/.env 생성 (저장소 루트 기준)
+cp backend/.env.example backend/.env
 
 # 값 확인 및 수정
 # MQTT_HOST=localhost
