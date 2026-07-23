@@ -19,8 +19,8 @@
 git clone https://github.com/Yaho03/26_HP015.git
 cd 26_HP015
 
-# 인프라 (TimescaleDB + Mosquitto)
-docker compose up -d
+# 인프라 (TimescaleDB + Mosquitto) — compose 파일은 docker/ 에 있다
+docker compose -f docker/docker-compose.yml up -d
 
 # 백엔드
 cd backend
