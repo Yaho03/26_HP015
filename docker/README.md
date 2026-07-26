@@ -1,0 +1,60 @@
+# docker/ — 로컬 개발 인프라
+
+TimescaleDB(시계열 DB) + Mosquitto(MQTT 브로커)를 Docker Compose로 실행한다. (이슈 #35)
+
+> DB 스키마/hypertable은 #50, MQTT 메시지 처리는 #44/#37에서 구현한다. 여기서는 두 서버를 띄우는 것까지만 다룬다.
+
+## 1. 환경 변수 준비
+
+```bash
+cd docker
+cp .env.example .env
+# .env 를 열어 POSTGRES_PASSWORD, MQTT_PASSWORD 를 실제 값으로 수정
+```
+
+`docker/.env` 는 `.gitignore` 로 무시된다 (비밀 값이 저장소에 올라가지 않음).
+
+## 2. Mosquitto 인증 파일 생성
+
+Mosquitto는 해시된 `passwordfile` 로 인증한다. **`docker/.env` 의 `MQTT_USERNAME` / `MQTT_PASSWORD` 와 동일한 값**으로 생성한다:
+
+```bash
+# docker/ 에서 실행. <user> <password> 는 docker/.env 값과 반드시 동일하게.
+docker run --rm -v "$(pwd)/mosquitto/config:/mosquitto/config" eclipse-mosquitto:2.0 \
+  mosquitto_passwd -b -c /mosquitto/config/passwordfile <user> <password>
+
+# 예시 (.env.example 기본값 기준 — 실제로는 각자 정한 값 사용):
+docker run --rm -v "$(pwd)/mosquitto/config:/mosquitto/config" eclipse-mosquitto:2.0 \
+  mosquitto_passwd -b -c /mosquitto/config/passwordfile hp015 change_me_dev_password
+```
+
+> `<password>` 는 `docker/.env` 의 `MQTT_PASSWORD` 와 반드시 같아야 한다. 다르면 인증에 실패한다.
+
+생성된 `mosquitto/config/passwordfile` 도 `.gitignore` 로 무시된다.
+
+## 3. 실행
+
+```bash
+docker compose up -d      # 백그라운드 실행
+docker compose ps         # 상태 확인 (두 컨테이너 running)
+docker compose logs -f    # 로그 확인
+docker compose down       # 중지
+```
+
+## 4. 동작 확인
+
+```bash
+# TimescaleDB 접속 (비밀번호는 .env 값)
+docker exec -it hp015-timescaledb psql -U hp015 -d hp015 -c "SELECT extname FROM pg_extension;"
+
+# MQTT 발행/구독 테스트 (mosquitto 클라이언트 필요)
+mosquitto_sub -h localhost -p 1883 -u hp015 -P <password> -t test &
+mosquitto_pub -h localhost -p 1883 -u hp015 -P <password> -t test -m "hello"
+```
+
+## 구성
+
+| 서비스 | 이미지 | 포트 | 볼륨 |
+|--------|--------|------|------|
+| timescaledb | `timescale/timescaledb:2.17.2-pg16` | 5432 | `timescale-data` |
+| mosquitto | `eclipse-mosquitto:2.0` | 1883 | `mosquitto-data`, `./mosquitto/config` |
