@@ -1,4 +1,6 @@
-# Backend skeleton dependencies. Expanded in issue #37
-# (MQTT client, asyncpg/TimescaleDB, WebSocket, etc.).
-fastapi
-uvicorn[standard]
+# Backend dependencies (이슈 #37).
+fastapi==0.115.6
+uvicorn[standard]==0.34.0
+pydantic-settings==2.7.1
+paho-mqtt==2.1.0
+asyncpg==0.30.0
