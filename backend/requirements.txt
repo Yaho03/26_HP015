@@ -1,0 +1,4 @@
+# Backend skeleton dependencies. Expanded in issue #37
+# (MQTT client, asyncpg/TimescaleDB, WebSocket, etc.).
+fastapi
+uvicorn[standard]
