@@ -370,8 +370,12 @@ git checkout -b backend/FR-103-timescaledb-schema
 # - continuous aggregate (1분 평균) 생성
 # - retention policy (30일)
 
-# DB에 적용
+# DB에 적용 (이제 백엔드 시작 시 자동 적용됨 — 이슈 #98)
+# 수동 적용이 필요한 경우에만 아래 명령 사용
+psql -h localhost -U hp015 -d hp015 -f backend/migrations/000_schema_migrations.sql
 psql -h localhost -U hp015 -d hp015 -f backend/migrations/001_init.sql
+# 이후 마이그레이션 파일은 002_, 003_, ... 번호순으로 추가.
+# app/migration_runner.py 가 schema_migrations 추적 테이블로 중복 적용을 방지한다.
 ```
 
 ### 6.3 프론트엔드 담당: Issue #61 (대시보드 레이아웃)

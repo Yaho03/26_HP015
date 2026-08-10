@@ -35,6 +35,37 @@ services:
       - ./mosquitto/config:/mosquitto/config
       - mosquitto-data:/mosquitto/data
 
+  backend:
+    build:
+      context: ../backend
+      dockerfile: Dockerfile
+    container_name: hp015-backend
+    restart: unless-stopped
+    depends_on:
+      timescaledb:
+        condition: service_healthy
+      mosquitto:
+        condition: service_started
+    environment:
+      TIMESCALE_URL: postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@timescaledb:5432/${POSTGRES_DB}
+      MQTT_HOST: mosquitto
+      MQTT_PORT: 1883
+      MQTT_USERNAME: ${MQTT_USERNAME:-}
+      MQTT_PASSWORD: ${MQTT_PASSWORD:-}
+    ports:
+      - "8000:8000"
+
+  frontend:
+    build:
+      context: ../frontend
+      dockerfile: Dockerfile
+    container_name: hp015-frontend
+    restart: unless-stopped
+    depends_on:
+      - backend
+    ports:
+      - "5173:80"
+
 volumes:
   timescale-data:
   mosquitto-data:

@@ -6,6 +6,7 @@ from typing import Deque, Optional, Tuple
 import paho.mqtt.client as mqtt
 
 from app.config import settings
+from app.observability import metrics
 from app.services import ingest
 
 logger = logging.getLogger(__name__)
@@ -35,6 +36,11 @@ _invalid_dropped_count = 0
 _client: Optional[mqtt.Client] = None
 _loop: Optional[asyncio.AbstractEventLoop] = None
 _retry_task: Optional[asyncio.Task] = None
+
+
+def get_client() -> Optional[mqtt.Client]:
+    """외부(alert_publisher 등)가 publish 하기 위해 client 참조를 가져간다."""
+    return _client
 
 
 def _find_handler(topic: str):
@@ -68,8 +74,10 @@ async def _handle_message(topic: str, payload: bytes) -> None:
         await handler(payload)
     except ingest.DuplicateMessage:
         logger.debug("duplicate message skipped (topic=%s)", topic)
+        metrics.increment("messages_dropped_duplicate")
     except ingest.InvalidMessage as e:
         _invalid_dropped_count += 1
+        metrics.increment("messages_dropped_invalid")
         logger.error(
             "invalid message dropped (topic=%s): %s (total invalid-dropped=%d)",
             topic, e, _invalid_dropped_count,
@@ -119,8 +127,11 @@ def _on_connect(client: mqtt.Client, userdata, flags, reason_code, properties=No
 
 
 def _on_message(client: mqtt.Client, userdata, msg: mqtt.MQTTMessage):
-    if _loop is not None:
-        asyncio.run_coroutine_threadsafe(_handle_message(msg.topic, msg.payload), _loop)
+    if _loop is not None and _loop.is_running():
+        try:
+            asyncio.run_coroutine_threadsafe(_handle_message(msg.topic, msg.payload), _loop)
+        except RuntimeError:
+            logger.debug("event loop closed, dropping late MQTT message (topic=%s)", msg.topic)
 
 
 async def start() -> None:
@@ -142,6 +153,10 @@ async def stop() -> None:
     global _client, _retry_task
     if _retry_task is not None:
         _retry_task.cancel()
+        try:
+            await _retry_task
+        except asyncio.CancelledError:
+            pass
         _retry_task = None
     if _client is not None:
         _client.loop_stop()

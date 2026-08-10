@@ -410,7 +410,7 @@ LWT 메시지는 공통 Envelope 구조를 따르지 않는다. 연결 상태 �
 | `schema_version` | string | "1.1" |
 | `node_id` | string | 노드 식별자 |
 | `status` | enum | `online`, `offline` |
-| `reason` | enum | `connect` (정상 접속), `lwt` (Will 메시지), `timeout` (데이터 수신 시간 초과) |
+| `reason` | enum \| null | `connect` (정상 접속), `lwt` (Will 메시지), `timeout` (데이터 수신 시간 초과). **옵셔널** — 브로커 LWT 메시지는 reason 없이 발행될 수 있다. 백엔드는 누락/빈 값을 `unknown` 으로 정규화한다 (이슈 #96). |
 | `boot_id` | string | ULID 형식 부팅 식별자 |
 | `timestamp` | string | 상태 변화 시각 (UTC) |
 
