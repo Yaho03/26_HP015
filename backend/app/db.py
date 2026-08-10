@@ -23,3 +23,7 @@ def get_pool() -> asyncpg.Pool:
     if _pool is None:
         raise RuntimeError("DB pool is not initialized. Call db.connect() first.")
     return _pool
+
+
+def is_initialized() -> bool:
+    return _pool is not None

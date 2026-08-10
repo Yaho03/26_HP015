@@ -8,7 +8,6 @@
     "schema_version",
     "node_id",
     "status",
-    "reason",
     "boot_id",
     "timestamp"
   ],
@@ -26,9 +25,9 @@
       "description": "Connection status"
     },
     "reason": {
-      "type": "string",
-      "enum": ["connect", "lwt", "timeout"],
-      "description": "Reason for status change: connect (normal connect), lwt (broker-published will), timeout (backend timeout detection)"
+      "type": ["string", "null"],
+      "enum": ["connect", "lwt", "timeout", null],
+      "description": "Reason for status change. Optional — broker LWT may omit. connect (normal connect), lwt (broker-published will), timeout (backend timeout detection). Omitted/empty normalized to 'unknown' by backend (#96)."
     },
     "boot_id": {
       "type": "string",

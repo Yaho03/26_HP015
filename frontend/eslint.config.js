@@ -24,6 +24,7 @@ export default tseslint.config(
         'warn',
         { allowConstantExport: true },
       ],
+      'react-hooks/set-state-in-effect': 'off',
     },
   },
   // Prettier와 충돌하는 포맷 규칙 비활성화 (반드시 마지막)

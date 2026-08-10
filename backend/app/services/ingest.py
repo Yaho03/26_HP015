@@ -1,10 +1,14 @@
 import json
+import logging
 from datetime import datetime
 from typing import Any, List, Tuple
 
 import asyncpg
 
 from app.db import get_pool
+from app.observability import metrics
+
+logger = logging.getLogger(__name__)
 
 # data 필드 중 sensor_data(숫자 metric)에 저장하지 않는 필드 (열거형/문자열 상태값)
 _SKIP_FIELDS = {
@@ -14,6 +18,23 @@ _SKIP_FIELDS = {
     "coordinate_system",
     "method",
 }
+
+_alert_callback = None
+_location_callback = None
+
+
+def set_alert_callback(callback) -> None:
+    """경보 판정 콜백 주입. ingest_telemetry 가 각 metric 저장 후 호출한다.
+    백엔드 startup(mqtt_subscriber.start)에서 alert_service 로부터 주입한다 (#54)."""
+    global _alert_callback
+    _alert_callback = callback
+
+
+def set_location_callback(callback) -> None:
+    """위치 필터링 콜백 주입. ingest_telemetry 가 location metric(x_m/y_m/z_m) 을
+    만나면 호출한다 (#70). location_service.init() 에서 등록한다."""
+    global _location_callback
+    _location_callback = callback
 
 
 class DuplicateMessage(Exception):
@@ -138,18 +159,44 @@ async def ingest_telemetry(payload: bytes) -> None:
             if not is_new:
                 raise DuplicateMessage(message_id)
 
-            for metric, value in _extract_metrics(data):
-                await conn.execute(
+            extracted = _extract_metrics(data)
+            if extracted:
+                await conn.executemany(
                     """
                     INSERT INTO sensor_data (time, node_id, metric, value, message_id)
                     VALUES ($1, $2, $3, $4, $5)
                     ON CONFLICT DO NOTHING
                     """,
-                    sampled_at,
+                    [
+                        (sampled_at, node_id, metric, value, message_id)
+                        for metric, value in extracted
+                    ],
+                )
+
+            for metric, value in extracted:
+                if _alert_callback is not None:
+                    try:
+                        await _alert_callback(node_id, metric, value, sampled_at)
+                    except Exception:
+                        logger.exception(
+                            "alert evaluation failed (node=%s metric=%s value=%s)",
+                            node_id, metric, value,
+                        )
+                metrics.increment("messages_processed")
+
+    if _location_callback is not None and isinstance(data, dict):
+        if "x_m" in data and "y_m" in data and "z_m" in data:
+            try:
+                await _location_callback(
                     node_id,
-                    metric,
-                    value,
-                    message_id,
+                    float(data["x_m"]),
+                    float(data["y_m"]),
+                    float(data["z_m"]),
+                    sampled_at,
+                )
+            except Exception:
+                logger.exception(
+                    "location callback failed (node=%s)", node_id,
                 )
 
 
@@ -235,15 +282,20 @@ async def ingest_connection(payload: bytes) -> None:
 
     connection_updated_at 기준으로도 오래된 메시지의 덮어쓰기를 방지한다
     (node_status.updated_at과는 별도 컬럼이므로 독립적으로 가드).
+
+    reason 은 옵셔널 (#96). MQTT LWT offline 메시지가 reason 없이 발행되는 경우가
+    있어, 이를 InvalidMessage 로 drop 하면 safety-critical disconnect 이벤트가
+    유실된다. 누락/빈 값 시 "unknown" 으로 정규화.
     """
     envelope = _parse_envelope(payload)
-    node_id, status, reason, timestamp_raw = _require(
-        envelope, "node_id", "status", "reason", "timestamp"
-    )
+    node_id, status, timestamp_raw = _require(envelope, "node_id", "status", "timestamp")
     node_id = _expect_str(node_id, "node_id")
     status = _expect_str(status, "status")
-    reason = _expect_str(reason, "reason")
     ts = _parse_ts(timestamp_raw)
+
+    reason_raw = envelope.get("reason")
+    reason = _expect_str(reason_raw, "reason") if reason_raw is not None else ""
+    reason = reason.strip() or "unknown"
 
     pool = get_pool()
     async with pool.acquire() as conn:
@@ -251,7 +303,7 @@ async def ingest_connection(payload: bytes) -> None:
             """
             INSERT INTO node_status (node_id, connection_status, connection_reason,
                                       connection_updated_at, updated_at, backend_received_at)
-            VALUES ($1, $2, $3, $4, $4, now())
+            VALUES ($1, $2, $3, $4, '1970-01-01T00:00:00Z', now())
             ON CONFLICT (node_id) DO UPDATE SET
                 connection_status     = EXCLUDED.connection_status,
                 connection_reason     = EXCLUDED.connection_reason,
