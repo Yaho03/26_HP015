@@ -19,7 +19,33 @@ class Ads1115 {
 	}
 
 	int16_t readChannel(uint8_t channel) {
-		// TODO(#41): config register 설정 (PGA gain, data rate, single-shot) + conversion read.
+		if (channel > 3) return last_raw_;
+
+		uint16_t config = 0x8000
+		                  | (0x4000 | (channel << 12))
+		                  | 0x0200
+		                  | 0x0080
+		                  | 0x0003;
+
+		wire_->beginTransmission(address_);
+		wire_->write(0x01);
+		wire_->write((uint8_t)(config >> 8));
+		wire_->write((uint8_t)(config & 0xFF));
+		wire_->endTransmission();
+
+		delay(10);
+
+		wire_->beginTransmission(address_);
+		wire_->write(0x00);
+		wire_->endTransmission();
+		wire_->requestFrom(address_, (uint8_t)2);
+
+		if (wire_->available() >= 2) {
+			int16_t raw = (wire_->read() << 8) | wire_->read();
+			last_raw_ = raw;
+			last_voltage_v_ = (raw * 4.096f) / 32768.0f;
+		}
+
 		last_read_ms_ = millis();
 		return last_raw_;
 	}
