@@ -18,9 +18,38 @@ class Mhz19b {
 	}
 
 	int readCo2Ppm() {
-		// TODO(#39): 9-byte 응답 파싱 (0xFF 시작, byte 2/3 = high/low ppm, byte 8 = checksum).
+		uint8_t cmd[9] = {0xFF, 0x01, 0x86, 0x00, 0x00, 0x00, 0x00, 0x00, 0x79};
+		uint8_t resp[9] = {0};
+
+		serial_->write(cmd, 9);
+		serial_->flush();
+
+		unsigned long start = millis();
+		while (serial_->available() < 9 && millis() - start < 1000) {
+			delay(10);
+		}
+		if (serial_->available() < 9) {
+			return last_ppm_;
+		}
+		serial_->readBytes(resp, 9);
+
+		if (resp[0] != 0xFF || resp[1] != 0x86) {
+			return last_ppm_;
+		}
+		uint8_t checksum = 0;
+		for (int i = 1; i < 8; i++) {
+			checksum += resp[i];
+		}
+		checksum = 0xFF - checksum;
+		checksum += 1;
+		if (resp[8] != checksum) {
+			return last_ppm_;
+		}
+
+		int ppm = (resp[2] << 8) | resp[3];
+		last_ppm_ = ppm;
 		last_read_ms_ = millis();
-		return last_ppm_;
+		return ppm;
 	}
 
 	void setSimulatedValue(int ppm) { last_ppm_ = ppm; }
