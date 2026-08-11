@@ -20,7 +20,19 @@ class Mpu6050 {
 	}
 
 	void readAccelGs(float& ax, float& ay, float& az) {
-		// TODO(#43): 레지스터 0x3B..0x40 읽기 + ACCEL_RANGE_2G (-32768..32767 → ±2g) 변환.
+		wire_->beginTransmission(address_);
+		wire_->write(0x3B);
+		wire_->endTransmission(false);
+		wire_->requestFrom(address_, (uint8_t)6);
+
+		int16_t raw_x = (wire_->read() << 8) | wire_->read();
+		int16_t raw_y = (wire_->read() << 8) | wire_->read();
+		int16_t raw_z = (wire_->read() << 8) | wire_->read();
+
+		constexpr float SCALE = ACCEL_RANGE_2G / 32768.0f * 9.80665f;
+		ax_ = raw_x * SCALE;
+		ay_ = raw_y * SCALE;
+		az_ = raw_z * SCALE;
 		ax = ax_;
 		ay = ay_;
 		az = az_;

@@ -26,8 +26,20 @@ class Sen0322 {
 	}
 
 	float readPercent() {
-		// TODO(#42): SEN0322 프로토콜 (reg 0x04..0x06 raw → % 변환) 구현.
-		// 임시로 캐시된 값 반환. 데모 시나리오에서는 이 값을 시뮬레이션 데이터로 override.
+		wire_->beginTransmission(address_);
+		wire_->write(0x04);
+		wire_->endTransmission(false);
+		wire_->requestFrom(address_, (uint8_t)3);
+
+		if (wire_->available() >= 3) {
+			uint8_t b0 = wire_->read();
+			uint8_t b1 = wire_->read();
+			uint8_t b2 = wire_->read();
+			(void)b2;
+			uint16_t raw = ((uint16_t)b0 << 8) | b1;
+			last_pct_ = (float)raw / 1024.0f * 100.0f;
+		}
+
 		last_read_ms_ = millis();
 		return last_pct_;
 	}
