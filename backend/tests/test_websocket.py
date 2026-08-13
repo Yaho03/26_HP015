@@ -173,8 +173,70 @@ def test_snapshot_reflects_node_status_and_active_alerts(monkeypatch):
     assert snapshot["nodes"]["sensor-02"]["readings"]["co2_ppm"]["value"] == 650.0, (
         "node_status가 없는(gas 리딩만 온) 노드도 sensor_data 최신값으로 snapshot에 포함돼야 함"
     )
-    assert snapshot["alerts"]["co2_ppm"]["node_id"] == "sensor-01"
-    assert snapshot["alerts"]["co2_ppm"]["level"] == "level1_caution"
+    assert snapshot["alerts"]["sensor-01:co2_ppm"]["node_id"] == "sensor-01"
+    assert snapshot["alerts"]["sensor-01:co2_ppm"]["level"] == "level1_caution"
+
+
+def test_snapshot_keeps_same_alert_key_active_for_two_different_nodes(monkeypatch):
+    """코드리뷰 반영: sensor-01/sensor-02가 둘 다 co2_ppm active alert이면
+    alert_key만으로 키를 잡던 이전 구현은 하나가 다른 하나를 덮어썼다.
+    node_id:alert_key 복합 키로 두 노드가 동시에 유지되는지 확인한다."""
+    from datetime import datetime, timezone
+    from app.services import ws_manager
+
+    alert_rows = [
+        {
+            "source_node_id": "sensor-01",
+            "alert_key": "co2_ppm",
+            "level": "level2_warning",
+            "trigger_value": 2100.0,
+            "threshold": 2000.0,
+            "activated_at": datetime(2026, 8, 13, 12, 0, 0, tzinfo=timezone.utc),
+            "status": "active",
+        },
+        {
+            "source_node_id": "sensor-02",
+            "alert_key": "co2_ppm",
+            "level": "level1_caution",
+            "trigger_value": 1100.0,
+            "threshold": 1000.0,
+            "activated_at": datetime(2026, 8, 13, 12, 0, 1, tzinfo=timezone.utc),
+            "status": "active",
+        },
+    ]
+
+    class FakeConn:
+        async def fetch(self, sql, *args):
+            if "FROM node_status" in sql or "FROM sensor_data" in sql:
+                return []
+            return alert_rows
+
+    class FakePool:
+        class _Acquired:
+            async def __aenter__(self):
+                return FakeConn()
+
+            async def __aexit__(self, *exc):
+                return False
+
+        def acquire(self):
+            return self._Acquired()
+
+    monkeypatch.setattr("app.db.get_pool", lambda: FakePool())
+
+    sent: list[dict] = []
+
+    class FakeWS:
+        async def send_json(self, msg):
+            sent.append(msg)
+
+    import asyncio
+    asyncio.run(ws_manager.manager._send_snapshot(FakeWS()))
+
+    alerts = sent[0]["alerts"]
+    assert len(alerts) == 2, "두 노드의 같은 alert_key가 서로 덮어쓰지 않고 둘 다 유지돼야 함"
+    assert alerts["sensor-01:co2_ppm"]["level"] == "level2_warning"
+    assert alerts["sensor-02:co2_ppm"]["level"] == "level1_caution"
 
 
 def test_snapshot_falls_back_to_empty_on_db_error(monkeypatch):

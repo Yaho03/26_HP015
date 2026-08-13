@@ -24,6 +24,7 @@ interface DashboardStore {
   setSensorNodeStatus: (node_id: NodeId, patch: Partial<SensorNodeState>) => void;
   setWearableState: (state: WearableState) => void;
   setWearablePosition: (node_id: NodeId, x: number, y: number, z: number, timestamp: string) => void;
+  setWearableO2Reading: (node_id: NodeId, value: number, timestamp: string) => void;
   addAlert: (alert: AlertState) => void;
   resolveAlert: (alert_key: AlertKey) => void;
   setConnectionStatus: (patch: Partial<ConnectionStatus>) => void;
@@ -108,6 +109,29 @@ export const useDashboardStore = create<DashboardStore>((set) => ({
           ...existing,
           node_id,
           position: { x_m: x, y_m: y, z_m: z },
+          last_seen_at: timestamp,
+        },
+      };
+    }),
+
+  // 웨어러블 O2 측정값 (코드리뷰 반영) — setWearablePosition과 동일하게 기존
+  // wearable 상태가 없으면 기본값으로 새로 만든다.
+  setWearableO2Reading: (node_id, value, timestamp) =>
+    set((state) => {
+      const existing = state.wearable ?? {
+        node_id,
+        o2_pct: null,
+        position: null,
+        fall_detected: false,
+        heart_rate: null,
+        battery_pct: null,
+        connection_status: "online" as const,
+      };
+      return {
+        wearable: {
+          ...existing,
+          node_id,
+          o2_pct: value,
           last_seen_at: timestamp,
         },
       };

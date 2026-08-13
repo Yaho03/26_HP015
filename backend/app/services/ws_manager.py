@@ -81,7 +81,11 @@ class ConnectionManager:
                 for row in alert_rows:
                     if row["status"] != "active":
                         continue
-                    alerts[row["alert_key"]] = {
+                    # node_id:alert_key 복합 키 — 코드리뷰 반영. alert_key만 쓰면
+                    # sensor-01/sensor-02가 둘 다 co2_ppm active일 때 하나가
+                    # 덮어써진다 (프론트 deriveAlertKey와 동일 규칙으로 통일).
+                    key = f'{row["source_node_id"]}:{row["alert_key"]}'
+                    alerts[key] = {
                         "node_id": row["source_node_id"],
                         "level": row["level"],
                         "trigger_value": row["trigger_value"],
