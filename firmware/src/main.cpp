@@ -48,6 +48,9 @@ static hp015::node::StatusReporter status_reporter(NODE_ID, mqtt_client);
 
 static const char* const kSensorsOnline[] = {"mh-z19b", "bme680", "ads1115"};
 
+// setup()에서 센서 감지 결과로 채워 fillCommon()의 quality.sensors에 반영한다 (이슈 #107 리뷰).
+static hp015::envelope::SensorQuality g_quality;
+
 static unsigned long last_gas_ms = 0;
 static unsigned long last_env_ms = 0;
 
@@ -120,7 +123,8 @@ static void connectMqtt() {
 		                               will_payload);
 		if (ok) {
 			Serial.println(F(" connected"));
-			publishConnection("online", "startup");
+			// node-connection.schema.json의 reason enum: connect|lwt|timeout (이슈 #107 리뷰).
+			publishConnection("online", "connect");
 		} else {
 			Serial.printf(" failed, rc=%d — retry in 5s\n", mqtt_client.state());
 			delay(5000);
@@ -130,7 +134,7 @@ static void connectMqtt() {
 
 static void publishGas() {
 	JsonDocument doc;
-	hp015::envelope::fillCommon(doc, NODE_ID, hp015::envelope::isoNow().c_str());
+	hp015::envelope::fillCommon(doc, NODE_ID, hp015::envelope::isoNow().c_str(), g_quality);
 	JsonObject data = doc["data"].to<JsonObject>();
 
 	data["co2_ppm"] = co2_sensor.readCo2Ppm();
@@ -175,7 +179,7 @@ static void publishGas() {
 
 static void publishEnv() {
 	JsonDocument doc;
-	hp015::envelope::fillCommon(doc, NODE_ID, hp015::envelope::isoNow().c_str());
+	hp015::envelope::fillCommon(doc, NODE_ID, hp015::envelope::isoNow().c_str(), g_quality);
 	JsonObject data = doc["data"].to<JsonObject>();
 	data["temperature_c"] = bme_sensor.temperatureC();
 	data["humidity_pct"]  = bme_sensor.humidityPct();
@@ -206,13 +210,16 @@ void setup() {
 	esp_task_wdt_add(NULL);
 
 	co2_sensor.begin();
-	if (!bme_sensor.begin()) {
+	g_quality.bme680_ok = bme_sensor.begin();
+	if (!g_quality.bme680_ok) {
 		Serial.println(F("[sensor] BME680 NOT detected"));
 	}
-	if (!ads.begin()) {
+	g_quality.ads1115_ok = ads.begin();
+	if (!g_quality.ads1115_ok) {
 		Serial.println(F("[sensor] ADS1115 NOT detected"));
 	}
 	status_reporter.setSensorList(kSensorsOnline, 3);
+	status_reporter.setQuality(g_quality);
 	status_reporter.begin();
 
 	connectWiFi();

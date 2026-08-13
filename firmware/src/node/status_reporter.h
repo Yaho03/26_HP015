@@ -33,6 +33,9 @@ class StatusReporter {
 
 	void setIntervalMs(unsigned long ms) { interval_ms_ = ms; }
 
+	// quality.sensors 채우기용 (이슈 #107 리뷰 — main.cpp의 센서 감지 결과를 그대로 전달).
+	void setQuality(const hp015::envelope::SensorQuality& quality) { quality_ = quality; }
+
 	bool tick() {
 		if (millis() - last_send_ms_ < interval_ms_) return false;
 		last_send_ms_ = millis();
@@ -42,7 +45,7 @@ class StatusReporter {
 
 	void publish() {
 		JsonDocument doc;
-		hp015::envelope::fillCommon(doc, node_id_, hp015::envelope::isoNow().c_str());
+		hp015::envelope::fillCommon(doc, node_id_, hp015::envelope::isoNow().c_str(), quality_);
 		JsonObject data = doc["data"].to<JsonObject>();
 		data["battery_pct"]     = readBatteryPct();
 		data["wifi_rssi_dbm"]   = WiFi.RSSI();
@@ -76,6 +79,7 @@ class StatusReporter {
 	unsigned long last_send_ms_;
 	const char* const* sensors_online_ = nullptr;
 	size_t sensors_online_count_ = 0;
+	hp015::envelope::SensorQuality quality_;
 };
 
 }  // namespace hp015::node
