@@ -17,11 +17,14 @@ const ALERT_TITLES: Record<string, string> = {
   zone_intrusion: "위험 구역 진입",
 };
 
+// 모든 경보를 node_id로 스코프한다 (이슈 #112). 이전엔 co2_ppm 등 가스 metric이
+// node_id 없이 metric명 그대로 키가 돼서, active_alerts 딕셔너리에서 다른 노드의
+// 같은 metric 경보가 서로 덮어썼다 — 예: sensor-01의 L2 경보가 sensor-03의 L1으로
+// 덮어써지고, sensor-03이 정상 복귀하면 sensor-01 경보까지 함께 사라짐. 백엔드
+// alert_publisher._active_alert_ids도 이미 (node_id, metric) 튜플로 관리하므로
+// 프론트도 동일한 스코프 규칙으로 맞춘다.
 function deriveAlertKey(metric: string, nodeId: string): string {
-  if (metric === "o2_low" || metric === "o2_high") return metric;
-  if (metric === "connection_lost") return `connection_lost:${nodeId}`;
-  if (metric === "fall_detection") return "fall_detection";
-  return metric;
+  return `${nodeId}:${metric}`;
 }
 
 function handleMessage(msg: WSMessage): void {
