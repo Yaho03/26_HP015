@@ -47,6 +47,21 @@ class AlertEventPublisher:
         self.last_event: Optional[dict] = None
 
     async def publish_transition(self, transition: AlertTransition) -> None:
+        # to_level==NORMAL인데 해당 (node_id, metric)에 대해 active 상태로 추적 중인
+        # 경보가 없으면 발행하지 않는다 (이슈 #111 P2 후속) — connection_lost는
+        # offline이 timeout(connection_monitor가 실제로 L3 경보를 띄운 경우)이든
+        # LWT/명시적 offline(경보를 띄운 적 없는 경우)이든 상관없이 ingest_connection이
+        # offline→online 전이만 보고 무조건 NORMAL transition을 만들어 보내므로,
+        # 여기서 "진짜 해제할 active 경보가 있었는지"를 최종적으로 걸러줘야 한다.
+        # 이 가드는 connection_lost뿐 아니라 모든 metric의 resolved-only 오발행을
+        # 막아준다 (active_alert_ids에 없으면 애초에 해제할 게 없다는 뜻이므로).
+        key = (transition.node_id, transition.metric)
+        if transition.to_level == AlertLevel.NORMAL and key not in self._active_alert_ids:
+            logger.debug(
+                "skipping resolved-only publish, no active alert tracked for %s", key
+            )
+            return
+
         event = self._build_event(transition)
         self.last_event = event
         await self._persist_event(event)
