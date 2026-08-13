@@ -17,10 +17,19 @@ inline String makeMessageId() {
 	return String(buf);
 }
 
+// UTC 벽시계 기준 ISO8601 문자열 생성. NTP 동기화(main.cpp setup(), 이슈 #107)가
+// 끝난 뒤에야 실제 날짜/시각이 맞다 — 동기화 전에는 1970-01-01 근처 값이 나온다.
 inline String isoNow() {
+	struct timeval tv;
+	gettimeofday(&tv, nullptr);
+	time_t seconds = tv.tv_sec;
+	struct tm timeinfo;
+	gmtime_r(&seconds, &timeinfo);
 	char buf[32];
-	snprintf(buf, sizeof(buf), "2026-01-01T00:00:%05lu.000Z",
-	         (unsigned long)(millis() / 1000) % 100000);
+	snprintf(buf, sizeof(buf), "%04d-%02d-%02dT%02d:%02d:%02d.%03ldZ",
+	         timeinfo.tm_year + 1900, timeinfo.tm_mon + 1, timeinfo.tm_mday,
+	         timeinfo.tm_hour, timeinfo.tm_min, timeinfo.tm_sec,
+	         (long)(tv.tv_usec / 1000));
 	return String(buf);
 }
 
