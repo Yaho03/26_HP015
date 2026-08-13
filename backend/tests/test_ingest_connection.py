@@ -168,6 +168,28 @@ async def test_connection_message_missing_status_still_rejected(monkeypatch):
 
 
 @pytest.mark.asyncio
+async def test_offline_status_bypasses_timestamp_ordering_guard(monkeypatch):
+    """이슈 #107 리뷰 3번: offline은 timestamp 순서 가드 없이 항상 반영돼야 한다.
+
+    LWT payload는 CONNECT 시점에 고정되어 나중에 실제 오프라인 시각을 반영하지
+    못하므로(항상 "연결했던 시각"), timestamp가 기존 connection_updated_at보다
+    과거여도 offline 전환만은 무조건 통과해야 한다. 실제 DB에서의 재현/검증은
+    커밋 메시지 참조 — 여기서는 실행되는 SQL이 offline을 무조건 통과시키는
+    분기를 포함하는지 확인한다."""
+    conn = FakeConn()
+    pool = FakePool(conn)
+    monkeypatch.setattr(ingest, "get_pool", lambda: pool)
+
+    await ingest.ingest_connection(_connection_payload(status="offline"))
+
+    sql = conn.executed[0][0]
+    assert "connection_status = 'offline'" in sql, (
+        "WHERE 절에 offline 무조건 통과 분기가 없으면 LWT가 항상 stale timestamp로 "
+        "드롭될 수 있음"
+    )
+
+
+@pytest.mark.asyncio
 async def test_connection_message_missing_timestamp_still_rejected(monkeypatch):
     """timestamp 가 없으면 여전히 InvalidMessage."""
     conn = FakeConn()

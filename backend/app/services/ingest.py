@@ -280,8 +280,16 @@ async def ingest_connection(payload: bytes) -> None:
     """nodes/*/connection (LWT) 처리. 이 페이로드엔 message_id가 없어 dedup 대상이 아니다
     (최신 상태로 upsert만 하면 되므로 중복 수신되어도 안전). 능동적 30초 타임아웃 감지는 #52.
 
-    connection_updated_at 기준으로도 오래된 메시지의 덮어쓰기를 방지한다
-    (node_status.updated_at과는 별도 컬럼이므로 독립적으로 가드).
+    connection_updated_at 기준으로 오래된 메시지의 덮어쓰기를 방지하되, status가
+    "offline"이면 이 가드를 건너뛰고 무조건 반영한다 (이슈 #107 리뷰 3번).
+    MQTT LWT payload는 브로커에 CONNECT 시점에 등록해두고 클라이언트가 죽은 뒤
+    브로커가 그 "고정된" bytes를 그대로 발행하는 구조라, LWT의 timestamp는 항상
+    "연결했던 시각"이다. 반면 연결 직후 보통 status=online 메시지가 (LWT보다 늦은)
+    현재 시각으로 connection_updated_at을 먼저 갱신해두므로, 나중에 노드가 실제로
+    죽어 브로커가 LWT를 발행해도 그 timestamp(연결 시각)가 이미 저장된 online의
+    timestamp보다 항상 과거라 가드에 막혀 offline 전환이 영구히 반영되지 않았다.
+    offline은 safety-critical(연결 끊김 감지)이라 timestamp 신뢰성보다 반영 자체가
+    우선이므로 무조건 통과시킨다.
 
     reason 은 옵셔널 (#96). MQTT LWT offline 메시지가 reason 없이 발행되는 경우가
     있어, 이를 InvalidMessage 로 drop 하면 safety-critical disconnect 이벤트가
@@ -309,7 +317,8 @@ async def ingest_connection(payload: bytes) -> None:
                 connection_reason     = EXCLUDED.connection_reason,
                 connection_updated_at = EXCLUDED.connection_updated_at,
                 backend_received_at   = now()
-            WHERE node_status.connection_updated_at IS NULL
+            WHERE EXCLUDED.connection_status = 'offline'
+               OR node_status.connection_updated_at IS NULL
                OR node_status.connection_updated_at < EXCLUDED.connection_updated_at
             """,
             node_id,
