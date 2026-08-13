@@ -2,18 +2,38 @@
 
 // MQTT envelope 생성 (이슈 #44, 04_DATA_CONTRACT.md 섹션 4).
 // 템플릿 기반 헬퍼 — ArduinoJson Document 를 받아 공통 필드를 채운다.
-// message_id 로 ULID 를 써야 하지만 ESP32 에서는 간단히 millis 기반 문자열 사용
-// (FR-101 dedup은 백엔드 processed_messages 가 1차 방어).
+// message_id = "{boot_id}-{sequence}". boot_id는 부팅 시 1회만 생성되고
+// (efuse MAC + 하드웨어 난수) 이후 메시지마다 순번만 붙는다 — millis() 기반이면
+// 재부팅마다 0부터 재시작해 ID가 겹치고, 백엔드 processed_messages가 재부팅 직후
+// 데이터를 전부 중복으로 오판해 조용히 드롭하는 문제가 있었다 (이슈 #104).
 
 #include <Arduino.h>
 #include <ArduinoJson.h>
+#include <esp_system.h>
 #include "topics.h"
 
 namespace hp015::envelope {
 
+inline const String& bootId() {
+	static String id;
+	static bool initialized = false;
+	if (!initialized) {
+		uint64_t mac = ESP.getEfuseMac();
+		uint32_t rnd = esp_random();
+		char buf[24];
+		snprintf(buf, sizeof(buf), "%04X%08X-%08lX",
+		         (unsigned)(mac >> 32), (unsigned)(mac & 0xFFFFFFFFu),
+		         (unsigned long)rnd);
+		id = String(buf);
+		initialized = true;
+	}
+	return id;
+}
+
 inline String makeMessageId() {
-	char buf[16];
-	snprintf(buf, sizeof(buf), "esp_%lu", (unsigned long)millis());
+	static uint32_t sequence = 0;
+	char buf[48];
+	snprintf(buf, sizeof(buf), "%s-%lu", bootId().c_str(), (unsigned long)sequence++);
 	return String(buf);
 }
 
@@ -48,7 +68,7 @@ inline void fillConnection(JsonDocument& doc, const char* nodeId,
 	doc["node_id"]        = nodeId;
 	doc["status"]         = status;
 	doc["reason"]         = reason;
-	doc["boot_id"]        = makeMessageId();
+	doc["boot_id"]        = bootId();
 	doc["timestamp"]      = isoNow();
 }
 
