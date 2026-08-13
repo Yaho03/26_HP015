@@ -17,3 +17,4 @@ node_modules/
 # Firmware (PlatformIO)
 .pio/
 .platformio-core/
+firmware/src/wifi_credentials.h

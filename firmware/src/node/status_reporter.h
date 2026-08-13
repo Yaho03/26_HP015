@@ -20,9 +20,10 @@ class StatusReporter {
 	    : node_id_(node_id), mqtt_(mqtt), battery_adc_pin_(battery_adc_pin),
 	      interval_ms_(DEFAULT_INTERVAL_MS), last_send_ms_(0) {}
 
+	// LWT는 PubSubClient::connect()의 will 인자로만 설정 가능한 라이브러리 제약
+	// 때문에, MQTT 연결 시점에 main.cpp에서 직접 등록한다 (이슈 #107).
 	void begin() {
 		pinMode(battery_adc_pin_, INPUT);
-		registerLwt();
 	}
 
 	void setSensorList(const char* const* sensors_online, size_t count) {
@@ -75,16 +76,6 @@ class StatusReporter {
 	unsigned long last_send_ms_;
 	const char* const* sensors_online_ = nullptr;
 	size_t sensors_online_count_ = 0;
-
-	void registerLwt() {
-		char topic[64];
-		snprintf(topic, sizeof(topic), hp015::topics::NODE_CONNECTION, node_id_);
-		JsonDocument doc;
-		hp015::envelope::fillConnection(doc, node_id_, "offline", "lwt");
-		char payload[256];
-		serializeJson(doc, payload, sizeof(payload));
-		mqtt_.setServer(nullptr, 1883);
-	}
 };
 
 }  // namespace hp015::node
