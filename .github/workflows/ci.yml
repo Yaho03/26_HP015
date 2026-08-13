@@ -58,3 +58,29 @@ jobs:
 
       - name: Build
         run: npm run build
+
+  firmware:
+    name: Firmware (pio run)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: firmware
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install PlatformIO
+        run: pip install platformio
+
+      - name: Provide dummy WiFi credentials (gitignored, CI-only placeholder)
+        run: cp src/wifi_credentials.h.example src/wifi_credentials.h
+
+      - name: Build sensor-node
+        run: pio run -e sensor-node
+
+      - name: Build wearable-node
+        run: pio run -e wearable-node
