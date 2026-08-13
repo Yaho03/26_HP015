@@ -205,6 +205,52 @@ async def test_start_schedules_periodic_task(monkeypatch):
 
 
 @pytest.mark.asyncio
+async def test_emit_connection_recovered_sends_l3_to_normal_transition(monkeypatch):
+    """이슈 #111: 복귀 시 connection_lost L3→NORMAL transition을 공개 API로 전달."""
+    from app.services import connection_monitor, alert_service
+    from app.models.alert import AlertLevel
+
+    captured: list = []
+
+    async def _fake_handle(transition):
+        captured.append(transition)
+    monkeypatch.setattr(alert_service, "handle_transition", _fake_handle)
+
+    await connection_monitor._emit_connection_recovered("sensor-01")
+
+    assert len(captured) == 1
+    t = captured[0]
+    assert t.node_id == "sensor-01"
+    assert t.metric == "connection_lost"
+    assert t.from_level == AlertLevel.LEVEL3
+    assert t.to_level == AlertLevel.NORMAL
+
+
+def test_init_registers_recovery_callback_with_ingest(monkeypatch):
+    from app.services import connection_monitor, ingest
+
+    monkeypatch.setattr(connection_monitor, "_callback_registered", False)
+    monkeypatch.setattr(ingest, "_connection_recovery_callback", None)
+
+    connection_monitor.init()
+
+    assert ingest._connection_recovery_callback is connection_monitor._emit_connection_recovered
+
+
+def test_init_is_idempotent(monkeypatch):
+    from app.services import connection_monitor, ingest
+
+    monkeypatch.setattr(connection_monitor, "_callback_registered", False)
+    calls = []
+    monkeypatch.setattr(ingest, "set_connection_recovery_callback", lambda cb: calls.append(cb))
+
+    connection_monitor.init()
+    connection_monitor.init()
+
+    assert len(calls) == 1, "두 번째 init()은 콜백을 재등록하지 않음"
+
+
+@pytest.mark.asyncio
 async def test_stop_cancels_task():
     from app.services import connection_monitor
 
