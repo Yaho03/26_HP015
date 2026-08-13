@@ -102,8 +102,12 @@ class AlertEvaluator:
             if target_threshold and target_threshold.enter_for_ms == 0:
                 return self._do_enter(node_id, metric, value, now, state, desired_level, target_threshold)
 
-            if state.enter_started_at is None:
+            # desired_level이 이전 샘플과 다른 level로 바뀌었으면(예: L1 → L3 급등),
+            # 이전 level을 향해 쌓인 경과시간을 새 level에 재사용하면 안 되므로
+            # 타이머를 새로 시작한다 (이슈 #108).
+            if state.enter_pending_level != desired_level:
                 state.enter_started_at = now
+                state.enter_pending_level = desired_level
                 state.exit_started_at = None
             elif _ms_elapsed(state.enter_started_at, now) >= target_threshold.enter_for_ms:
                 return self._do_enter(node_id, metric, value, now, state, desired_level, target_threshold)
@@ -121,6 +125,7 @@ class AlertEvaluator:
                 if state.exit_started_at is None:
                     state.exit_started_at = now
                     state.enter_started_at = None
+                    state.enter_pending_level = None
                 elif _ms_elapsed(state.exit_started_at, now) >= current_threshold.exit_for_ms:
                     return self._do_exit(node_id, metric, value, now, state, current_threshold, sorted_levels)
                 return None
@@ -130,6 +135,7 @@ class AlertEvaluator:
 
         # ----- 동일 level 유지 또는 normal 안정 -----
         state.enter_started_at = None
+        state.enter_pending_level = None
         state.exit_started_at = None
         return None
 
@@ -154,6 +160,7 @@ class AlertEvaluator:
         from_level = state.current_level
         state.current_level = target_level
         state.enter_started_at = None
+        state.enter_pending_level = None
         state.exit_started_at = None
         return AlertTransition(
             node_id=node_id,
