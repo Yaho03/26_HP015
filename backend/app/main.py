@@ -13,6 +13,7 @@ from app.services import (
     location_service,
     mqtt_subscriber,
     retention,
+    sensor_broadcast,
 )
 
 
@@ -30,6 +31,7 @@ async def lifespan(app: FastAPI):
         except Exception:
             pass
         location_service.init()
+        sensor_broadcast.init()
         await mqtt_subscriber.start()
         started_mqtt = True
         alert_publisher.init_publisher(mqtt_subscriber.get_client())

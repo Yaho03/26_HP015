@@ -102,3 +102,96 @@ def test_alert_publisher_triggers_ws_broadcast(monkeypatch):
 
     assert len(broadcasted) == 1
     assert broadcasted[0]["type"] == "alert"
+
+
+# ============================================================
+# 이슈 #106 — snapshot이 실제 node_status/alert_events를 반영
+# ============================================================
+
+def test_snapshot_reflects_node_status_and_active_alerts(monkeypatch):
+    """_send_snapshot()이 DB row를 nodes/alerts dict로 정확히 변환하는지 확인.
+    수정 전에는 항상 빈 {} 라 새로고침하면 화면이 초기화됐다 (이슈 #106)."""
+    from datetime import datetime, timezone
+    from app.services import ws_manager
+
+    node_row = {
+        "node_id": "sensor-01",
+        "battery_pct": 78,
+        "wifi_rssi_dbm": -52,
+        "connection_status": "online",
+        "updated_at": datetime(2026, 8, 13, 12, 0, 0, tzinfo=timezone.utc),
+    }
+    reading_row = {
+        "node_id": "sensor-02",
+        "metric": "co2_ppm",
+        "value": 650.0,
+        "time": datetime(2026, 8, 13, 12, 0, 0, tzinfo=timezone.utc),
+    }
+    alert_row = {
+        "source_node_id": "sensor-01",
+        "alert_key": "co2_ppm",
+        "level": "level1_caution",
+        "trigger_value": 1100.0,
+        "threshold": 1000.0,
+        "activated_at": datetime(2026, 8, 13, 12, 0, 0, tzinfo=timezone.utc),
+        "status": "active",
+    }
+
+    class FakeConn:
+        async def fetch(self, sql, *args):
+            if "FROM node_status" in sql:
+                return [node_row]
+            if "FROM sensor_data" in sql:
+                return [reading_row]
+            return [alert_row]
+
+    class FakePool:
+        class _Acquired:
+            async def __aenter__(self):
+                return FakeConn()
+
+            async def __aexit__(self, *exc):
+                return False
+
+        def acquire(self):
+            return self._Acquired()
+
+    monkeypatch.setattr("app.db.get_pool", lambda: FakePool())
+
+    sent: list[dict] = []
+
+    class FakeWS:
+        async def send_json(self, msg):
+            sent.append(msg)
+
+    import asyncio
+    asyncio.run(ws_manager.manager._send_snapshot(FakeWS()))
+
+    assert len(sent) == 1
+    snapshot = sent[0]
+    assert snapshot["nodes"]["sensor-01"]["battery_pct"] == 78
+    assert snapshot["nodes"]["sensor-02"]["readings"]["co2_ppm"]["value"] == 650.0, (
+        "node_status가 없는(gas 리딩만 온) 노드도 sensor_data 최신값으로 snapshot에 포함돼야 함"
+    )
+    assert snapshot["alerts"]["co2_ppm"]["node_id"] == "sensor-01"
+    assert snapshot["alerts"]["co2_ppm"]["level"] == "level1_caution"
+
+
+def test_snapshot_falls_back_to_empty_on_db_error(monkeypatch):
+    """DB 조회 실패 시 연결을 끊지 않고 빈 snapshot으로 폴백."""
+    from app.services import ws_manager
+
+    def _raise():
+        raise RuntimeError("DB pool is not initialized")
+    monkeypatch.setattr("app.db.get_pool", _raise)
+
+    sent: list[dict] = []
+
+    class FakeWS:
+        async def send_json(self, msg):
+            sent.append(msg)
+
+    import asyncio
+    asyncio.run(ws_manager.manager._send_snapshot(FakeWS()))
+
+    assert sent == [{"type": "snapshot", "nodes": {}, "alerts": {}}]

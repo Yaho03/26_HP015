@@ -27,6 +27,10 @@ interface DashboardStore {
   addAlert: (alert: AlertState) => void;
   resolveAlert: (alert_key: AlertKey) => void;
   setConnectionStatus: (patch: Partial<ConnectionStatus>) => void;
+  hydrateSnapshot: (
+    nodes: Record<string, Partial<SensorNodeState>>,
+    alerts: Record<string, AlertState>,
+  ) => void;
 }
 
 const initial_connection_status: ConnectionStatus = {
@@ -68,8 +72,16 @@ export const useDashboardStore = create<DashboardStore>((set) => ({
 
   setSensorNodeStatus: (node_id, patch) =>
     set((state) => {
-      const existing = state.sensor_nodes[node_id];
-      if (!existing) return state;
+      // node_status는 gas/env 측정값보다 먼저 도착할 수 있으므로(#106), 기존
+      // entry가 없으면 setSensorNodeReading과 동일한 기본값으로 새로 만든다.
+      const existing = state.sensor_nodes[node_id] ?? {
+        node_id,
+        readings: {},
+        battery_pct: null,
+        wifi_rssi_dbm: null,
+        connection_status: "online" as const,
+        last_seen_at: null,
+      };
       return {
         sensor_nodes: {
           ...state.sensor_nodes,
@@ -117,4 +129,23 @@ export const useDashboardStore = create<DashboardStore>((set) => ({
     set((state) => ({
       connection_status: { ...state.connection_status, ...patch },
     })),
+
+  // WS 연결 직후 snapshot 메시지로 현재 상태를 한 번에 채운다 (#106) — 이게
+  // 없으면 새로고침할 때마다 경보가 다시 발생하기 전까지 화면이 비어 보인다.
+  hydrateSnapshot: (nodes, alerts) =>
+    set((state) => {
+      const sensor_nodes = { ...state.sensor_nodes };
+      for (const [node_id, patch] of Object.entries(nodes)) {
+        const existing = sensor_nodes[node_id] ?? {
+          node_id,
+          readings: {},
+          battery_pct: null,
+          wifi_rssi_dbm: null,
+          connection_status: "online" as const,
+          last_seen_at: null,
+        };
+        sensor_nodes[node_id] = { ...existing, ...patch };
+      }
+      return { sensor_nodes, active_alerts: { ...state.active_alerts, ...alerts } };
+    }),
 }));

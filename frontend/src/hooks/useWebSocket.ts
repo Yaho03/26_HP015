@@ -1,5 +1,5 @@
 import { useEffect, useRef } from "react";
-import type { AlertLevel } from "../types";
+import type { AlertLevel, AlertState, MetricKey, SensorNodeState } from "../types";
 import { WSClient } from "../services/wsClient";
 import type { WSMessage } from "../types/ws";
 import { useDashboardStore } from "../store/dashboardStore";
@@ -50,13 +50,44 @@ function handleMessage(msg: WSMessage): void {
         toastStore.push({ level: msg.to_level as AlertLevel, title, body });
       }
     }
-    if (msg.metric.startsWith("o2_") || msg.metric === "co2_ppm" || msg.metric === "co_ppm" || msg.metric === "h2s_ppm" || msg.metric === "temperature_c") {
-      store.setSensorNodeReading(msg.node_id, msg.metric as never, msg.value, msg.timestamp);
-    }
     return;
   }
   if (msg.type === "location") {
     store.setWearablePosition(msg.node_id, msg.x, msg.y, msg.z, msg.timestamp);
+    return;
+  }
+  if (msg.type === "sensor_reading") {
+    store.setSensorNodeReading(msg.node_id, msg.metric as MetricKey, msg.value, msg.timestamp);
+    return;
+  }
+  if (msg.type === "node_status") {
+    store.setSensorNodeStatus(msg.node_id, {
+      battery_pct: msg.battery_pct,
+      wifi_rssi_dbm: msg.wifi_rssi_dbm,
+      last_seen_at: msg.timestamp,
+    });
+    return;
+  }
+  if (msg.type === "snapshot") {
+    const nodes = msg.nodes as Record<string, Partial<SensorNodeState>>;
+    const rawAlerts = msg.alerts as Record<
+      string,
+      { node_id: string; level: AlertLevel; trigger_value: number; threshold: number; activated_at: string }
+    >;
+    const alerts: Record<string, AlertState> = {};
+    for (const [alert_key, a] of Object.entries(rawAlerts)) {
+      alerts[alert_key] = {
+        alert_key,
+        node_id: a.node_id,
+        level: a.level,
+        status: "active",
+        trigger_value: a.trigger_value,
+        threshold: a.threshold,
+        activated_at: a.activated_at,
+        resolved_at: null,
+      };
+    }
+    store.hydrateSnapshot(nodes, alerts);
   }
 }
 
