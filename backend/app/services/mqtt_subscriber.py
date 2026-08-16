@@ -11,12 +11,14 @@ from app.services import ingest
 
 logger = logging.getLogger(__name__)
 
-# 7개 토픽 패턴 (04_DATA_CONTRACT.md 3.1). '+'는 node_id 자리.
+# 8개 토픽 패턴 (04_DATA_CONTRACT.md 3.1). '+'는 node_id 자리.
+# ranging 은 UWB 거리 → 백엔드 삼변측량 경로 (#121, ADR-006).
 _TOPIC_HANDLERS = {
     "sensors/+/gas": ingest.ingest_telemetry,
     "sensors/+/env": ingest.ingest_telemetry,
     "sensors/+/status": ingest.ingest_status,
     "wearable/+/location": ingest.ingest_telemetry,
+    "wearable/+/ranging": ingest.ingest_ranging,
     "wearable/+/imu": ingest.ingest_telemetry,
     "wearable/+/vital": ingest.ingest_telemetry,
     "nodes/+/connection": ingest.ingest_connection,
