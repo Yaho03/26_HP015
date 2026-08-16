@@ -146,3 +146,14 @@ class TestConnectCallbacks:
         mqtt_subscriber._on_disconnect(None, None, None, None)
         assert mqtt_subscriber._subscribed is False
         assert metrics.snapshot()["mqtt_reconnects"] == before + 1
+
+
+class TestDbConnectGuard:
+    @pytest.mark.asyncio
+    async def test_empty_timescale_url_fails_fast(self, monkeypatch):
+        """빈 URL 로 두면 asyncpg 가 기본값으로 엉뚱한 DB 에 붙는다 (이슈 #128)."""
+        from app.config import settings as cfg
+
+        monkeypatch.setattr(cfg, "timescale_url", "")
+        with pytest.raises(RuntimeError, match="TIMESCALE_URL"):
+            await db.connect()

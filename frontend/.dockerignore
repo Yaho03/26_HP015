@@ -1,0 +1,10 @@
+# 이미지에 들어갈 이유가 없는 것들 (이슈 #128).
+# node_modules 는 컨테이너 안에서 npm ci 로 다시 깔린다. 호스트 것을 복사하면
+# 플랫폼이 다른 네이티브 바이너리가 섞여 들어간다.
+node_modules/
+dist/
+.vite/
+.env
+.env.*
+!.env.example
+*.local
