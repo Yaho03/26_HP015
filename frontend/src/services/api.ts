@@ -1,8 +1,8 @@
 import type { MetricKey } from "../types";
 
-const API_BASE =
-  (import.meta.env.VITE_API_BASE as string | undefined) ??
-  `http://${typeof window !== "undefined" ? window.location.hostname : "localhost"}:8000`;
+// 상대 경로 기본값 — nginx(배포)와 vite dev proxy(개발) 둘 다 /api를 백엔드로
+// 프록시하므로 프론트엔드가 :8000을 직접 호출할 필요가 없다 (이슈 #105).
+const API_BASE = (import.meta.env.VITE_API_BASE as string | undefined) ?? "";
 
 export interface SensorDataPoint {
   time: string;
@@ -34,6 +34,34 @@ export interface AlertEventFilter {
   start?: string;
   end?: string;
   limit?: number;
+}
+
+export type ThresholdLevel = "level1_caution" | "level2_warning" | "level3_critical";
+export type ThresholdDirection = "above" | "below";
+
+export interface Threshold {
+  metric: string;
+  level: ThresholdLevel;
+  direction: ThresholdDirection;
+  enter_threshold: number;
+  exit_threshold: number;
+  enter_for_ms: number;
+  exit_for_ms: number;
+  updated_at: string | null;
+}
+
+export interface ThresholdUpdate {
+  direction: ThresholdDirection;
+  enter_threshold: number;
+  exit_threshold: number;
+  enter_for_ms: number;
+  exit_for_ms: number;
+}
+
+export interface HealthStatus {
+  status: string;
+  mqtt: { connected: boolean };
+  db: { pool_initialized: boolean };
 }
 
 export async function fetchSensorData(
@@ -72,12 +100,36 @@ export async function fetchAlertEvents(filter: AlertEventFilter = {}): Promise<A
   return (await resp.json()) as AlertEvent[];
 }
 
-export async function fetchThresholds(): Promise<unknown[]> {
+export async function fetchThresholds(): Promise<Threshold[]> {
   const resp = await fetch(`${API_BASE}/api/thresholds`);
   if (!resp.ok) {
     throw new Error(`thresholds fetch failed: ${resp.status}`);
   }
-  return (await resp.json()) as unknown[];
+  return (await resp.json()) as Threshold[];
+}
+
+export async function updateThreshold(
+  metric: string,
+  level: ThresholdLevel,
+  payload: ThresholdUpdate,
+): Promise<Threshold> {
+  const resp = await fetch(`${API_BASE}/api/thresholds/${metric}/${level}`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+  if (!resp.ok) {
+    throw new Error(`threshold update failed: ${resp.status}`);
+  }
+  return (await resp.json()) as Threshold;
+}
+
+export async function fetchHealth(): Promise<HealthStatus> {
+  const resp = await fetch(`${API_BASE}/health`);
+  if (!resp.ok) {
+    throw new Error(`health fetch failed: ${resp.status}`);
+  }
+  return (await resp.json()) as HealthStatus;
 }
 
 export async function fetchMetrics(): Promise<Record<string, number>> {
@@ -86,4 +138,57 @@ export async function fetchMetrics(): Promise<Record<string, number>> {
     throw new Error(`metrics fetch failed: ${resp.status}`);
   }
   return (await resp.json()) as Record<string, number>;
+}
+
+// ── 데모 시나리오 제어 (09_DEMO_SCENARIOS 4절) ────────────────────────
+// 백엔드에서 기본 비활성이다. 꺼져 있으면 전 경로가 404 를 낸다.
+
+export interface DemoScenario {
+  name: string;
+  label: string;
+  description: string;
+  default_nodes: string[];
+  supports_duration: boolean;
+  default_duration_s: number | null;
+}
+
+export interface DemoRunState {
+  running: boolean;
+  scenario: string | null;
+  node_ids: string[];
+  started_at: string | null;
+}
+
+/** 시나리오 목록. 기능이 꺼져 있으면 null 을 반환한다 (에러가 아니다). */
+export async function fetchDemoScenarios(): Promise<DemoScenario[] | null> {
+  const resp = await fetch(`${API_BASE}/api/demo/scenarios`);
+  if (resp.status === 404) return null;
+  if (!resp.ok) throw new Error(`demo scenarios fetch failed: ${resp.status}`);
+  return (await resp.json()) as DemoScenario[];
+}
+
+export async function fetchDemoStatus(): Promise<DemoRunState | null> {
+  const resp = await fetch(`${API_BASE}/api/demo/status`);
+  if (resp.status === 404) return null;
+  if (!resp.ok) throw new Error(`demo status fetch failed: ${resp.status}`);
+  return (await resp.json()) as DemoRunState;
+}
+
+export async function runDemoScenario(
+  scenario: string,
+  duration_s?: number,
+): Promise<DemoRunState> {
+  const resp = await fetch(`${API_BASE}/api/demo/run`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(duration_s ? { scenario, duration_s } : { scenario }),
+  });
+  if (!resp.ok) throw new Error(`시나리오 실행 실패 (${resp.status})`);
+  return (await resp.json()) as DemoRunState;
+}
+
+export async function stopDemoScenario(): Promise<DemoRunState> {
+  const resp = await fetch(`${API_BASE}/api/demo/stop`, { method: "POST" });
+  if (!resp.ok) throw new Error(`시나리오 중지 실패 (${resp.status})`);
+  return (await resp.json()) as DemoRunState;
 }

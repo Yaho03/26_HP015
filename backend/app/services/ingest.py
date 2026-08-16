@@ -21,6 +21,9 @@ _SKIP_FIELDS = {
 
 _alert_callback = None
 _location_callback = None
+_ranging_callback = None
+_reading_callback = None
+_status_callback = None
 
 
 def set_alert_callback(callback) -> None:
@@ -28,6 +31,28 @@ def set_alert_callback(callback) -> None:
     백엔드 startup(mqtt_subscriber.start)에서 alert_service 로부터 주입한다 (#54)."""
     global _alert_callback
     _alert_callback = callback
+
+
+def set_reading_callback(callback) -> None:
+    """정상 센서 측정값 브로드캐스트 콜백 주입. ingest_telemetry 가 각 metric 저장 후
+    호출한다. sensor_broadcast.init() 에서 등록한다 (#106) — 경보가 없어도
+    대시보드가 실시간 값을 받아야 하므로 alert_callback과는 별개로 항상 호출된다."""
+    global _reading_callback
+    _reading_callback = callback
+
+
+def set_status_callback(callback) -> None:
+    """node_status 브로드캐스트 콜백 주입. ingest_status 가 저장 후 호출한다.
+    sensor_broadcast.init() 에서 등록한다 (#106)."""
+    global _status_callback
+    _status_callback = callback
+
+
+def set_ranging_callback(callback) -> None:
+    """UWB 거리 콜백 주입. ingest_ranging 이 호출한다 (#121).
+    uwb_service.init() 에서 등록한다."""
+    global _ranging_callback
+    _ranging_callback = callback
 
 
 def set_location_callback(callback) -> None:
@@ -182,6 +207,14 @@ async def ingest_telemetry(payload: bytes) -> None:
                             "alert evaluation failed (node=%s metric=%s value=%s)",
                             node_id, metric, value,
                         )
+                if _reading_callback is not None:
+                    try:
+                        await _reading_callback(node_id, metric, value, sampled_at)
+                    except Exception:
+                        logger.exception(
+                            "reading broadcast failed (node=%s metric=%s value=%s)",
+                            node_id, metric, value,
+                        )
                 metrics.increment("messages_processed")
 
     if _location_callback is not None and isinstance(data, dict):
@@ -275,6 +308,21 @@ async def ingest_status(payload: bytes) -> None:
                 sampled_at,
             )
 
+    if _status_callback is not None:
+        try:
+            await _status_callback(
+                node_id,
+                {
+                    "battery_pct": battery_pct,
+                    "wifi_rssi_dbm": wifi_rssi_dbm,
+                    "sensors_online": sensors_online,
+                    "sensors_error": sensors_error,
+                },
+                sampled_at,
+            )
+        except Exception:
+            logger.exception("status broadcast failed (node=%s)", node_id)
+
 
 async def ingest_connection(payload: bytes) -> None:
     """nodes/*/connection (LWT) 처리. 이 페이로드엔 message_id가 없어 dedup 대상이 아니다
@@ -317,3 +365,30 @@ async def ingest_connection(payload: bytes) -> None:
             reason,
             ts,
         )
+
+
+async def ingest_ranging(payload: bytes) -> None:
+    """wearable/*/ranging (UWB 앵커 거리) 처리 — 이슈 #121.
+
+    거리 자체는 최종 관측값이 아니라 좌표를 얻기 위한 중간 데이터라 DB 에 넣지
+    않는다. 저장되는 것은 삼변측량으로 나온 위치다 (기존 location 경로와 동일).
+    """
+    envelope = _parse_envelope(payload)
+    node_id, sampled_at_raw = _require(envelope, "node_id", "sampled_at")
+    node_id = _expect_str(node_id, "node_id")
+    sampled_at = _parse_ts(sampled_at_raw)
+
+    data = envelope.get("data")
+    if not isinstance(data, dict):
+        raise InvalidMessage("ranging payload requires object 'data'")
+    ranges = data.get("ranges")
+    if not isinstance(ranges, list):
+        raise InvalidMessage("ranging data requires list 'ranges'")
+
+    metrics.increment("messages_processed")
+    if _ranging_callback is None:
+        return
+    try:
+        await _ranging_callback(node_id, ranges, sampled_at)
+    except Exception:
+        logger.exception("ranging callback failed (node=%s)", node_id)
