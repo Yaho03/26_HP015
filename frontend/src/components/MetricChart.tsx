@@ -10,12 +10,14 @@ import {
   YAxis,
 } from "recharts";
 import type { MetricKey } from "../types";
+import type { SensorNodeState } from "../types";
 import type { SensorDataPoint } from "../services/api";
 import { thresholdLinesFor } from "../utils/alerts";
 
 interface MetricChartProps {
   data: SensorDataPoint[];
   metric: MetricKey;
+  sourceMode?: SensorNodeState["source_mode"];
   height?: number;
 }
 
@@ -35,12 +37,18 @@ const LEVEL_COLOR: Record<string, string> = {
   level3_critical: "#ef4444",
 };
 
+const LEVEL_SHORT_LABEL: Record<string, string> = {
+  level1_caution: "L1",
+  level2_warning: "L2",
+  level3_critical: "L3",
+};
+
 function formatTime(iso: string): string {
   const d = new Date(iso);
   return d.toLocaleTimeString("en-US", { hour12: false, hour: "2-digit", minute: "2-digit" });
 }
 
-export function MetricChart({ data, metric, height = 320 }: MetricChartProps) {
+export function MetricChart({ data, metric, sourceMode, height = 320 }: MetricChartProps) {
   const unit = METRIC_UNIT[metric] ?? "";
   const thresholds = useMemo(() => thresholdLinesFor(metric), [metric]);
   const chartData = useMemo(
@@ -83,7 +91,7 @@ export function MetricChart({ data, metric, height = 320 }: MetricChartProps) {
               y={t.value}
               stroke={LEVEL_COLOR[t.level] ?? "#6b7280"}
               strokeDasharray="4 4"
-              label={{ value: t.level, fill: LEVEL_COLOR[t.level] ?? "#6b7280", fontSize: 10, position: "right" }}
+              label={{ value: LEVEL_SHORT_LABEL[t.level] ?? t.level, fill: LEVEL_COLOR[t.level] ?? "#6b7280", fontSize: 10, position: "right" }}
             />
           ))}
           <Line
@@ -91,6 +99,7 @@ export function MetricChart({ data, metric, height = 320 }: MetricChartProps) {
             dataKey="value"
             stroke="#3b82f6"
             strokeWidth={2}
+            strokeDasharray={sourceMode === "simulation" ? "6 4" : undefined}
             dot={false}
             isAnimationActive={false}
           />

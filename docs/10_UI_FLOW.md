@@ -52,6 +52,7 @@
 | 전체 위험 등급 | Space 객체의 `overall_risk_level` | Zustand: `space.overall_risk_level` |
 | 연결 상태 | WebSocket 연결 상태 표시 (녹색 점=연결, 빨간 점=끊김, 노란 점=재연결 중) | Zustand: `ws.connection_status` |
 | 현재 시각 | 시스템 UTC 시각 | `setInterval` 1초 |
+| 테마 토글 | 다크·라이트 전환 (기본 다크) | `localStorage: hp015-theme` |
 
 ### 2.2 SideNav (공통)
 
@@ -82,13 +83,15 @@
 |  | [녹색]   |  | [노랑]   |  | [녹색]   |  | [녹색]   |     |
 |  | CO2: 612 |  | CO2:1230 |  | CO2: 580 |  | CO2: 650 |     |
 |  | CO: raw  |  | CO: raw  |  | CO: raw  |  | CO: raw  |     |
+|  | H2S: raw |  | H2S: raw |  | H2S: raw |  | H2S: raw |     |
 |  | 온도:24.5|  | 온도:25.1|  | 온도:24.8|  | 온도:24.3|     |
 |  | [미니차트]|  | [미니차트]|  | [미니차트]|  | [미니차트]|     |
 |  +----------+  +----------+  +----------+  +----------+     |
 |                                                              |
 |  +----------------------------------------------------+      |
 |  | 웨어러블 wearable-01                                |      |
-|  | O2: 20.9% | 위치: (2.41, 1.32) | 배터리: 78%      |      |
+|  | O2: 20.9% | 원본 위치: (2.41, 1.32) demo-local                  |      |
+|  |           | 표시 위치: (57.84, 3.20) ship-visual | 배터리: 78% |      |
 |  | 낙상: 정상 | 품질: 0.87 (4 anchor)                 |      |
 |  +----------------------------------------------------+      |
 +--------------------------------------------------------------+
@@ -101,19 +104,30 @@
 | 카드 배경색 | `alert_level` | `sensor_nodes[id].alert_level` | 실시간 (Delta) |
 | CO2 값 | `co2_ppm` | `sensor_nodes[id].latest_values.co2_ppm` | 1초 |
 | CO 값 | `co_estimated_ppm` 또는 "raw" 표시 | `sensor_nodes[id].latest_values` | 1초 |
+| H2S 값 | `h2s_ppm` | `sensor_nodes[id].latest_values` | 1초 |
 | 온도/습도 | `temperature_c`, `humidity_pct` | `sensor_nodes[id].latest_values` | 5초 |
+| 가스저항 | `gas_resistance_ohm` | `sensor_nodes[id].latest_values` | 5초 |
 | 교정 배지 | `calibration_status` | `sensor_nodes[id].calibration_status` | 상태 변화 시 |
 | 연결 상태 | `connection_status` | `sensor_nodes[id].connection_status` | Delta |
+| 최근 수신 시각 | `last_seen_at` | `sensor_nodes[id].last_seen_at` | Delta |
 | 미니 차트 (SHOULD) | 최근 1시간 CO2 추세 | Zustand 시계열 버퍼 | 5초 갱신 |
 
-**카드 색상 매핑:**
+**카드 등급 표현:**
 
-| alert_level | 배경색 | 테두리 |
-|-------------|--------|--------|
-| normal | 흰색 | 녹색 (2px) |
-| level1_caution | #FFF9C4 (연노랑) | 노랑 (2px) |
-| level2_warning | #FFE0B2 (연주황) | 주황 (3px, 점멸) |
-| level3_critical | #FFCDD2 (연빨강) | 빨강 (3px, 점멸 + 그림자) |
+배경색은 등급과 무관하게 패널색으로 고정한다. 등급은 **테두리 · 브래킷 마크 · CO₂ 수치
+색상 · 상태 아이콘 · 텍스트 라벨**이 함께 전달한다. 위험도를 색상 단독으로 전달하지
+않는다(`PRODUCT.md` 접근성 항목).
+
+| alert_level | 테두리 / 브래킷 | CO₂ 수치 | 아이콘 + 텍스트 |
+|-------------|-----------------|----------|-----------------|
+| normal | `--normal` | 기본 잉크색 | 체크 + `정상` |
+| level1_caution | `--l1` | `--l1` | 삼각 경고 + `L1 주의` |
+| level2_warning | `--l2` | `--l2` | 원형 경고 + `L2 경고` |
+| level3_critical | `--l3` | `--l3` | 원형 오류 + `L3 위험` |
+
+색상 토큰 값은 `frontend/src/styles/global.css`의 `:root` / `:root[data-theme="light"]`에
+정의한다. 다크가 기본이며 라이트(주간) 모드는 같은 구조에 밝은 지면을 쓴다. 지켜야 할
+것은 색값이 아니라 **정상 → 주의 → 경고 → 위험 순으로 위험도가 올라가는 의미 체계**다.
 
 **교정 상태 배지:**
 
@@ -168,12 +182,17 @@
 
 > 관련 요구사항: FR-501, FR-502
 > 좌표 변환 규칙: `05_DIGITAL_TWIN_SPEC.md` 섹션 3.2 참조
+> 데모 좌표 → 선박형 표시 좌표 비율 매핑: `05_DIGITAL_TWIN_SPEC.md` 섹션 3.1.1 참조
+
+선박형 3D 트윈의 공식 표시 공간은 길이 60m x 폭 20m x 높이 14m이다.
+하드웨어가 2.5m x 2.0m x 1.5m 축소 공간에서 측정되는 경우, 원본 좌표는
+`demo-local`로 보존하고 화면 표시 좌표만 `ship-visual`로 변환한다.
 
 ### 4.1 레이아웃
 
 ```
 +--------------------------------------------------------------+
-|  [3D 캔버스 - WebGL]                                         |
+|  [3D 캔버스 - WebGL: 화물창/밸러스트 탱크 visual model]      |
 |                                                              |
 |         +--- 반투명 벽 ---+                                  |
 |         |                  |                                  |
@@ -187,6 +206,7 @@
 +--------------------------------------------------------------+
 |  [IDW 레이블: "Estimated concentration based on IDW         |
 |   interpolation" | "Interpolation based on 4 sensors"]      |
+|  [좌표 배지: LIVE/SIM | demo-local → ship-visual | mapped]  |
 +--------------------------------------------------------------+
 ```
 
@@ -212,6 +232,22 @@ three_z = -physical_y
 ```
 
 > `04_DATA_CONTRACT.md` 섹션 8.2, `05_DIGITAL_TWIN_SPEC.md` 섹션 3.2 참조.
+
+### 4.3.1 좌표 매핑 상태 표시
+
+3D 트윈은 길이 60m x 폭 20m x 높이 14m의 선박형 visual model scale을 사용한다.
+데모 하드웨어가 축소 공간에서 동작하는 경우 대시보드는 원본 UWB 좌표를 선박형 표시
+좌표로 비율 매핑한다.
+
+| UI 요소 | 표시 조건 | 표시 예 |
+|---------|-----------|---------|
+| 데이터 출처 배지 | `source_mode` | `LIVE`, `SIM` |
+| 원본 좌표계 배지 | `source_coordinate_system` | `demo-local` |
+| 표시 좌표계 배지 | `position_coordinate_system` | `ship-visual` |
+| 매핑 배지 | `visual_mapping != "none"` | `demo-local -> ship-visual` |
+
+`source_mode`와 `visual_mapping`은 별도 상태이다. 실제 UWB 데이터(`source_mode: "live"`)도
+축소 데모 공간에서 측정되었다면 `visual_mapping: "demo-to-ship-scale"`로 표시한다.
 
 ### 4.4 센서 마커 (SensorMarker)
 
@@ -452,9 +488,9 @@ three_z = -physical_y
 
 | 요소 | 동작 |
 |------|------|
-| 카드 색상 | 주황 + 테두리 점멸 |
+| 카드 색상 | 테두리·브래킷·CO₂ 수치가 주황 (§3.2 등급 표현) |
 | 사이드바 | 해당 메뉴 주황 점멸 |
-| 팝업 | 우측 하단 Toast 알림 (5초 후 자동 닫힘) |
+| 팝업 | 우측 상단 Toast 알림 (5초 후 자동 닫힘) |
 | 소리 | 경고음 1회 |
 | 진동 | 웨어러블: 1초 진동 x 3회, 반복 |
 | 3D 트윈 | 마커 주황 펄스 + 위험 구역 표시 |
@@ -463,7 +499,7 @@ three_z = -physical_y
 
 | 요소 | 동작 |
 |------|------|
-| 카드 색상 | 빨강 + 테두리 빠른 점멸 + 그림자 |
+| 카드 색상 | 테두리·브래킷·CO₂ 수치가 빨강 (§3.2 등급 표현) |
 | 사이드바 | 전체 메뉴 빨강 점멸 |
 | 팝업 | 전체 화면 모달 (확인 버튼까지 닫히지 않음) |
 | 소리 | 사이렌 (확인 시까지 반복) |
@@ -629,6 +665,10 @@ const workerPos = useStore((s) => s.wearable.position);
 | 이벤트 로그 | 일반 표시 | "SIM" 태그 추가 |
 
 > 시뮬레이션 데이터는 실제 센서와 동일한 node_id를 사용하므로, `source_mode` 필드로만 구분한다. (`04_DATA_CONTRACT.md` 섹션 2 참조)
+>
+> 좌표 비율 매핑은 시뮬레이션 여부와 별개이다. 예를 들어 실제 UWB 측정값도 축소 데모
+> 공간에서 측정되어 선박형 트윈에 투영되면 `LIVE` 배지와 `demo-local -> ship-visual`
+> 배지를 함께 표시한다.
 
 ---
 

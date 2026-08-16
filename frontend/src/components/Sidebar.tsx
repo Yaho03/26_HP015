@@ -1,18 +1,21 @@
-import type { ConnectionStatus } from "../types";
+import type { ComponentType } from "react";
+import type { AlertLevel, ConnectionStatus } from "../types";
+import { IconChart, IconCube, IconGauge, IconList, IconSettings } from "./icons";
 
 export type ScreenKey = "monitoring" | "twin" | "chart" | "event-log" | "settings";
 
 interface MenuItem {
   key: ScreenKey;
   label: string;
+  Icon: ComponentType<{ size?: number | string }>;
 }
 
 const MENU: MenuItem[] = [
-  { key: "monitoring", label: "Monitoring" },
-  { key: "twin", label: "3D Twin" },
-  { key: "chart", label: "Chart" },
-  { key: "event-log", label: "Event Log" },
-  { key: "settings", label: "Settings" },
+  { key: "monitoring", label: "모니터링", Icon: IconGauge },
+  { key: "twin", label: "3D 트윈", Icon: IconCube },
+  { key: "chart", label: "차트", Icon: IconChart },
+  { key: "event-log", label: "이벤트 로그", Icon: IconList },
+  { key: "settings", label: "설정", Icon: IconSettings },
 ];
 
 interface SidebarProps {
@@ -20,26 +23,41 @@ interface SidebarProps {
   onSelect: (key: ScreenKey) => void;
   active_alert_count: number;
   connection: ConnectionStatus;
+  overall_level: AlertLevel;
 }
 
-export function Sidebar({ current, onSelect, active_alert_count, connection }: SidebarProps) {
+export function Sidebar({
+  current,
+  onSelect,
+  active_alert_count,
+  connection,
+  overall_level,
+}: SidebarProps) {
+  const critical = overall_level === "level3_critical";
   return (
     <aside className="sidebar">
       <div className="sidebar-brand">
         <span className="sidebar-brand-mark">HP015</span>
+        <span className="sidebar-brand-sub">console</span>
       </div>
       <nav className="sidebar-nav">
-        {MENU.map((item) => (
+        {MENU.map(({ key, label, Icon }) => (
           <button
-            key={item.key}
+            key={key}
             type="button"
+            aria-label={label}
             className={
-              "sidebar-item" + (current === item.key ? " sidebar-item-active" : "")
+              "sidebar-item" +
+              (current === key ? " sidebar-item-active" : "") +
+              (critical && key === "monitoring" ? " sidebar-item-critical" : "")
             }
-            onClick={() => onSelect(item.key)}
+            onClick={() => onSelect(key)}
           >
-            <span>{item.label}</span>
-            {item.key === "monitoring" && active_alert_count > 0 && (
+            <span className="sidebar-item-icon">
+              <Icon size={16} />
+            </span>
+            <span className="sidebar-item-label">{label}</span>
+            {key === "monitoring" && active_alert_count > 0 && (
               <span className="sidebar-badge">{active_alert_count}</span>
             )}
           </button>
@@ -54,11 +72,15 @@ export function Sidebar({ current, onSelect, active_alert_count, connection }: S
   );
 }
 
+/** Connection state is never colour alone (PRODUCT.md 접근성): the mark, the
+ *  word, and the aria-label all carry it. */
 function StatusDot({ label, ok }: { label: string; ok: boolean }) {
+  const state = ok ? "연결됨" : "끊김";
   return (
-    <div className="status-dot">
-      <span className={"status-dot-mark " + (ok ? "status-ok" : "status-bad")} />
+    <div className="status-dot" aria-label={`${label} ${state}`}>
+      <span className={"status-dot-mark " + (ok ? "status-ok" : "status-bad")} aria-hidden="true" />
       <span className="status-dot-label">{label}</span>
+      <span className={"status-dot-state " + (ok ? "status-ok-text" : "status-bad-text")}>{state}</span>
     </div>
   );
 }

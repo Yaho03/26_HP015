@@ -24,3 +24,7 @@ extracted/
 
 # 실제 자격증명 — 파일 자체 주석대로 커밋 금지
 firmware/src/wifi_credentials.h
+
+# HP015 와 무관한 리버스 엔지니어링 산출물 (제3자 API 키 포함)
+recovered_py/
+tools/extract_pyinstaller.py
