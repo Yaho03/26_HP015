@@ -17,3 +17,10 @@ node_modules/
 # Firmware (PlatformIO)
 .pio/
 .platformio-core/
+.env.local
+
+# 프로젝트와 무관한 대용량 산출물 (72MB)
+extracted/
+
+# 실제 자격증명 — 파일 자체 주석대로 커밋 금지
+firmware/src/wifi_credentials.h
