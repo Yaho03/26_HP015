@@ -1,10 +1,14 @@
 name: CI
 
+# 이 워크플로는 github.event.* 같은 사용자 제어 입력을 run: 에 넣지 않는다.
+# 모든 값이 정적이므로 워크플로 인젝션 경로가 없다.
+
 on:
   push:
     branches: [main]
+  # 스택 PR 도 검증되어야 한다. branches: [main] 만 지정하면 브랜치 위에 쌓은
+  # PR 은 CI 가 아예 돌지 않는다 (이슈 #124).
   pull_request:
-    branches: [main]
 
 jobs:
   backend:
@@ -29,10 +33,76 @@ jobs:
           pip install -r requirements-dev.txt
 
       - name: Run tests
+        run: pytest tests/ -v --ignore=tests/integration
+
+  backend-integration:
+    name: Backend (통합 — 실제 DB)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    # 단위 테스트는 DB 를 전부 mock 하므로 SQL 문법 오류, 타입 바인딩 불일치,
+    # 제약 조건 위반을 걸러내지 못한다. #102(TIMESTAMPTZ 에 str 바인딩)가 이
+    # 사각지대에서 나온 P0 였다 — 단위 테스트는 전부 통과했는데 경보 저장이
+    # 통째로 실패했다.
+    services:
+      timescaledb:
+        image: timescale/timescaledb:latest-pg16
+        env:
+          POSTGRES_USER: hp015
+          POSTGRES_PASSWORD: hp015_ci_password
+          POSTGRES_DB: hp015_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U hp015"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python 3.10
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+          cache: pip
+          cache-dependency-path: backend/requirements-dev.txt
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements-dev.txt
+
+      - name: Run integration tests
+        env:
+          TEST_TIMESCALE_URL: postgresql://hp015:hp015_ci_password@localhost:5432/hp015_test
+        run: pytest tests/integration -v
+
+  inject:
+    name: Inject tools (pytest)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: experiments/inject
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python 3.10
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install paho-mqtt pytest pytest-asyncio
+
+      - name: Run tests
         run: pytest tests/ -v
 
   frontend:
-    name: Frontend (tsc + lint)
+    name: Frontend (tsc + lint + test + build)
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -55,6 +125,11 @@ jobs:
 
       - name: Lint
         run: npm run lint
+
+      # 좌표 변환·추세 예측 같은 순수 로직 테스트. 러너는 있었는데 CI 가 돌리지
+      # 않아 깨져도 아무도 몰랐다 (이슈 #124).
+      - name: Unit tests
+        run: npm test
 
       - name: Build
         run: npm run build
