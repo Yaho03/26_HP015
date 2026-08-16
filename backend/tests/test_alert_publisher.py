@@ -408,7 +408,7 @@ async def test_event_persisted_to_alert_events_table(monkeypatch):
 
 @pytest.mark.asyncio
 async def test_alert_service_uses_publisher(monkeypatch):
-    from app.services import alert_service
+    from app.services import alert_publisher, alert_service
 
     publisher_calls: list[Any] = []
 
@@ -416,7 +416,9 @@ async def test_alert_service_uses_publisher(monkeypatch):
         async def publish_transition(self, t):
             publisher_calls.append(t)
 
-    monkeypatch.setattr(alert_service, "_publisher", _FP())
+    # alert_service 는 자체 참조를 두지 않고 alert_publisher 의 현재 publisher 를
+    # 매번 찾는다 (이슈 #118).
+    monkeypatch.setattr(alert_publisher, "_publisher", _FP())
 
     await alert_service._handle_transition(_transition(to_level=AlertLevel.LEVEL1))
 

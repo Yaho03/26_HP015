@@ -24,7 +24,6 @@ METRIC_TO_ALERT_KEYS: Dict[str, List[str]] = {
 }
 
 _evaluator: AlertEvaluator | None = None
-_publisher = None
 
 
 def _group_by_metric(thresholds: List[Threshold]) -> Dict[str, List[Threshold]]:
@@ -74,8 +73,21 @@ async def _handle_transition(transition: AlertTransition) -> None:
         transition.value,
         transition.threshold,
     )
-    if _publisher is not None:
-        await _publisher.publish_transition(transition)
+    # 모듈 함수를 통해 매번 현재 publisher 를 찾는다. 예전에는 main.py 가
+    # alert_publisher._publisher 를 여기로 복사했는데, 복사 시점의 객체를 붙들고
+    # 있어서 MQTT 재연결로 publisher 가 교체되면 죽은 클라이언트를 계속 썼다
+    # (이슈 #118).
+    #
+    # 저장·발행이 실패해도 아래 WS 브로드캐스트는 반드시 실행한다. 저장이 화면
+    # 경보까지 막는 것이 #102 에서 실제로 일어난 일이다.
+    try:
+        await alert_publisher.publish_transition(transition)
+    except Exception:
+        logger.exception(
+            "alert publish failed (node=%s metric=%s)",
+            transition.node_id, transition.metric,
+        )
+
     try:
         from app.services.ws_manager import manager
         await manager.broadcast({

@@ -86,10 +86,12 @@ def test_alert_publisher_triggers_ws_broadcast(monkeypatch):
     from app.models.alert import AlertLevel, AlertTransition
     from datetime import datetime, timezone
 
+    from app.services import alert_publisher
+
     class _FakePublisher:
         async def publish_transition(self, t):
             pass
-    monkeypatch.setattr(alert_service, "_publisher", _FakePublisher())
+    monkeypatch.setattr(alert_publisher, "_publisher", _FakePublisher())
 
     transition = AlertTransition(
         node_id="sensor-01", metric="co2_ppm",
