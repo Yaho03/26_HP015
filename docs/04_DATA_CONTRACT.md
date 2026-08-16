@@ -76,6 +76,9 @@ JSON Schema 파일은 `schemas/` 디렉토리에 위치한다.
 | `simulation.scenario_id` | string | 시나리오 식별자 (예: "co2_warning", "o2_low") |
 
 > 시뮬레이션 데이터 주입 시 `node_id`는 실제 물리 노드 ID를 그대로 사용한다 (예: `sensor-01`). 별도의 `sim-NN` prefix를 사용하지 않는다. 대시보드는 `source_mode: "simulation"` 필드로 실제/시뮬레이션을 구분한다.
+>
+> `source_mode`는 데이터 출처만 구분한다. 축소 데모 공간 좌표를 선박형 3D 트윈 좌표로
+> 비율 매핑했는지는 `position_coordinate_system`과 `visual_mapping` 필드로 별도 표시한다.
 
 ### quality 필드 정의
 
@@ -130,7 +133,8 @@ JSON Schema 파일은 `schemas/` 디렉토리에 위치한다.
 | `sensors/{node_id}/gas` | 센서 노드 | 1 | 아니오 | sensor-gas.schema.json | CO2, CO, H2S, MQ-2, BME680 가스저항/IAQ |
 | `sensors/{node_id}/env` | 센서 노드 | 1 | 아니오 | sensor-env.schema.json | 온도, 습도, 기압 |
 | `sensors/{node_id}/status` | 센서 노드 | 1 | **예** | sensor-status.schema.json | 배터리, WiFi RSSI, 업타임, 센서 상태 |
-| `wearable/{node_id}/location` | 웨어러블 노드 | 1 | 아니오 | wearable-location.schema.json | UWB 계산 위치 (x, y, z, 품질) |
+| `wearable/{node_id}/location` | 웨어러블 노드 | 1 | 아니오 | wearable-location.schema.json | 태그가 계산한 위치 (x, y, z, 품질) |
+| `wearable/{node_id}/ranging` | 웨어러블 노드 | 1 | 아니오 | — | UWB 앵커별 거리. 백엔드가 삼변측량 (ADR-006) |
 | `wearable/{node_id}/imu` | 웨어러블 노드 | 0 | 아니오 | wearable-imu.schema.json | 가속도, 자이로, 낙상 감지 여부 |
 | `wearable/{node_id}/vital` | 웨어러블 노드 | 1 | 아니오 | wearable-vital.schema.json | O2 농도 |
 | `alerts/events/{node_id}` | 백엔드 서버 | 1 | 아니오 | alert-event.schema.json | 경보 발령/해제 이벤트 (개별 이벤트 스트림) |
@@ -325,8 +329,83 @@ JSON Schema 파일은 `schemas/` 디렉토리에 위치한다.
 > `x_m`, `y_m`은 **물리 좌표계(Z-up)** 기준이다. Three.js 렌더링 시 좌표 변환이 필요하다 (`05_DIGITAL_TWIN_SPEC.md` 섹션 3 참조).
 >
 > `z_m`은 UWB가 측정한 값이 아니라 렌더링용 고정 좌표이다. 2D 측위 결과를 3D 바닥 높이에 매핑한다.
+>
+> 데모 환경에서 축소 공간 좌표를 선박형 3D 모델에 비율 매핑하더라도, MQTT location
+> payload의 `x_m`, `y_m`, `z_m`은 원본 UWB/데모 좌표로 보존한다. 표시용 좌표는
+> WebSocket Twin Snapshot/Delta에서 `position`, `position_raw`, `source_coordinate_system`,
+> `position_coordinate_system`, `visual_mapping` 필드로 구분한다.
 
-### 4.5 wearable/{node_id}/imu
+#### 실시간 location WebSocket 프레임
+
+Snapshot/Delta 와 달리, 실시간 location 프레임은 **실측 좌표만** 보낸다.
+
+```json
+{
+  "type": "location",
+  "node_id": "wearable-01",
+  "position_raw": { "x_m": 1.2, "y_m": 0.8, "z_m": 0.0 },
+  "source_coordinate_system": "demo-local",
+  "x": 1.2, "y": 0.8, "z": 0.0,
+  "timestamp": "2026-08-16T04:34:47.425455+00:00"
+}
+```
+
+| 필드 | 설명 |
+|------|------|
+| `position_raw` | 필터링을 거친 실측 좌표. 비율 매핑을 적용하지 않은 값 |
+| `source_coordinate_system` | `position_raw` 가 측정된 좌표계. 백엔드 설정 `LOCATION_SOURCE_COORDINATE_SYSTEM` |
+| `x` / `y` / `z` | 하위호환용. `position_raw` 와 같은 값이며 신규 코드는 쓰지 않는다 |
+
+표시 좌표(`position`)는 보내지 않는다. 화면마다 매핑 프리셋이 다르므로
+(`05_DIGITAL_TWIN_SPEC.md` §3.1.4) 백엔드가 어느 하나를 고를 수 없다. 변환은
+프론트엔드가 렌더 시점에 수행한다 (`frontend/src/utils/coordinates.ts`).
+
+`source_coordinate_system` 이 `ship-visual` 이면 이미 표시 좌표이므로 프론트엔드가
+매핑을 건너뛴다. 실제 선박 좌표를 직접 수신하는 배치에서 좌표가 두 번 확대되는 것을
+이 필드로 막는다.
+
+### 4.5 wearable/{node_id}/ranging
+
+UWB 앵커까지의 거리. 좌표가 아니라 **거리**를 보내고 백엔드가 삼변측량한다
+(ADR-006). 자체 측위를 하는 태그는 4.4 location 을 대신 쓴다.
+
+```json
+{
+  "schema_version": "1.1",
+  "node_id": "wearable-01",
+  "message_id": "...",
+  "sampled_at": "2026-08-16T04:34:47.425Z",
+  "source_mode": "simulation",
+  "data": {
+    "ranges": [
+      { "anchor_id": "A1", "distance_m": 1.421 },
+      { "anchor_id": "A2", "distance_m": 1.702 },
+      { "anchor_id": "A3", "distance_m": 1.905 },
+      { "anchor_id": "A4", "distance_m": 1.233 }
+    ],
+    "method": "ds_twr"
+  }
+}
+```
+
+| 필드 | 타입 | 설명 |
+|------|------|------|
+| `data.ranges` | array | 앵커별 거리. **최소 3개**여야 2D 해가 나온다 |
+| `ranges[].anchor_id` | string | 앵커 식별자. 서버 설정 `UWB_ANCHORS` 의 키와 대응 |
+| `ranges[].distance_m` | number | 태그-앵커 거리(m). 음수면 메시지 전체를 버린다 |
+| `data.method` | string | 측거 방식. `ds_twr` (ADR-002) |
+
+> **앵커 좌표는 이 페이로드에 없다.** 설치 정보이므로 서버 설정
+> (`UWB_ANCHORS="A1:0,0;A2:2.5,0;..."`)이 단일 정본이다. 매 메시지에 반복해
+> 실으면 낭비이고, 태그마다 다른 값을 보내면 정합성이 깨진다.
+>
+> 거리 자체는 DB 에 저장하지 않는다. 저장되는 것은 삼변측량 결과 위치이며,
+> 4.4 location 과 같은 필터·브로드캐스트 경로를 탄다.
+>
+> 앵커가 3개 미만이거나 배치가 일직선이면 좌표를 내보내지 않는다. 추측한 위치로
+> 작업자를 엉뚱한 곳에 표시하는 것이 아무것도 표시하지 않는 것보다 위험하다.
+
+### 4.6 wearable/{node_id}/imu
 
 > JSON Schema: `schemas/wearable-imu.schema.json`
 
@@ -345,7 +424,7 @@ JSON Schema 파일은 `schemas/` 디렉토리에 위치한다.
 }
 ```
 
-### 4.6 wearable/{node_id}/vital
+### 4.7 wearable/{node_id}/vital
 
 > JSON Schema: `schemas/wearable-vital.schema.json`
 
@@ -515,12 +594,27 @@ LWT 메시지는 공통 Envelope 구조를 따르지 않는다. 연결 상태 �
 
 | 항목 | 정의 |
 |------|------|
-| 원점 | 모형 왼쪽 전면 바닥 |
-| X축 | 모형 가로 방향 (폭) |
-| Y축 | 모형 세로 방향 (깊이) |
+| 원점 | 측정 대상 공간의 왼쪽 전면 바닥 |
+| X축 | 공간 가로/길이 방향 |
+| Y축 | 공간 깊이/폭 방향 |
 | Z축 | 높이 방향 (Z-up) |
 | 단위 | meter |
 | 좌표계 식별자 | `model-local` |
+
+선박형 3D 트윈의 표시 공간 기준은 `ship-visual`이며, 현재 크기는 길이 60m x 폭 20m x
+높이 14m이다. 축소 하드웨어의 원본 좌표(`demo-local`)를 사용하는 경우 원본 위치는
+`position_raw`로 보존하고, 표시 위치는 `position`에 비율 매핑 결과를 기록한다.
+
+### 8.1.1 좌표계 식별자
+
+| 식별자 | 의미 |
+|--------|------|
+| `model-local` | 원본 물리 좌표를 1:1 모델 좌표로 사용하는 기본 좌표계 |
+| `demo-local` | 축소 데모 공간에서 UWB가 산출한 원본 좌표계 |
+| `ship-visual` | 선박형 3D 트윈 표시를 위해 비율 매핑된 좌표계 |
+
+`demo-local` → `ship-visual` 매핑은 시각화용 공간 투영이다. 실제 선박 내부에서 해당
+미터 단위 좌표를 직접 실측했다는 뜻이 아니며, 원본 좌표는 `position_raw`로 보존한다.
 
 ### 8.2 Three.js 렌더링 좌표계 변환
 
@@ -602,15 +696,28 @@ three_z = -physical_y
   "revision": 2,
   "timestamp": "2026-07-13T01:20:31.120Z",
   "space": {
-    "dimensions": { "width_m": 2.5, "depth_m": 2.0, "height_m": 1.5 },
+    "dimensions": { "width_m": 60.0, "depth_m": 20.0, "height_m": 14.0 },
+    "visual_model": "ship-tank",
+    "source_coordinate_system": "demo-local",
+    "position_coordinate_system": "ship-visual",
+    "visual_mapping": "demo-to-ship-scale",
+    "mapping_scale": {
+      "source_width_m": 2.5,
+      "source_depth_m": 2.0,
+      "target_width_m": 60.0,
+      "target_depth_m": 13.0
+    },
     "overall_risk_level": "normal"
   },
   "sensor_nodes": [
     {
       "object_id": "tw.sensor-01",
       "physical_id": "sensor-01",
-      "position": { "x_m": 0.5, "y_m": 0.3, "z_m": 0.8 },
-      "position_coordinate_system": "model-local",
+      "position_raw": { "x_m": 0.5, "y_m": 0.3, "z_m": 0.8 },
+      "source_coordinate_system": "demo-local",
+      "position": { "x_m": 12.0, "y_m": -7.0, "z_m": 0.8 },
+      "position_coordinate_system": "ship-visual",
+      "visual_mapping": "demo-to-ship-scale",
       "latest_values": { "co2_ppm": 612 },
       "alert_level": "normal",
       "connection_status": "online",
@@ -620,8 +727,11 @@ three_z = -physical_y
   "wearable": {
     "object_id": "tw.wearable-01",
     "physical_id": "wearable-01",
-    "position": { "x_m": 1.2, "y_m": 0.8, "z_m": 0.0 },
-    "position_coordinate_system": "model-local",
+    "position_raw": { "x_m": 1.2, "y_m": 0.8, "z_m": 0.0 },
+    "source_coordinate_system": "demo-local",
+    "position": { "x_m": 28.8, "y_m": -1.3, "z_m": 0.0 },
+    "position_coordinate_system": "ship-visual",
+    "visual_mapping": "demo-to-ship-scale",
     "location_quality": {
       "quality_score": 0.87,
       "anchor_count": 4,
@@ -637,3 +747,7 @@ three_z = -physical_y
 ```
 
 > Snapshot/Delta의 `revision` 필드는 메시지 구조의 리비전이며, 스키마 버전(`schema_version`)과 다르다. WebSocket 재연결 시 대시보드는 revision이 연속적인지 확인하고, 빈 구간이 있으면 Snapshot을 재요청한다.
+>
+> `visual_mapping: "demo-to-ship-scale"`인 경우 `position_raw`는 원본 UWB/데모 좌표,
+> `position`은 선박형 3D 트윈 표시 좌표이다. 대시보드는 둘을 혼동하지 않도록 source
+> 상태와 mapping 상태를 별도 배지로 표시한다.
