@@ -1,5 +1,4 @@
-import { useMemo, useRef } from "react";
-import { useFrame } from "@react-three/fiber";
+import { useEffect, useMemo, useRef } from "react";
 import type { BufferAttribute, BufferGeometry } from "three";
 import type { MetricKey } from "../types";
 import {
@@ -8,6 +7,11 @@ import {
   LEVEL_RGB,
   type SensorSample,
 } from "../utils/idw";
+import {
+  SHIP_FLOOR_HALF_WIDTH_M,
+  SHIP_SPACE,
+  toThreeGroundPosition,
+} from "../utils/coordinates";
 
 interface HeatmapProps {
   sensors: SensorSample[];
@@ -16,7 +20,13 @@ interface HeatmapProps {
   resolution?: number;
 }
 
-const DEFAULT_BOUNDS = { minX: 0, maxX: 2.5, minY: 0, maxY: 2.0 };
+// 격자는 ship-visual 바닥 평면을 덮는다. 경계는 utils/coordinates 가 단일 소스다.
+const DEFAULT_BOUNDS = {
+  minX: 0,
+  maxX: SHIP_SPACE.length_m,
+  minY: -SHIP_FLOOR_HALF_WIDTH_M,
+  maxY: SHIP_FLOOR_HALF_WIDTH_M,
+};
 
 export function Heatmap({
   sensors,
@@ -36,40 +46,45 @@ export function Heatmap({
     let i = 0;
     for (let r = 0; r < rows; r++) {
       for (let c = 0; c < cols; c++) {
-        arr[i * 3] = minX + stepX * c;
-        arr[i * 3 + 1] = 0.012;
-        arr[i * 3 + 2] = minY + stepY * r;
+        // 격자점은 ship-visual (Z-up) 로 계산하고 렌더 직전에 Y-up 으로 변환한다.
+        const [tx, ty, tz] = toThreeGroundPosition(minX + stepX * c, minY + stepY * r, 0.05);
+        arr[i * 3] = tx;
+        arr[i * 3 + 1] = ty;
+        arr[i * 3 + 2] = tz;
         i++;
       }
     }
     return arr;
   }, [total, minX, minY, stepX, stepY, rows, cols]);
 
-  const colors = useMemo(() => new Float32Array(total * 3), [total]);
   const colorAttrRef = useRef<BufferAttribute>(null);
   const geomRef = useRef<BufferGeometry>(null);
 
-  useFrame(() => {
-    if (sensors.length === 0) return;
-    const colorAttr = colorAttrRef.current;
-    if (!colorAttr) return;
-    const arr = colorAttr.array as Float32Array;
+  // 센서 값이 바뀔 때만 격자를 다시 칠한다 (이슈 #126).
+  //
+  // 예전에는 useFrame 으로 매 프레임 돌았다. 격자 25x25 = 625점을 초당 60번,
+  // 즉 초당 37,500회 IDW 를 계산했는데 정작 센서 값은 1초에 한 번 바뀐다.
+  const colors = useMemo(() => {
+    const arr = new Float32Array(total * 3);
+    if (sensors.length === 0) return arr;
     let i = 0;
     for (let r = 0; r < rows; r++) {
       for (let c = 0; c < cols; c++) {
-        const x = minX + stepX * c;
-        const y = minY + stepY * r;
-        const v = idw(sensors, x, y);
-        const level = classifyValue(metric, v);
-        const rgb = LEVEL_RGB[level];
+        const value = idw(sensors, minX + stepX * c, minY + stepY * r);
+        const rgb = LEVEL_RGB[classifyValue(metric, value)];
         arr[i * 3] = rgb[0];
         arr[i * 3 + 1] = rgb[1];
         arr[i * 3 + 2] = rgb[2];
         i++;
       }
     }
-    colorAttr.needsUpdate = true;
-  });
+    return arr;
+  }, [total, sensors, metric, rows, cols, minX, minY, stepX, stepY]);
+
+  // 버퍼가 새로 만들어졌음을 GPU 에 알린다.
+  useEffect(() => {
+    if (colorAttrRef.current) colorAttrRef.current.needsUpdate = true;
+  }, [colors]);
 
   return (
     <points>
@@ -84,7 +99,7 @@ export function Heatmap({
           args={[colors, 3]}
         />
       </bufferGeometry>
-      <pointsMaterial size={0.06} vertexColors sizeAttenuation transparent opacity={0.85} />
+      <pointsMaterial size={0.4} vertexColors sizeAttenuation transparent opacity={0.85} />
     </points>
   );
 }
