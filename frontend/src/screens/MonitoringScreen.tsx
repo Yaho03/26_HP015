@@ -1,10 +1,9 @@
-import { useState } from "react";
 import { useDashboardStore } from "../store/dashboardStore";
 import { SummaryBar } from "../components/SummaryBar";
 import { SensorCard } from "../components/SensorCard";
 import { WearableCard } from "../components/WearableCard";
 import { SpacePlan } from "../components/SpacePlan";
-import { IconClock, IconWarning, IconXCircle } from "../components/icons";
+import { IconWarning } from "../components/icons";
 import { nodeAlertLevel } from "../utils/alerts";
 import { useAssignments } from "../hooks/useAssignments";
 import {
@@ -22,8 +21,6 @@ const WEARABLE_SLOT = "wearable-01";
 const PLAN_METRIC: MetricKey = "co2_ppm";
 
 export function MonitoringScreen() {
-  const [demoLoading, setDemoLoading] = useState(false);
-  const [riskSimulation, setRiskSimulation] = useState(false);
   const nodes = useDashboardStore((s) => s.sensor_nodes);
   const co2Trend = useDashboardStore((s) => s.co2_trend);
   const wearable = useDashboardStore((s) => s.wearable);
@@ -94,126 +91,55 @@ export function MonitoringScreen() {
           </span>
         </div>
       </div>
-      <div className="monitor-actions" aria-label="화면 상태 테스트">
-        <span className="monitor-actions__label">INTERACTION TEST</span>
-        <button
-          type="button"
-          className={"monitor-action" + (demoLoading ? " monitor-action--active" : "")}
-          onClick={() => setDemoLoading((loading) => !loading)}
-          aria-pressed={demoLoading}
-        >
-          <IconClock size={14} />
-          {demoLoading ? "로딩 상태 끄기" : "로딩 상태 켜기"}
-        </button>
-        <button
-          type="button"
-          className={"monitor-action monitor-action--danger" + (riskSimulation ? " monitor-action--active" : "")}
-          onClick={() => setRiskSimulation((active) => !active)}
-          aria-pressed={riskSimulation}
-        >
-          <IconWarning size={14} />
-          {riskSimulation ? "테스트 경보 해제" : "위험 상황 발생"}
-        </button>
-      </div>
-
-      {demoLoading ? (
-        <MonitoringSkeleton />
-      ) : (
-        <>
-          {!thresholdsLoaded && (
-            // 이슈 #165 — 등급을 못 매기는 동안 화면이 조용하면 안 된다.
-            // role="alert" 로 스크린리더에도 즉시 전달한다.
-            <div className="threshold-gap-banner" role="alert">
-              <IconWarning size={15} />
-              <span>
-                <strong>임계값을 불러오지 못해 등급을 판정할 수 없습니다.</strong>{" "}
-                표시된 값은 정상 여부가 확인되지 않은 상태입니다. 서버 연결을 확인하세요.
-              </span>
-            </div>
-          )}
-
-          <SummaryBar counts={counts} />
-
-          <section>
-            <div className="section-head">
-              <span>센서 상세</span>
-              {offlineCount > 0 && <span className="section-note">{offlineCount} pending / offline</span>}
-            </div>
-            <div className="sensor-grid">
-              {SENSOR_SLOTS.map((id) => (
-                <SensorCard key={id} node_id={id} node={nodes[id] ?? null} trend={co2Trend[id]} />
-              ))}
-            </div>
-          </section>
-
-          {/* 평면도와 웨어러블을 가로로 나눈다. 세로로 쌓으면 1440x900 에서 스크롤이 생긴다. */}
-          <div className="monitor-bottom">
-            <section className="monitor-bottom__twin">
-              <h2 className="section-head">공간 개요 · CO₂ 분포</h2>
-              {/* 원거리 글랜스 가독성을 위해 원근 없는 바닥 평면도를 쓴다.
-                  3D 트윈은 상세 화면(Screen 2) 소관이다. */}
-              <SpacePlan
-                sensors={planSensors}
-                samples={planSamples}
-                metric={PLAN_METRIC}
-                worker={planWorker}
-                preset={FILL_PRESET}
-              />
-            </section>
-            <section className="monitor-bottom__wearable">
-              <h2 className="section-head">웨어러블</h2>
-              <WearableCard
-                node_id={WEARABLE_SLOT}
-                wearable={wearable}
-                worker={workerFor(WEARABLE_SLOT)}
-              />
-            </section>
-          </div>
-        </>
+      {!thresholdsLoaded && (
+        // 이슈 #165 — 등급을 못 매기는 동안 화면이 조용하면 안 된다.
+        // role="alert" 로 스크린리더에도 즉시 전달한다.
+        <div className="threshold-gap-banner" role="alert">
+          <IconWarning size={15} />
+          <span>
+            <strong>임계값을 불러오지 못해 등급을 판정할 수 없습니다.</strong>{" "}
+            표시된 값은 정상 여부가 확인되지 않은 상태입니다. 서버 연결을 확인하세요.
+          </span>
+        </div>
       )}
 
-      {riskSimulation && (
-        <aside className="safety-demo-alert" role="alert" aria-live="assertive">
-          <div className="safety-demo-alert__icon" aria-hidden="true"><IconXCircle size={22} /></div>
-          <div>
-            <p className="safety-demo-alert__eyebrow">SIMULATED INCIDENT / L3</p>
-            <h2>위험 상황이 감지되었습니다</h2>
-            <p>테스트 경보입니다. 해제할 때까지 우측 상단에 유지됩니다.</p>
-          </div>
-        </aside>
-      )}
-    </div>
-  );
-}
+      <SummaryBar counts={counts} />
 
-function MonitoringSkeleton() {
-  return (
-    <div className="monitor-skeleton" aria-live="polite" aria-label="모니터링 데이터 로딩 중">
-      <div className="monitor-skeleton__summary">
-        {Array.from({ length: 4 }, (_, index) => (
-          <div className="skeleton-block" key={index} />
-        ))}
+      <section>
+        <div className="section-head">
+          <span>센서 상세</span>
+          {offlineCount > 0 && <span className="section-note">{offlineCount} pending / offline</span>}
+        </div>
+        <div className="sensor-grid">
+          {SENSOR_SLOTS.map((id) => (
+            <SensorCard key={id} node_id={id} node={nodes[id] ?? null} trend={co2Trend[id]} />
+          ))}
+        </div>
+      </section>
+
+      {/* 평면도와 웨어러블을 가로로 나눈다. 세로로 쌓으면 1440x900 에서 스크롤이 생긴다. */}
+      <div className="monitor-bottom">
+        <section className="monitor-bottom__twin">
+          <h2 className="section-head">공간 개요 · CO₂ 분포</h2>
+          {/* 원거리 글랜스 가독성을 위해 원근 없는 바닥 평면도를 쓴다.
+              3D 트윈은 상세 화면(Screen 2) 소관이다. */}
+          <SpacePlan
+            sensors={planSensors}
+            samples={planSamples}
+            metric={PLAN_METRIC}
+            worker={planWorker}
+            preset={FILL_PRESET}
+          />
+        </section>
+        <section className="monitor-bottom__wearable">
+          <h2 className="section-head">웨어러블</h2>
+          <WearableCard
+            node_id={WEARABLE_SLOT}
+            wearable={wearable}
+            worker={workerFor(WEARABLE_SLOT)}
+          />
+        </section>
       </div>
-      <div className="section-head">
-        <span className="skeleton-line skeleton-line--label" />
-        <span className="skeleton-line skeleton-line--short" />
-      </div>
-      <div className="monitor-skeleton__sensors">
-        {Array.from({ length: 4 }, (_, index) => (
-          <div className="monitor-skeleton__sensor" key={index}>
-            <span className="skeleton-line skeleton-line--head" />
-            <span className="skeleton-circle" />
-            <span className="skeleton-line" />
-            <span className="skeleton-line skeleton-line--short" />
-            <span className="skeleton-line skeleton-line--tiny" />
-          </div>
-        ))}
-      </div>
-      <div className="monitor-skeleton__bottom">
-        <div className="skeleton-block skeleton-block--wide" />
-        <div className="skeleton-block" />
-      </div>
-      <p className="monitor-skeleton__caption">실시간 센서 스트림을 불러오는 중입니다</p>
     </div>
   );
 }

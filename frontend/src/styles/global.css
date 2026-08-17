@@ -644,29 +644,17 @@ button { cursor: pointer; }
 .alert-modal--persistent .alert-modal__accent { display: none; }
 .alert-modal--persistent .alert-modal-siren { flex: 0 0 30px; display: grid; place-items: center; width: 30px; height: 30px; margin: 1px 0 0; border: 1px solid var(--l3); color: var(--l3); font-family: var(--font-num); font-size: 20px; font-weight: 700; }
 .alert-modal-content { min-width: 0; }
-.alert-modal-eyebrow, .safety-demo-alert__eyebrow { margin: 0 0 5px; color: var(--l3); font-family: var(--font-mono); font-size: 9px; font-weight: 700; letter-spacing: 0.13em; }
+.alert-modal-eyebrow { margin: 0 0 5px; color: var(--l3); font-family: var(--font-mono); font-size: 9px; font-weight: 700; letter-spacing: 0.13em; }
 .alert-modal--persistent .alert-modal-title { margin: 0 0 5px; color: var(--ink-1); font-size: 15px; line-height: 1.35; }
 .alert-modal--persistent .alert-modal-body { margin: 0; color: var(--ink-2); font-size: 12px; line-height: 1.45; }
 .alert-modal-persistent-note { margin: 8px 0 0; color: var(--l3); font-family: var(--font-mono); font-size: 10px; }
 @keyframes persistent-alert-in { from { opacity: 0; transform: translateX(18px); } to { opacity: 1; transform: translateX(0); } }
 
-/* Demo alarm uses the same top-right visual language as real alerts. */
-.safety-demo-alert {
-  position: fixed; top: calc(var(--topbar-h) + 16px); right: 20px; z-index: 1990;
-  display: flex; align-items: flex-start; gap: 12px; width: min(390px, calc(100vw - 32px));
-  padding: 14px 16px; border: 1px solid var(--l3); border-left: 4px solid var(--l3);
-  background: var(--panel); box-shadow: 0 18px 50px rgba(0, 0, 0, 0.4);
-  animation: persistent-alert-in 220ms ease-out both;
-}
-.safety-demo-alert__icon { display: grid; flex: 0 0 28px; place-items: center; width: 28px; height: 28px; color: var(--l3); }
-.safety-demo-alert h2 { margin: 0 0 5px; color: var(--ink-1); font-size: 15px; line-height: 1.35; }
-.safety-demo-alert p:last-child { margin: 0; color: var(--ink-2); font-size: 12px; line-height: 1.45; }
-
 @media (max-width: 767px) {
   .chart-heading-meta, .event-log-meta { width: 100%; justify-content: flex-start; gap: 10px 16px; }
   .chart-panel-head, .event-list-head { gap: 14px; }
   .chart-readout { width: 100%; justify-content: flex-start; gap: 10px 18px; }
-  .alert-modal--persistent, .safety-demo-alert { top: calc(var(--topbar-h) + 10px); right: 10px; width: calc(100vw - 20px); }
+  .alert-modal--persistent { top: calc(var(--topbar-h) + 10px); right: 10px; width: calc(100vw - 20px); }
 }
 
 /* ─────────────────────────────────────────────────────────────
@@ -1382,26 +1370,6 @@ body { background: var(--ground); }
   to { opacity: 1; }
 }
 
-/* Temporary interaction controls are deliberately visible so the requested
-   loading and alert states can be tested without a backend event. */
-.monitor-actions {
-  display: flex; align-items: center; flex-wrap: wrap; gap: 8px;
-  min-height: 40px; padding: 8px 10px;
-  border: 1px solid var(--rule); background: var(--raise);
-}
-.monitor-actions__label {
-  margin-right: auto; color: var(--ink-3); font-family: var(--font-mono);
-  font-size: 9px; letter-spacing: 0.14em;
-}
-.monitor-action {
-  display: inline-flex; align-items: center; gap: 7px; min-height: 28px; padding: 0 10px;
-  border: 1px solid var(--rule-strong); background: transparent; color: var(--ink-2);
-  font: inherit; font-size: 11px; transition: color 160ms ease-out, border-color 160ms ease-out, background-color 160ms ease-out;
-}
-.monitor-action:hover, .monitor-action--active { border-color: var(--ink-1); background: var(--panel); color: var(--ink-1); }
-.monitor-action--danger { border-color: var(--l3); color: var(--l3); }
-.monitor-action--danger:hover, .monitor-action--danger.monitor-action--active { background: var(--l3-wash); color: var(--l3); }
-
 /* The count eases with React's requestAnimationFrame value interpolation; the
    meter below it uses a CSS width transition so live updates do not snap. */
 .summary-item { display: grid; grid-template-columns: auto 1fr; grid-template-rows: auto auto; grid-template-areas: "count label" "meter meter"; align-items: center; row-gap: 6px; }
@@ -1409,29 +1377,6 @@ body { background: var(--ground); }
 .summary-label { grid-area: label; justify-self: end; }
 .summary-meter { grid-area: meter; display: block; width: 100%; height: 3px; overflow: hidden; background: var(--rule); }
 .summary-meter__fill { display: block; width: 0; height: 100%; background: var(--lv, var(--ink-3)); transition: width 360ms cubic-bezier(0.22, 1, 0.36, 1); }
-
-/* Shimmer is a CSS-only skeleton so loading feedback appears before data is
-   available and does not introduce a new animation dependency. */
-.monitor-skeleton { display: flex; flex-direction: column; gap: 14px; }
-.monitor-skeleton__summary, .monitor-skeleton__sensors, .monitor-skeleton__bottom { display: grid; gap: 12px; }
-.monitor-skeleton__summary { grid-template-columns: repeat(4, minmax(0, 1fr)); }
-.monitor-skeleton__sensors { grid-template-columns: repeat(4, minmax(0, 1fr)); }
-.monitor-skeleton__bottom { grid-template-columns: minmax(0, 5fr) minmax(0, 4fr); }
-.skeleton-block, .monitor-skeleton__sensor { min-height: 62px; border: 1px solid var(--rule); background: var(--panel); }
-.monitor-skeleton__sensor { display: flex; flex-direction: column; gap: 13px; min-height: 286px; padding: 16px; }
-.skeleton-line, .skeleton-circle, .skeleton-block {
-  background: linear-gradient(100deg, var(--panel) 20%, var(--raise) 40%, var(--panel) 60%);
-  background-size: 220% 100%; animation: skeleton-shimmer 1.35s ease-in-out infinite;
-}
-.skeleton-line { display: block; width: 100%; height: 10px; }
-.skeleton-line--head { width: 42%; }
-.skeleton-line--label { width: 92px; }
-.skeleton-line--short { width: 58px; justify-self: end; }
-.skeleton-line--tiny { width: 54%; }
-.skeleton-circle { display: block; width: 92px; height: 92px; border-radius: 50%; }
-.monitor-skeleton__bottom .skeleton-block { min-height: 180px; }
-.monitor-skeleton__caption { margin: 0; color: var(--ink-3); font-family: var(--font-mono); font-size: 10px; letter-spacing: 0.08em; }
-@keyframes skeleton-shimmer { to { background-position: -120% 0; } }
 
 /* The backdrop blur keeps the dashboard context present while directing focus
    to the alert. The modal uses ease-out scale-up instead of an abrupt mount. */
@@ -1456,12 +1401,14 @@ body { background: var(--ground); }
 @keyframes safety-modal-in { from { opacity: 0; transform: translateY(8px) scale(0.94); } to { opacity: 1; transform: translateY(0) scale(1); } }
 
 @media (max-width: 900px) {
-  .monitor-skeleton__summary, .monitor-skeleton__sensors { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-}
-@media (max-width: 767px) {
   .safety-tabs { overflow-x: auto; }
   .safety-tab { flex: 1 0 auto; justify-content: center; }
-  .monitor-actions__label { flex-basis: 100%; }
-  .monitor-skeleton__summary, .monitor-skeleton__sensors, .monitor-skeleton__bottom { grid-template-columns: 1fr; }
-  .monitor-skeleton__bottom .skeleton-block { min-height: 120px; }
+}
+
+/* 이슈 #164 — 1440x900 에서 화면 전체가 스크롤 없이 들어와야 한다. 스크롤이
+   생기면 바닥 평면도가 잘려 원거리 판독(#160)이 무너진다. 세로가 넉넉한
+   화면의 여백은 그대로 두고, 짧은 화면에서만 리듬을 좁힌다. */
+@media (max-height: 940px) {
+  .app-content { padding-bottom: var(--s4); }
+  .monitor { gap: var(--s4); }
 }
