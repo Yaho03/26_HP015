@@ -6,6 +6,7 @@ interface WearableCardProps {
   wearable: WearableState | null;
 }
 
+
 function batteryClass(pct: number | null): string {
   if (pct === null) return "";
   if (pct < 20) return "bat-low";
@@ -24,7 +25,7 @@ function quality(q: WearableState["location_quality"]): { text: string; cls: str
 export function WearableCard({ node_id, wearable }: WearableCardProps) {
   if (!wearable) {
     return (
-      <div className="wearable-card is-normal" aria-label={node_id}>
+      <div className="wearable-card is-unknown" aria-label={node_id}>
         <div className="wearable__o2">
           <span className="wearable__o2-value">—</span>
           <span className="wearable__o2-label">O₂ %</span>
@@ -36,8 +37,9 @@ export function WearableCard({ node_id, wearable }: WearableCardProps) {
   }
 
   const o2 = wearable.o2_pct;
+  // O₂ 값이 없으면 판정 불가다 (이슈 #165). 측정 못 한 것을 정상이라 하면 안 된다.
   const o2Level =
-    o2 !== null ? maxLevel(classifyO2Low(o2), classifyO2High(o2)) : "normal";
+    o2 !== null ? maxLevel(classifyO2Low(o2), classifyO2High(o2)) : "unknown";
   const fall = wearable.fall_detected;
   const q = quality(wearable.location_quality);
   // 운영자에게는 실측 좌표를 보여준다. 화면 매핑값은 3D 트윈 렌더에만 쓴다.

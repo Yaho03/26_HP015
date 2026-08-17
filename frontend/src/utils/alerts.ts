@@ -51,6 +51,11 @@ export function isThresholdTableLoaded(): boolean {
 }
 
 function classifyBy(key: string, value: number): AlertLevel {
+  // 테이블 자체가 없으면 판정할 근거가 없다 (이슈 #165). 여기서 normal 을
+  // 돌려주면 임계값을 못 받은 동안 모든 값이 정상으로 보인다.
+  // 테이블은 있는데 그 지표에 규칙만 없는 경우는 normal 이 맞다 — 판정한 결과
+  // 걸릴 구간이 없는 것이므로 모르는 상태가 아니다.
+  if (!isThresholdTableLoaded()) return "unknown";
   for (const { level, direction, enter } of TABLE[key] ?? []) {
     if (direction === "below" ? value < enter : value >= enter) return level;
   }
@@ -80,6 +85,7 @@ export function classifyO2High(value: number): AlertLevel {
 }
 
 const LEVEL_LABEL: Record<AlertLevel, string> = {
+  unknown: "판정 불가",
   normal: "정상",
   level1_caution: "L1 주의",
   level2_warning: "L2 경고",
@@ -90,11 +96,14 @@ export function levelLabel(level: AlertLevel): string {
   return LEVEL_LABEL[level];
 }
 
+// unknown 은 normal 위, 실제 경보 아래다. 한 지표라도 판정 못 하면 노드를
+// 정상이라 말할 수 없지만, 모르는 지표 하나가 확인된 위험을 가려서도 안 된다.
 export const LEVEL_RANK: Record<AlertLevel, number> = {
   normal: 0,
-  level1_caution: 1,
-  level2_warning: 2,
-  level3_critical: 3,
+  unknown: 1,
+  level1_caution: 2,
+  level2_warning: 3,
+  level3_critical: 4,
 };
 
 /** Higher of two levels. */
@@ -109,6 +118,9 @@ export function maxLevel(a: AlertLevel, b: AlertLevel): AlertLevel {
  */
 export function nodeAlertLevel(node: SensorNodeState): AlertLevel {
   if (node.alert_level) return node.alert_level;
+  // 서버 판정이 없고 임계값도 없으면 근거가 전혀 없다 (이슈 #165).
+  // 측정값이 하나도 없는 노드까지 정상으로 떨어지지 않게 여기서 먼저 막는다.
+  if (!isThresholdTableLoaded()) return "unknown";
   let level: AlertLevel = "normal";
   for (const key of Object.keys(node.readings) as MetricKey[]) {
     const reading = node.readings[key];

@@ -30,8 +30,10 @@ export function MonitoringScreen() {
     Object.values(s.active_alerts).filter((alert) => alert.status === "active").length,
   );
   const websocketConnected = useDashboardStore((s) => s.connection_status.websocket_connected);
+  const thresholdsLoaded = useDashboardStore((s) => s.thresholds.length > 0);
 
   const counts: Record<AlertLevel, number> = {
+    unknown: 0,
     normal: 0,
     level1_caution: 0,
     level2_warning: 0,
@@ -46,7 +48,9 @@ export function MonitoringScreen() {
   const planSensors = SENSOR_SLOTS.filter((id) => id in SENSOR_SHIP_POSITIONS).map((id) => ({
     id,
     ...SENSOR_SHIP_POSITIONS[id],
-    level: nodes[id] ? nodeAlertLevel(nodes[id]) : ("normal" as AlertLevel),
+    // 노드 정보가 아직 없으면 판정 불가다 (이슈 #165). normal 로 떨어뜨리면
+    // 평면도에서 데이터 없는 자리가 안전한 자리로 보인다.
+    level: nodes[id] ? nodeAlertLevel(nodes[id]) : ("unknown" as AlertLevel),
   }));
   const planSamples: SensorSample[] = planSensors
     .map((s) => ({ x: s.x, y: s.y, value: nodes[s.id]?.readings[PLAN_METRIC]?.value ?? 0 }))
@@ -114,6 +118,18 @@ export function MonitoringScreen() {
         <MonitoringSkeleton />
       ) : (
         <>
+          {!thresholdsLoaded && (
+            // 이슈 #165 — 등급을 못 매기는 동안 화면이 조용하면 안 된다.
+            // role="alert" 로 스크린리더에도 즉시 전달한다.
+            <div className="threshold-gap-banner" role="alert">
+              <IconWarning size={15} />
+              <span>
+                <strong>임계값을 불러오지 못해 등급을 판정할 수 없습니다.</strong>{" "}
+                표시된 값은 정상 여부가 확인되지 않은 상태입니다. 서버 연결을 확인하세요.
+              </span>
+            </div>
+          )}
+
           <SummaryBar counts={counts} />
 
           <section>

@@ -9,7 +9,15 @@ export type MetricKey =
   | "gas_resistance_ohm"
   | "o2_pct";
 
-export type AlertLevel = "normal" | "level1_caution" | "level2_warning" | "level3_critical";
+// "unknown" 은 서버 임계값을 아직 못 받아 판정이 불가능한 상태다 (이슈 #165).
+// "normal" 과 반드시 구분해야 한다 — 모르는 것을 안전하다고 표시하면
+// 실제 위험 수준의 값이 초록색으로 보인다.
+export type AlertLevel =
+  | "unknown"
+  | "normal"
+  | "level1_caution"
+  | "level2_warning"
+  | "level3_critical";
 export type AlertStatus = "active" | "resolved";
 export type CoordinateSystem = "model-local" | "demo-local" | "ship-visual";
 export type VisualMapping = "none" | "demo-to-ship-scale";

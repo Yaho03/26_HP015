@@ -36,6 +36,9 @@ export const useToastStore = create<ToastStore>((set) => ({
 }));
 
 const TOAST_TTL_MS: Record<AlertLevel, number> = {
+  // 판정 불가로는 토스트가 뜨지 않는다 (서버 경보 전이에만 뜬다).
+  // Record 완전성을 위해 normal 과 같은 값을 둔다.
+  unknown: 3000,
   normal: 3000,
   level1_caution: 5000,
   level2_warning: 8000,
