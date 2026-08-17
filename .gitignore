@@ -17,3 +17,6 @@ node_modules/
 # Firmware (PlatformIO)
 .pio/
 .platformio-core/
+
+# 하드웨어 검증 tap 기록 (scripts/hw_verify.py) — 실행 산출물
+.hw_verify_tap.jsonl
