@@ -5,7 +5,15 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app import db, migration_runner, observability
 from app.config import settings
-from app.routers import alert_events, demo, health, sensor_data, thresholds, websocket
+from app.routers import (
+    alert_events,
+    demo,
+    health,
+    sensor_data,
+    thresholds,
+    websocket,
+    workers,
+)
 from app.services import (
     alert_publisher,
     alert_service,
@@ -74,6 +82,7 @@ app.include_router(health.router)
 app.include_router(thresholds.router)
 app.include_router(sensor_data.router)
 app.include_router(alert_events.router)
+app.include_router(workers.router)
 app.include_router(websocket.router)
 # 기본 비활성. settings.demo_control_enabled 가 false 면 모든 경로가 404 다.
 app.include_router(demo.router)

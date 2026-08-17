@@ -111,6 +111,64 @@
 .threshold-gap-banner strong { color: var(--ink-0); }
 .threshold-gap-banner svg { flex: none; margin-top: 2px; color: var(--unknown); }
 
+/* 웨어러블 착용자 (이슈 #136). 카드에서 가장 먼저 읽혀야 하는 줄이다 —
+   O₂ 수치보다 "누구"가 먼저 나와야 대피 지시가 나간다. */
+.wearable__wearer {
+  display: flex; flex-direction: column; gap: 1px;
+  padding-bottom: var(--s2); margin-bottom: var(--s2);
+  border-bottom: 1px solid var(--rule);
+}
+.wearable__wearer-name {
+  font-size: 15px; font-weight: 600; color: var(--ink-0); line-height: 1.2;
+}
+.wearable__wearer-meta {
+  font-family: var(--font-mono); font-size: 10px; letter-spacing: 0.06em;
+  text-transform: uppercase; color: var(--ink-3);
+}
+/* 미배정은 비어 있는 상태가 아니라 "안에 누가 있는지 모른다"는 경고다. */
+.wearable__wearer--none .wearable__wearer-name { color: var(--unknown); font-weight: 500; }
+
+/* 작업자 명부 (이슈 #136) */
+.worker-form {
+  display: grid; grid-template-columns: repeat(4, 1fr) auto;
+  gap: var(--s2); align-items: end; margin-bottom: var(--s3);
+}
+.worker-submit {
+  padding: 8px 16px; border: 1px solid var(--rule); background: var(--raise);
+  color: var(--ink-0); font-size: 13px; font-weight: 500;
+}
+.worker-submit:hover:not(:disabled) { border-color: var(--ink-3); }
+.worker-submit:disabled { opacity: 0.5; cursor: default; }
+
+.worker-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.worker-table th {
+  text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--rule);
+  font-family: var(--font-mono); font-size: 10px; letter-spacing: 0.08em;
+  text-transform: uppercase; color: var(--ink-3); font-weight: 500;
+}
+.worker-table td { padding: 8px; border-bottom: 1px solid var(--rule); color: var(--ink-2); }
+.worker-table__name { color: var(--ink-0); font-weight: 600; }
+.worker-table__actions { display: flex; gap: 6px; justify-content: flex-end; }
+.worker-table__actions button {
+  padding: 4px 9px; border: 1px solid var(--rule); background: transparent;
+  color: var(--ink-2); font-size: 12px;
+}
+.worker-table__actions button:hover:not(:disabled) { border-color: var(--ink-3); color: var(--ink-0); }
+.worker-table__actions button:disabled { opacity: 0.5; cursor: default; }
+.worker-delete:hover:not(:disabled) { border-color: var(--l3); color: var(--l3); }
+.worker-badge {
+  font-family: var(--font-mono); font-size: 11px; letter-spacing: 0.04em;
+  padding: 2px 6px; border: 1px solid var(--normal); color: var(--normal);
+}
+.settings-notice--ok { border-left-color: var(--normal); }
+
+/* 이벤트 로그의 "당시 작업자" 열 (이슈 #136) */
+.event-worker { white-space: nowrap; }
+.event-worker__name { color: var(--ink-0); font-weight: 600; }
+.event-worker__no {
+  display: block; font-family: var(--font-mono); font-size: 10px;
+  letter-spacing: 0.05em; color: var(--ink-3);
+}
 
 @media (max-width: 900px) {
   .worker-form { grid-template-columns: repeat(2, 1fr); }

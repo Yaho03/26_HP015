@@ -6,6 +6,7 @@ import { WearableCard } from "../components/WearableCard";
 import { SpacePlan } from "../components/SpacePlan";
 import { IconClock, IconWarning, IconXCircle } from "../components/icons";
 import { nodeAlertLevel } from "../utils/alerts";
+import { useAssignments } from "../hooks/useAssignments";
 import {
   displayPositionFor,
   FILL_PRESET,
@@ -31,6 +32,7 @@ export function MonitoringScreen() {
   );
   const websocketConnected = useDashboardStore((s) => s.connection_status.websocket_connected);
   const thresholdsLoaded = useDashboardStore((s) => s.thresholds.length > 0);
+  const { workerFor } = useAssignments();
 
   const counts: Record<AlertLevel, number> = {
     unknown: 0,
@@ -160,7 +162,11 @@ export function MonitoringScreen() {
             </section>
             <section className="monitor-bottom__wearable">
               <h2 className="section-head">웨어러블</h2>
-              <WearableCard node_id={WEARABLE_SLOT} wearable={wearable} />
+              <WearableCard
+                node_id={WEARABLE_SLOT}
+                wearable={wearable}
+                worker={workerFor(WEARABLE_SLOT)}
+              />
             </section>
           </div>
         </>
