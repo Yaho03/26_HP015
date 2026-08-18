@@ -101,8 +101,12 @@ constexpr unsigned long GAS_PUBLISH_INTERVAL_MS = 1000;
 constexpr unsigned long ENV_PUBLISH_INTERVAL_MS = 3000;
 constexpr unsigned long STATUS_PUBLISH_INTERVAL_MS = 10000;
 constexpr unsigned long MQ_CALIBRATION_LOG_INTERVAL_MS = 10000;
-// 24h/48h 물리 예열은 검증자가 교정 세션 전에 끝낸다는 전제다.
-// 펌웨어 보조 출력은 부팅 직후부터 안정도와 R0 후보를 보여준다.
+// 물리 예열(MQ-7 24h / MQ-136 48h)은 사람이 보장한다. 보드는 센서가 언제부터
+// 전원을 받았는지 알 수 없기 때문이다 — 예열을 끝낸 센서에 보드만 재부팅해도
+// uptime 은 0 이다. 그래서 여기서 시간 게이트를 걸면 정상 케이스가 막힌다.
+//
+// 대신 R0 후보를 출력할 때 보드 uptime 을 함께 찍어, 그 값이 무엇을 보장하지
+// 못하는지 읽는 사람이 알 수 있게 한다.
 constexpr unsigned long MQ_CALIBRATION_WARMUP_MS = 0;
 
 constexpr unsigned long NTP_RETRY_INITIAL_MS = 5000;
@@ -309,15 +313,52 @@ void printMqCalibrator(
     Serial.print(calibrator.r0CandidateOhm(), 2);
 }
 
+void printBoardUptime() {
+    const unsigned long totalSeconds = millis() / 1000UL;
+
+    char buffer[16];
+
+    snprintf(
+        buffer,
+        sizeof(buffer),
+        "%02lu:%02lu:%02lu",
+        totalSeconds / 3600UL,
+        (totalSeconds / 60UL) % 60UL,
+        totalSeconds % 60UL
+    );
+
+    Serial.print(buffer);
+}
+
+/*
+ * 안정 판정은 Rs 가 흔들리지 않는다는 것만 말한다. 센서가 충분히 예열됐는지는
+ * 보드가 알 수 없다 — 차가운 센서도 6분이면 안정 판정에 들어간다.
+ * 그 값을 그대로 넣으면 calibration_status 가 "calibrated" 가 되면서 틀린 ppm
+ * 이 정상값으로 발행된다. 미교정보다 나쁘다.
+ *
+ * 그래서 보드 uptime 을 같이 찍고, 그것이 센서 예열 시간이 아니라는 것을
+ * 명시한다. 판단은 사람이 하되 판단에 필요한 정보를 같이 준다.
+ */
 void printMqCalibrationReady(
     const char* label,
     const float r0CandidateOhm
 ) {
     Serial.print("[MQ CAL] ");
     Serial.print(label);
-    Serial.print(" stable for 5min. Copy R0 candidate to platformio.ini: ");
+    Serial.print(" 5분간 안정. R0 후보: ");
     Serial.print(r0CandidateOhm, 2);
-    Serial.println(" ohm.");
+    Serial.println(" ohm");
+
+    Serial.print("         보드 uptime ");
+    printBoardUptime();
+    Serial.println(" — 보드 기준입니다. 센서 예열 시간이 아닙니다.");
+
+    Serial.println(
+        "         MQ-7 24h / MQ-136 48h 예열이 끝났는지 직접 확인한 뒤에만"
+    );
+    Serial.println(
+        "         platformio.ini 의 해당 노드 R0 에 옮겨 적으세요."
+    );
 }
 
 void updateMqCalibrationAssist() {
