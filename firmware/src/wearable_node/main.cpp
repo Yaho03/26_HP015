@@ -313,7 +313,7 @@ void publishImu() {
 
     bool ok =
         mqttClient.publish(
-            "wearable/wearable-01/imu",
+            String("wearable/") + NODE_ID + "/imu",
             payload,
             false,
             1
@@ -397,7 +397,7 @@ void publishOxygen() {
 
     bool ok =
         mqttClient.publish(
-            "wearable/wearable-01/vital",
+            String("wearable/") + NODE_ID + "/vital",
             payload,
             false,
             1
@@ -464,7 +464,7 @@ void publishStatus() {
     );
 
     mqttClient.publish(
-        "wearable/wearable-01/status",
+        String("wearable/") + NODE_ID + "/status",
         payload,
         false,
         1

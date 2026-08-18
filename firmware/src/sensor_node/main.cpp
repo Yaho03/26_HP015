@@ -7,6 +7,7 @@
 #include "drivers/ads1115_mq_driver.h"
 #include "drivers/bme680_driver.h"
 #include "drivers/mhz19b_driver.h"
+#include "sensors/calibration.h"
 
 #include "config/node_config.h"
 #include "config/network_config.h"
@@ -94,10 +95,15 @@ MqttEnvelopeBuilder* envelopeBuilder = nullptr;
 unsigned long lastGasPublishMs = 0;
 unsigned long lastEnvPublishMs = 0;
 unsigned long lastStatusPublishMs = 0;
+unsigned long lastMqCalibrationLogMs = 0;
 
 constexpr unsigned long GAS_PUBLISH_INTERVAL_MS = 1000;
 constexpr unsigned long ENV_PUBLISH_INTERVAL_MS = 3000;
 constexpr unsigned long STATUS_PUBLISH_INTERVAL_MS = 10000;
+constexpr unsigned long MQ_CALIBRATION_LOG_INTERVAL_MS = 10000;
+// 24h/48h 물리 예열은 검증자가 교정 세션 전에 끝낸다는 전제다.
+// 펌웨어 보조 출력은 부팅 직후부터 안정도와 R0 후보를 보여준다.
+constexpr unsigned long MQ_CALIBRATION_WARMUP_MS = 0;
 
 constexpr unsigned long NTP_RETRY_INITIAL_MS = 5000;
 constexpr unsigned long NTP_RETRY_MAX_MS = 60000;
@@ -131,8 +137,34 @@ constexpr unsigned long NTP_SYNC_TIMEOUT_MS = 5000;
 #define MQ136_H2S_CURVE_B -3.536
 #endif
 
+// Clean-air Rs/R0 values from manufacturer datasheet sensitivity curves:
+// Hanwei MQ-7 clean-air point ~= 27.5, Hanwei MQ-2 clean-air point = 9.83,
+// Winsen/Hanwei MQ-136 clean-air point is read from the air point as ~= 3.4.
+constexpr float MQ7_CLEAN_AIR_RS_R0 = 27.5F;
+constexpr float MQ136_CLEAN_AIR_RS_R0 = 3.4F;
+constexpr float MQ2_CLEAN_AIR_RS_R0 = 9.83F;
+
 unsigned long lastNtpAttemptMs = 0;
 unsigned long ntpRetryIntervalMs = NTP_RETRY_INITIAL_MS;
+
+hp015::sensors::MqCalibrator mq7Calibrator(
+    MQ7_CLEAN_AIR_RS_R0,
+    MQ_CALIBRATION_WARMUP_MS
+);
+
+hp015::sensors::MqCalibrator mq136Calibrator(
+    MQ136_CLEAN_AIR_RS_R0,
+    MQ_CALIBRATION_WARMUP_MS
+);
+
+hp015::sensors::MqCalibrator mq2Calibrator(
+    MQ2_CLEAN_AIR_RS_R0,
+    MQ_CALIBRATION_WARMUP_MS
+);
+
+bool mq7CalibrationReported = false;
+bool mq136CalibrationReported = false;
+bool mq2CalibrationReported = false;
 
 
 // ============================================================
@@ -252,6 +284,92 @@ void configureMqCalibration() {
     Serial.print(" ohm, MQ-2=");
     Serial.print(static_cast<float>(MQ2_R0_OHM));
     Serial.println(" ohm.");
+}
+
+void printMqCalibrator(
+    const char* label,
+    const MqChannelData& channel,
+    const hp015::sensors::MqCalibrator& calibrator
+) {
+    Serial.print(label);
+
+    if (!channel.valid) {
+        Serial.print(" invalid");
+        return;
+    }
+
+    Serial.print(" rs=");
+    Serial.print(channel.rsOhm, 2);
+    Serial.print(" avg60s=");
+    Serial.print(calibrator.averageOhm(), 2);
+    Serial.print(" spread=");
+    Serial.print(calibrator.spreadPct(), 2);
+    Serial.print("%");
+    Serial.print(" r0_candidate=");
+    Serial.print(calibrator.r0CandidateOhm(), 2);
+}
+
+void printMqCalibrationReady(
+    const char* label,
+    const float r0CandidateOhm
+) {
+    Serial.print("[MQ CAL] ");
+    Serial.print(label);
+    Serial.print(" stable for 5min. Copy R0 candidate to platformio.ini: ");
+    Serial.print(r0CandidateOhm, 2);
+    Serial.println(" ohm.");
+}
+
+void updateMqCalibrationAssist() {
+    if (!hasMq) {
+        return;
+    }
+
+    mq7Calibrator.update(latestMq.mq7.rsOhm);
+    mq136Calibrator.update(latestMq.mq136.rsOhm);
+    mq2Calibrator.update(latestMq.mq2.rsOhm);
+
+    const unsigned long nowMs = millis();
+
+    if (
+        nowMs - lastMqCalibrationLogMs
+        >= MQ_CALIBRATION_LOG_INTERVAL_MS
+    ) {
+        lastMqCalibrationLogMs =
+            nowMs;
+
+        Serial.print("[MQ CAL] ");
+        printMqCalibrator("mq7", latestMq.mq7, mq7Calibrator);
+        Serial.print(" | ");
+        printMqCalibrator("mq136", latestMq.mq136, mq136Calibrator);
+        Serial.print(" | ");
+        printMqCalibrator("mq2", latestMq.mq2, mq2Calibrator);
+        Serial.println();
+    }
+
+    if (
+        !mq7CalibrationReported
+        && mq7Calibrator.state() == hp015::sensors::CalibrationState::DONE
+    ) {
+        mq7CalibrationReported = true;
+        printMqCalibrationReady("mq7", mq7Calibrator.r0Ohm());
+    }
+
+    if (
+        !mq136CalibrationReported
+        && mq136Calibrator.state() == hp015::sensors::CalibrationState::DONE
+    ) {
+        mq136CalibrationReported = true;
+        printMqCalibrationReady("mq136", mq136Calibrator.r0Ohm());
+    }
+
+    if (
+        !mq2CalibrationReported
+        && mq2Calibrator.state() == hp015::sensors::CalibrationState::DONE
+    ) {
+        mq2CalibrationReported = true;
+        printMqCalibrationReady("mq2", mq2Calibrator.r0Ohm());
+    }
 }
 
 
@@ -956,8 +1074,10 @@ void publishStatus() {
 
 
     // --------------------------------------------------------
+    // 고정 센서 노드는 상시 전원이다. ingest_status의 필수 int 계약을
+    // 유지하면서 대시보드가 방전 상태로 오해하지 않도록 100으로 보낸다.
     data["battery_pct"] =
-        0;
+        100;
 
 
     // --------------------------------------------------------
@@ -1223,6 +1343,9 @@ void setup() {
 
     if (adsReady) {
         configureMqCalibration();
+        mq7Calibrator.begin();
+        mq136Calibrator.begin();
+        mq2Calibrator.begin();
 
         Serial.println(
             "[SYSTEM] ADS1115 + MQ ready."
@@ -1331,6 +1454,8 @@ void loop() {
                     mqDriver.getData();
 
                 hasMq = true;
+
+                updateMqCalibrationAssist();
 
                 mqDriver.clearNewData();
             }
