@@ -26,6 +26,11 @@ String wearableVital(const String& nodeId) {
     return "wearable/" + nodeId + "/vital";
 }
 
+// UWB 앵커 거리 (04_DATA_CONTRACT.md 3.1, 백엔드가 wearable/+/ranging 로 구독).
+String wearableRanging(const String& nodeId) {
+    return "wearable/" + nodeId + "/ranging";
+}
+
 String connection(const String& nodeId) {
     return "nodes/" + nodeId + "/connection";
 }

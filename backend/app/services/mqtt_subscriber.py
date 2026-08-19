@@ -11,7 +11,7 @@ from app.services import ingest
 
 logger = logging.getLogger(__name__)
 
-# 8개 토픽 패턴 (04_DATA_CONTRACT.md 3.1). '+'는 node_id 자리.
+# 9개 토픽 패턴 (04_DATA_CONTRACT.md 3.1). '+'는 node_id 자리.
 # ranging 은 UWB 거리 → 백엔드 삼변측량 경로 (#121, ADR-006).
 _TOPIC_HANDLERS = {
     "sensors/+/gas": ingest.ingest_telemetry,
@@ -21,6 +21,9 @@ _TOPIC_HANDLERS = {
     "wearable/+/ranging": ingest.ingest_ranging,
     "wearable/+/imu": ingest.ingest_telemetry,
     "wearable/+/vital": ingest.ingest_telemetry,
+    # 웨어러블도 node_status 에 올라와야 연결 끊김 감지 대상이 된다.
+    # 누락돼 있어 웨어러블이 죽어도 화면이 오프라인을 표시하지 못했다 (2026-08-19 실물 확인).
+    "wearable/+/status": ingest.ingest_status,
     "nodes/+/connection": ingest.ingest_connection,
 }
 

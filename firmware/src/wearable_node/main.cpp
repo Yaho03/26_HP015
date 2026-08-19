@@ -500,6 +500,16 @@ void publishStatus() {
 
     JsonDocument document;
 
+    /*
+     * 04_DATA_CONTRACT.md 기준 필수 필드를 모두 채운다.
+     * 이전에는 message_id 가 없고 wifi_rssi 로 이름이 달랐으며 battery_pct /
+     * free_heap_bytes / sensors_online / sensors_error 가 빠져 있어,
+     * 백엔드 ingest_status 가 받아도 InvalidMessage 로 버릴 수밖에 없었다
+     * (2026-08-19 실물 확인). 고정 센서 노드 publishStatus() 와 계약을 맞춘다.
+     */
+    document["message_id"] =
+        Ulid::generate();
+
     document["node_id"] =
         NODE_ID;
 
@@ -509,11 +519,19 @@ void publishStatus() {
     JsonObject data =
         document["data"].to<JsonObject>();
 
-    data["wifi_rssi"] =
+    // 배터리 게이지가 없다. 계약의 필수 int 를 지키되 대시보드가 방전으로
+    // 오해하지 않도록 고정 센서 노드와 같은 값을 보낸다.
+    data["battery_pct"] =
+        100;
+
+    data["wifi_rssi_dbm"] =
         WiFi.RSSI();
 
     data["uptime_s"] =
         millis() / 1000UL;
+
+    data["free_heap_bytes"] =
+        ESP.getFreeHeap();
 
     data["mpu6050_ready"] =
         mpuReady;
@@ -529,6 +547,30 @@ void publishStatus() {
 
     data["dwm1000_role"] =
         dwm1000Ranging.roleName();
+
+    JsonArray sensorsOnline =
+        data["sensors_online"].to<JsonArray>();
+
+    JsonArray sensorsError =
+        data["sensors_error"].to<JsonArray>();
+
+    if (mpuReady) {
+        sensorsOnline.add("mpu6050");
+    } else {
+        sensorsError.add("mpu6050");
+    }
+
+    if (oxygenReady) {
+        sensorsOnline.add("sen0322");
+    } else {
+        sensorsError.add("sen0322");
+    }
+
+    if (dwm1000Ready) {
+        sensorsOnline.add("dwm1000");
+    } else {
+        sensorsError.add("dwm1000");
+    }
 
 
     String payload;
