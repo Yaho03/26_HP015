@@ -274,7 +274,11 @@ void connectMqtt() {
             HEX
         );
 
-    if (mqttClient.connect(clientId.c_str())) {
+    if (mqttClient.connect(
+            clientId.c_str(),
+            NetworkConfig::MQTT_USERNAME,
+            NetworkConfig::MQTT_PASSWORD
+        )) {
 
         Serial.println("connected.");
 
