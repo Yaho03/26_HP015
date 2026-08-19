@@ -1,5 +1,12 @@
 #pragma once
 
+// MH-Z19B 측정 범위 상한(ppm). 0~2000 / 0~5000 / 0~10000 변종이 있다.
+// 구매 모델에 맞춰 platformio.ini 에서 -D MHZ19B_RANGE_PPM=... 으로 지정한다.
+#ifndef MHZ19B_RANGE_PPM
+#define MHZ19B_RANGE_PPM 5000
+#endif
+
+
 #include <Arduino.h>
 
 struct Mhz19bData {
