@@ -32,48 +32,88 @@ class MqCalibrator {
 	      stability_threshold_pct_(stability_threshold_pct),
 	      state_(CalibrationState::NOT_STARTED),
 	      start_ms_(0),
+	      stable_since_ms_(0),
 	      r0_ohm_(0.0f),
+	      avg_ohm_(0.0f),
+	      spread_pct_(0.0f),
 	      samples_count_(0),
 	      samples_sum_(0.0f),
 	      samples_min_(1e9f),
-	      samples_max_(0.0f) {}
+	      samples_max_(0.0f),
+	      sample_index_(0),
+	      sample_window_count_(0) {}
 
 	void begin() {
 		start_ms_ = millis();
+		stable_since_ms_ = 0;
 		state_ = CalibrationState::IN_PROGRESS;
 		samples_count_ = 0;
 		samples_sum_ = 0.0f;
 		samples_min_ = 1e9f;
 		samples_max_ = 0.0f;
+		avg_ohm_ = 0.0f;
+		spread_pct_ = 0.0f;
+		sample_index_ = 0;
+		sample_window_count_ = 0;
 	}
 
 	CalibrationState state() const { return state_; }
 
 	float r0Ohm() const { return r0_ohm_; }
+	float averageOhm() const { return avg_ohm_; }
+	float spreadPct() const { return spread_pct_; }
+	bool hasWindow() const { return sample_window_count_ == SAMPLE_WINDOW_SIZE; }
+	bool isStableNow() const {
+		return hasWindow() && spread_pct_ <= stability_threshold_pct_;
+	}
+
+	float r0CandidateOhm() const {
+		if (clean_air_ratio_ <= 0.0f || avg_ohm_ <= 0.0f) return 0.0f;
+		return avg_ohm_ / clean_air_ratio_;
+	}
 
 	CalibrationState update(float rs_ohm) {
 		if (state_ != CalibrationState::IN_PROGRESS) return state_;
+		if (!isfinite(rs_ohm) || rs_ohm <= 0.0f) return state_;
 
-		unsigned long elapsed = millis() - start_ms_;
+		const unsigned long now_ms = millis();
+		unsigned long elapsed = now_ms - start_ms_;
 		if (elapsed < warmup_ms_) {
 			return state_;
 		}
 
-		samples_sum_ += rs_ohm;
+		samples_[sample_index_] = rs_ohm;
+		sample_index_ = (sample_index_ + 1) % SAMPLE_WINDOW_SIZE;
+		if (sample_window_count_ < SAMPLE_WINDOW_SIZE) sample_window_count_++;
+
+		samples_sum_ = 0.0f;
+		samples_min_ = 1e9f;
+		samples_max_ = 0.0f;
+
+		for (uint8_t i = 0; i < sample_window_count_; ++i) {
+			const float sample = samples_[i];
+			samples_sum_ += sample;
+			if (sample < samples_min_) samples_min_ = sample;
+			if (sample > samples_max_) samples_max_ = sample;
+		}
+
 		samples_count_++;
-		if (rs_ohm < samples_min_) samples_min_ = rs_ohm;
-		if (rs_ohm > samples_max_) samples_max_ = rs_ohm;
+		avg_ohm_ = samples_sum_ / sample_window_count_;
+		spread_pct_ = ((samples_max_ - samples_min_) / avg_ohm_) * 100.0f;
 
-		unsigned long window_start = millis() - stability_window_ms_;
-		(void)window_start;
+		if (!hasWindow()) return state_;
 
-		if (samples_count_ < 10) return state_;
+		if (spread_pct_ <= stability_threshold_pct_) {
+			if (stable_since_ms_ == 0) stable_since_ms_ = now_ms;
+		} else {
+			stable_since_ms_ = 0;
+		}
 
-		float avg = samples_sum_ / samples_count_;
-		float range_pct = ((samples_max_ - samples_min_) / avg) * 100.0f;
-
-		if (range_pct <= stability_threshold_pct_) {
-			r0_ohm_ = avg / clean_air_ratio_;
+		if (
+			stable_since_ms_ != 0
+			&& now_ms - stable_since_ms_ >= stability_window_ms_
+		) {
+			r0_ohm_ = r0CandidateOhm();
 			state_ = CalibrationState::DONE;
 		}
 
@@ -81,17 +121,25 @@ class MqCalibrator {
 	}
 
  private:
+	static constexpr uint8_t SAMPLE_WINDOW_SIZE = 60;
+
 	float clean_air_ratio_;
 	unsigned long warmup_ms_;
 	unsigned long stability_window_ms_;
 	float stability_threshold_pct_;
 	CalibrationState state_;
 	unsigned long start_ms_;
+	unsigned long stable_since_ms_;
 	float r0_ohm_;
+	float avg_ohm_;
+	float spread_pct_;
 	unsigned long samples_count_;
 	float samples_sum_;
 	float samples_min_;
 	float samples_max_;
+	float samples_[SAMPLE_WINDOW_SIZE] = {};
+	uint8_t sample_index_;
+	uint8_t sample_window_count_;
 };
 
 
