@@ -1,0 +1,25 @@
+    "messages_dropped_duplicate": 0,
+    "alerts_published": 1,
+    "alerts_resolved": 0,
+    "mqtt_reconnects": 0
+}
+
+=== 적재된 metric 이름 (§6 교정 후 확인) ===
+metric
+co2_ppm
+co_raw_adc
+co_rs_ohm
+co_voltage_v
+gas_resistance_ohm
+h2s_raw_adc
+h2s_rs_ohm
+h2s_voltage_v
+humidity_pct
+iaq_accuracy
+iaq_index
+mq2_raw_adc
+mq2_rs_ohm
+mq2_voltage_v
+pressure_hpa
+temperature_c
+(16 rows)
