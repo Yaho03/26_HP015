@@ -369,35 +369,46 @@ async def ingest_connection(payload: bytes) -> None:
 
     pool = get_pool()
     async with pool.acquire() as conn:
-        previous_status = await conn.fetchval(
-            "SELECT connection_status FROM node_status WHERE node_id = $1", node_id
-        )
-        await conn.execute(
-            """
-            INSERT INTO node_status (node_id, connection_status, connection_reason,
-                                      connection_updated_at, updated_at, backend_received_at)
-            VALUES ($1, $2, $3, $4, '1970-01-01T00:00:00Z', now())
-            ON CONFLICT (node_id) DO UPDATE SET
-                connection_status     = EXCLUDED.connection_status,
-                connection_reason     = EXCLUDED.connection_reason,
-                connection_updated_at = EXCLUDED.connection_updated_at,
-                backend_received_at   = now()
-            WHERE EXCLUDED.connection_status = 'offline'
-               OR node_status.connection_updated_at IS NULL
-               OR node_status.connection_updated_at < EXCLUDED.connection_updated_at
-            """,
-            node_id,
-            status,
-            reason,
-            ts,
-        )
+        # 조회와 반영을 한 트랜잭션에 묶고 RETURNING 으로 "실제로 반영됐는지"까지
+        # 받는다 (2026-08-19 하드웨어 세션 보강). applied 가 None 이면 stale
+        # timestamp 가드에 맡겨 UPSERT 자체가 안 된 것이므로 복귀 해제도 하지 않는다.
+        async with conn.transaction():
+            previous_status = await conn.fetchval(
+                "SELECT connection_status FROM node_status WHERE node_id = $1", node_id
+            )
+            applied = await conn.fetchval(
+                """
+                INSERT INTO node_status (node_id, connection_status, connection_reason,
+                                          connection_updated_at, updated_at, backend_received_at)
+                VALUES ($1, $2, $3, $4, '1970-01-01T00:00:00Z', now())
+                ON CONFLICT (node_id) DO UPDATE SET
+                    connection_status     = EXCLUDED.connection_status,
+                    connection_reason     = EXCLUDED.connection_reason,
+                    connection_updated_at = EXCLUDED.connection_updated_at,
+                    backend_received_at   = now()
+                WHERE EXCLUDED.connection_status = 'offline'
+                   OR node_status.connection_updated_at IS NULL
+                   OR node_status.connection_updated_at < EXCLUDED.connection_updated_at
+                RETURNING connection_status
+                """,
+                node_id,
+                status,
+                reason,
+                ts,
+            )
 
     # offline→online 복귀 감지 (이슈 #111). connection_monitor의 30초 타임아웃이
     # connection_lost L3 경보를 발생시켜도 그걸 NORMAL로 되돌리는 코드가 없어서,
     # 노드가 실제로 복귀해도 경보가 active_alert_ids에 영구 잔류하고 retain
     # 메시지가 고착되던 문제였다. 재연결 시 main.cpp가 항상 이 토픽으로 online을
     # 보내므로(연결 직후 connectMqtt()), 여기가 복귀를 감지하는 자연스러운 지점이다.
-    if status == "online" and previous_status == "offline" and _connection_recovery_callback is not None:
+    # 처음 보는 노드는 previous_status 가 None 이라 해제 이벤트를 만들지 않는다.
+    if (
+        status == "online"
+        and applied is not None
+        and previous_status == "offline"
+        and _connection_recovery_callback is not None
+    ):
         try:
             await _connection_recovery_callback(node_id)
         except Exception:

@@ -35,6 +35,11 @@ class FakeConn:
         self.previous_status = previous_status
 
     async def fetchval(self, sql: str, *args: object):
+        # INSERT ... RETURNING connection_status — 반영 성공을 시뮬레이션한다.
+        # applied 값은 바인딩한 status($2)와 같다고 친다 (실제 RETURNING 의미).
+        if sql.lstrip().upper().startswith("INSERT"):
+            self.executed.append((sql, args))
+            return args[1]
         return self.previous_status
 
     async def execute(self, sql: str, *args: object) -> str:
