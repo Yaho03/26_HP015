@@ -28,8 +28,22 @@ namespace {
 constexpr uint8_t SDA_PIN = 21;
 constexpr uint8_t SCL_PIN = 22;
 
-constexpr int8_t MHZ19B_RX_PIN = 16;
-constexpr int8_t MHZ19B_TX_PIN = 17;
+/*
+ * MH-Z19B UART 핀. 보드/배선에 따라 바꿀 수 있도록 빌드 플래그로 둔다.
+ * 기본은 16/17 이지만, 2026-08-19 실물에서 특정 보드가 16/17 에서만
+ * 응답하지 않고 32/33 에서는 정상 동작한 사례가 있었다 (WROOM 이라 PSRAM
+ * 충돌은 아니며 원인 미규명). 그런 보드는 platformio.ini 에서
+ * -D MHZ19B_RX=32 -D MHZ19B_TX=33 으로 지정한다.
+ */
+#ifndef MHZ19B_RX
+#define MHZ19B_RX 16
+#endif
+#ifndef MHZ19B_TX
+#define MHZ19B_TX 17
+#endif
+
+constexpr int8_t MHZ19B_RX_PIN = MHZ19B_RX;
+constexpr int8_t MHZ19B_TX_PIN = MHZ19B_TX;
 
 constexpr int8_t DWM1000_SCK_PIN = 18;
 constexpr int8_t DWM1000_MISO_PIN = 19;
