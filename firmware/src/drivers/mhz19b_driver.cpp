@@ -135,7 +135,18 @@ uint8_t Mhz19bDriver::calculateChecksum(
     return static_cast<uint8_t>(0xFF - sum + 1);
 }
 
-bool Mhz19bDriver::readCo2(int& co2Ppm) {
+/*
+ * 프레임 동기화 방식으로 읽는다.
+ *
+ * 이전 구현은 9바이트가 모이면 앞에서부터 잘라 쓰고, 첫 바이트가 0xFF 가
+ * 아니면 통째로 버렸다. 앞에 잡음 바이트가 하나만 끼어도 정상 응답이
+ * 폐기된다 — 2026-08-19 실물에서 통신이 불안정한 개체의 수신율이 크게
+ * 떨어진 원인이다.
+ *
+ * 대신 들어오는 바이트를 하나씩 흘려보며 0xFF 0x86 헤더를 찾아 정렬하고,
+ * 거기서부터 9바이트를 맞춘다. 어긋난 프레임도 살려낸다.
+ */
+bool Mhz19bDriver::readFrame(int& co2Ppm) {
     while (serialPort_.available() > 0) {
         serialPort_.read();
     }
@@ -147,57 +158,66 @@ bool Mhz19bDriver::readCo2(int& co2Ppm) {
 
     serialPort_.flush();
 
+    uint8_t response[9];
+    uint8_t filled = 0;
+
     const unsigned long timeoutStart = millis();
 
-    while (serialPort_.available() < 9) {
-        if (
-            millis() - timeoutStart
-            > RESPONSE_TIMEOUT_MS
-        ) {
-            Serial.println(
-                "[MH-Z19B] Response timeout."
-            );
+    while (millis() - timeoutStart <= RESPONSE_TIMEOUT_MS) {
+        if (serialPort_.available() <= 0) {
+            delay(1);
+            continue;
+        }
+
+        const uint8_t byteIn =
+            static_cast<uint8_t>(serialPort_.read());
+
+        // 헤더 정렬: 0xFF 를 만나기 전까지는 버린다.
+        if (filled == 0) {
+            if (byteIn != 0xFF) {
+                continue;
+            }
+        } else if (filled == 1 && byteIn != 0x86) {
+            // 0xFF 뒤가 0x86 이 아니면 그 바이트가 새 헤더일 수 있다.
+            filled = (byteIn == 0xFF) ? 1 : 0;
+            continue;
+        }
+
+        response[filled++] = byteIn;
+
+        if (filled < sizeof(response)) {
+            continue;
+        }
+
+        if (calculateChecksum(response) != response[8]) {
+            Serial.println("[MH-Z19B] Checksum error.");
             return false;
         }
 
-        delay(1);
+        co2Ppm =
+            static_cast<int>(response[2]) * 256
+            + response[3];
+
+        return true;
     }
 
-    uint8_t response[9];
+    return false;
+}
 
-    const size_t received =
-        serialPort_.readBytes(response, sizeof(response));
-
-    if (received != sizeof(response)) {
-        Serial.println(
-            "[MH-Z19B] Incomplete response."
-        );
-        return false;
+bool Mhz19bDriver::readCo2(int& co2Ppm) {
+    for (uint8_t attempt = 1; attempt <= READ_ATTEMPTS; ++attempt) {
+        if (readFrame(co2Ppm)) {
+            if (attempt > 1) {
+                Serial.print("[MH-Z19B] Recovered on attempt ");
+                Serial.println(attempt);
+            }
+            return true;
+        }
+        delay(30);
     }
 
-    if (
-        response[0] != 0xFF
-        || response[1] != 0x86
-    ) {
-        Serial.println(
-            "[MH-Z19B] Invalid response header."
-        );
-        return false;
-    }
-
-    if (
-        calculateChecksum(response)
-        != response[8]
-    ) {
-        Serial.println(
-            "[MH-Z19B] Checksum error."
-        );
-        return false;
-    }
-
-    co2Ppm =
-        static_cast<int>(response[2]) * 256
-        + response[3];
-
-    return true;
+    Serial.print("[MH-Z19B] No valid response after ");
+    Serial.print(READ_ATTEMPTS);
+    Serial.println(" attempts.");
+    return false;
 }
