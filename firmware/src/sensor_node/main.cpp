@@ -3,9 +3,11 @@
 #include <ArduinoJson.h>
 #include <WiFi.h>
 #include <MQTT.h>
+#include <SPI.h>
 
 #include "drivers/ads1115_mq_driver.h"
 #include "drivers/bme680_driver.h"
+#include "drivers/dwm1000_driver.h"
 #include "drivers/mhz19b_driver.h"
 #include "sensors/calibration.h"
 
@@ -28,6 +30,12 @@ constexpr uint8_t SCL_PIN = 22;
 
 constexpr int8_t MHZ19B_RX_PIN = 16;
 constexpr int8_t MHZ19B_TX_PIN = 17;
+
+constexpr int8_t DWM1000_SCK_PIN = 18;
+constexpr int8_t DWM1000_MISO_PIN = 19;
+constexpr int8_t DWM1000_MOSI_PIN = 23;
+constexpr int8_t DWM1000_CS_PIN = 5;
+constexpr int8_t DWM1000_RST_PIN = 27;
 
 
 // ============================================================
@@ -62,6 +70,16 @@ Mhz19bDriver mhzDriver(
     MHZ19B_TX_PIN
 );
 
+SPIClass dwmSpi(VSPI);
+Dwm1000Driver dwm1000Driver(
+    dwmSpi,
+    DWM1000_SCK_PIN,
+    DWM1000_MISO_PIN,
+    DWM1000_MOSI_PIN,
+    DWM1000_CS_PIN,
+    DWM1000_RST_PIN
+);
+
 
 // ============================================================
 // Sensor state
@@ -69,6 +87,7 @@ Mhz19bDriver mhzDriver(
 
 bool adsReady = false;
 bool bmeReady = false;
+bool dwm1000Ready = false;
 
 Ads1115MqData latestMq;
 Bme680Data latestBme;
@@ -96,11 +115,13 @@ unsigned long lastGasPublishMs = 0;
 unsigned long lastEnvPublishMs = 0;
 unsigned long lastStatusPublishMs = 0;
 unsigned long lastMqCalibrationLogMs = 0;
+unsigned long lastDwm1000CheckMs = 0;
 
 constexpr unsigned long GAS_PUBLISH_INTERVAL_MS = 1000;
 constexpr unsigned long ENV_PUBLISH_INTERVAL_MS = 3000;
 constexpr unsigned long STATUS_PUBLISH_INTERVAL_MS = 10000;
 constexpr unsigned long MQ_CALIBRATION_LOG_INTERVAL_MS = 10000;
+constexpr unsigned long DWM1000_CHECK_INTERVAL_MS = 5000;
 // 물리 예열(MQ-7 24h / MQ-136 48h)은 사람이 보장한다. 보드는 센서가 언제부터
 // 전원을 받았는지 알 수 없기 때문이다 — 예열을 끝낸 센서에 보드만 재부팅해도
 // uptime 은 0 이다. 그래서 여기서 시간 게이트를 걸면 정상 케이스가 막힌다.
@@ -169,6 +190,60 @@ hp015::sensors::MqCalibrator mq2Calibrator(
 bool mq7CalibrationReported = false;
 bool mq136CalibrationReported = false;
 bool mq2CalibrationReported = false;
+
+
+// ============================================================
+// DWM1000 status
+// ============================================================
+
+String hex32(
+    const uint32_t value
+) {
+    char buffer[11] = {};
+    snprintf(
+        buffer,
+        sizeof(buffer),
+        "0x%08lX",
+        static_cast<unsigned long>(value)
+    );
+    return String(buffer);
+}
+
+void logDwm1000Status(
+    const char* prefix
+) {
+    const Dwm1000Data& data =
+        dwm1000Driver.getData();
+
+    Serial.print("[DWM1000] ");
+    Serial.print(prefix);
+    Serial.print(": detected=");
+    Serial.print(
+        data.detected
+            ? "true"
+            : "false"
+    );
+    Serial.print(", dev_id=");
+    Serial.println(
+        hex32(data.rawDeviceId)
+    );
+}
+
+void updateDwm1000() {
+    const bool detected =
+        dwm1000Driver.update();
+
+    if (detected != dwm1000Ready) {
+        dwm1000Ready =
+            detected;
+
+        logDwm1000Status(
+            detected
+                ? "connected"
+                : "disconnected"
+        );
+    }
+}
 
 
 // ============================================================
@@ -1139,6 +1214,14 @@ void publishStatus() {
     data["free_heap_bytes"] =
         ESP.getFreeHeap();
 
+    data["dwm1000_ready"] =
+        dwm1000Ready;
+
+    data["dwm1000_device_id"] =
+        hex32(
+            dwm1000Driver.getData().rawDeviceId
+        );
+
     JsonArray sensorsOnline =
         data["sensors_online"].to<JsonArray>();
 
@@ -1237,7 +1320,9 @@ void publishStatus() {
     envelopeBuilder->addSensorQuality(
         document,
         "dwm1000",
-        SensorQuality::NOT_CONNECTED
+        dwm1000Ready
+            ? SensorQuality::VALID
+            : SensorQuality::NOT_CONNECTED
     );
 
 
@@ -1355,6 +1440,24 @@ void setup() {
     );
 
     connectMqtt();
+
+
+    // ========================================================
+    // DWM1000
+    // ========================================================
+
+    Serial.println(
+        "[SYSTEM] Initializing DWM1000..."
+    );
+
+    dwm1000Ready =
+        dwm1000Driver.begin();
+
+    logDwm1000Status(
+        dwm1000Ready
+            ? "ready"
+            : "not detected"
+    );
 
 
     // ========================================================
@@ -1481,6 +1584,16 @@ void loop() {
     }
 
     mqttClient.loop();
+
+    if (
+        millis() - lastDwm1000CheckMs
+        >= DWM1000_CHECK_INTERVAL_MS
+    ) {
+        lastDwm1000CheckMs =
+            millis();
+
+        updateDwm1000();
+    }
 
 
     // ========================================================

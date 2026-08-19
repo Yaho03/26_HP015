@@ -2,13 +2,16 @@
 #include <Wire.h>
 #include <WiFi.h>
 #include <MQTT.h>
+#include <SPI.h>
 #include <ArduinoJson.h>
 
 #include <Adafruit_MPU6050.h>
 #include <Adafruit_Sensor.h>
 
 #include "config/network_config.h"
+#include "drivers/dwm1000_driver.h"
 #include "drivers/sen0322_driver.h"
+#include "mqtt/mqtt_topics.h"
 #include "mqtt/mqtt_time.h"
 #include "mqtt/ulid.h"
 
@@ -21,6 +24,12 @@ constexpr char NODE_ID[] = "wearable-01";
 constexpr uint8_t SDA_PIN = 21;
 constexpr uint8_t SCL_PIN = 22;
 
+constexpr int8_t DWM1000_SCK_PIN = 18;
+constexpr int8_t DWM1000_MISO_PIN = 19;
+constexpr int8_t DWM1000_MOSI_PIN = 23;
+constexpr int8_t DWM1000_CS_PIN = 5;
+constexpr int8_t DWM1000_RST_PIN = 27;
+
 // SEN0322
 #define OXYGEN_I2C_ADDRESS ADDRESS_3
 
@@ -29,6 +38,7 @@ constexpr uint8_t OXYGEN_COLLECT_NUMBER = 10;
 constexpr unsigned long IMU_INTERVAL_MS = 200;     // 5 Hz
 constexpr unsigned long O2_INTERVAL_MS = 1000;    // 1 Hz
 constexpr unsigned long STATUS_INTERVAL_MS = 10000;
+constexpr unsigned long DWM1000_CHECK_INTERVAL_MS = 5000;
 
 constexpr unsigned long NTP_RETRY_INITIAL_MS = 5000;
 constexpr unsigned long NTP_RETRY_MAX_MS = 60000;
@@ -54,9 +64,19 @@ Sen0322Driver oxygenDriver(
     OXYGEN_I2C_ADDRESS,
     OXYGEN_COLLECT_NUMBER
 );
+SPIClass dwmSpi(VSPI);
+Dwm1000Driver dwm1000Driver(
+    dwmSpi,
+    DWM1000_SCK_PIN,
+    DWM1000_MISO_PIN,
+    DWM1000_MOSI_PIN,
+    DWM1000_CS_PIN,
+    DWM1000_RST_PIN
+);
 
 bool mpuReady = false;
 bool oxygenReady = false;
+bool dwm1000Ready = false;
 
 Sen0322Data latestOxygen;
 bool hasOxygen = false;
@@ -69,6 +89,7 @@ bool hasOxygen = false;
 unsigned long lastImuMs = 0;
 unsigned long lastO2Ms = 0;
 unsigned long lastStatusMs = 0;
+unsigned long lastDwm1000CheckMs = 0;
 
 unsigned long lastNtpAttemptMs = 0;
 unsigned long ntpRetryIntervalMs = NTP_RETRY_INITIAL_MS;
@@ -77,6 +98,55 @@ unsigned long ntpRetryIntervalMs = NTP_RETRY_INITIAL_MS;
 // ============================================================
 // Time
 // ============================================================
+
+String hex32(
+    const uint32_t value
+) {
+    char buffer[11] = {};
+    snprintf(
+        buffer,
+        sizeof(buffer),
+        "0x%08lX",
+        static_cast<unsigned long>(value)
+    );
+    return String(buffer);
+}
+
+void logDwm1000Status(
+    const char* prefix
+) {
+    const Dwm1000Data& data =
+        dwm1000Driver.getData();
+
+    Serial.print("[DWM1000] ");
+    Serial.print(prefix);
+    Serial.print(": detected=");
+    Serial.print(
+        data.detected
+            ? "true"
+            : "false"
+    );
+    Serial.print(", dev_id=");
+    Serial.println(
+        hex32(data.rawDeviceId)
+    );
+}
+
+void updateDwm1000() {
+    const bool detected =
+        dwm1000Driver.update();
+
+    if (detected != dwm1000Ready) {
+        dwm1000Ready =
+            detected;
+
+        logDwm1000Status(
+            detected
+                ? "connected"
+                : "disconnected"
+        );
+    }
+}
 
 bool retryNtpIfDue() {
     if (MqttTime::isSynced()) {
@@ -313,7 +383,7 @@ void publishImu() {
 
     bool ok =
         mqttClient.publish(
-            String("wearable/") + NODE_ID + "/imu",
+            MqttTopics::wearableImu(NODE_ID),
             payload,
             false,
             1
@@ -397,7 +467,7 @@ void publishOxygen() {
 
     bool ok =
         mqttClient.publish(
-            String("wearable/") + NODE_ID + "/vital",
+            MqttTopics::wearableVital(NODE_ID),
             payload,
             false,
             1
@@ -454,6 +524,14 @@ void publishStatus() {
 
     data["sen0322_ready"] =
         oxygenReady;
+
+    data["dwm1000_ready"] =
+        dwm1000Ready;
+
+    data["dwm1000_device_id"] =
+        hex32(
+            dwm1000Driver.getData().rawDeviceId
+        );
 
 
     String payload;
@@ -566,6 +644,24 @@ void setup() {
 
 
     // --------------------------------------------------------
+    // DWM1000
+    // --------------------------------------------------------
+
+    Serial.println(
+        "[DWM1000] Initializing..."
+    );
+
+    dwm1000Ready =
+        dwm1000Driver.begin();
+
+    logDwm1000Status(
+        dwm1000Ready
+            ? "ready"
+            : "not detected"
+    );
+
+
+    // --------------------------------------------------------
     // Wi-Fi
     // --------------------------------------------------------
 
@@ -647,9 +743,18 @@ void loop() {
         }
     }
 
-
     unsigned long now =
         millis();
+
+    if (
+        now - lastDwm1000CheckMs
+        >= DWM1000_CHECK_INTERVAL_MS
+    ) {
+        lastDwm1000CheckMs =
+            now;
+
+        updateDwm1000();
+    }
 
 
     // IMU 5 Hz

@@ -18,6 +18,10 @@ String wearableLocation(const String& nodeId) {
     return "wearable/" + nodeId + "/location";
 }
 
+String wearableRanging(const String& nodeId) {
+    return "wearable/" + nodeId + "/ranging";
+}
+
 String wearableImu(const String& nodeId) {
     return "wearable/" + nodeId + "/imu";
 }

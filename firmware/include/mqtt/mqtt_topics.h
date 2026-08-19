@@ -9,6 +9,7 @@ String sensorEnv(const String& nodeId);
 String sensorStatus(const String& nodeId);
 
 String wearableLocation(const String& nodeId);
+String wearableRanging(const String& nodeId);
 String wearableImu(const String& nodeId);
 String wearableVital(const String& nodeId);
 
