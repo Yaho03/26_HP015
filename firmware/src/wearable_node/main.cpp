@@ -9,7 +9,7 @@
 #include <Adafruit_Sensor.h>
 
 #include "config/network_config.h"
-#include "drivers/dwm1000_driver.h"
+#include "drivers/dwm1000_ranging_driver.h"
 #include "drivers/sen0322_driver.h"
 #include "mqtt/mqtt_topics.h"
 #include "mqtt/mqtt_time.h"
@@ -29,6 +29,15 @@ constexpr int8_t DWM1000_MISO_PIN = 19;
 constexpr int8_t DWM1000_MOSI_PIN = 23;
 constexpr int8_t DWM1000_CS_PIN = 5;
 constexpr int8_t DWM1000_RST_PIN = 27;
+constexpr int8_t DWM1000_IRQ_PIN = 26;
+
+#ifndef DWM1000_EUI
+#define DWM1000_EUI "10:00:22:EA:82:60:3B:9C"
+#endif
+
+#ifndef DWM1000_SHORT_ADDRESS
+#define DWM1000_SHORT_ADDRESS 4096
+#endif
 
 // SEN0322
 #define OXYGEN_I2C_ADDRESS ADDRESS_3
@@ -39,6 +48,9 @@ constexpr unsigned long IMU_INTERVAL_MS = 200;     // 5 Hz
 constexpr unsigned long O2_INTERVAL_MS = 1000;    // 1 Hz
 constexpr unsigned long STATUS_INTERVAL_MS = 10000;
 constexpr unsigned long DWM1000_CHECK_INTERVAL_MS = 5000;
+constexpr unsigned long UWB_PUBLISH_INTERVAL_MS = 200;
+constexpr unsigned long UWB_RANGE_MAX_AGE_MS = 1000;
+constexpr uint8_t UWB_MIN_RANGES_FOR_POSITION = 3;
 
 constexpr unsigned long NTP_RETRY_INITIAL_MS = 5000;
 constexpr unsigned long NTP_RETRY_MAX_MS = 60000;
@@ -64,14 +76,16 @@ Sen0322Driver oxygenDriver(
     OXYGEN_I2C_ADDRESS,
     OXYGEN_COLLECT_NUMBER
 );
-SPIClass dwmSpi(VSPI);
-Dwm1000Driver dwm1000Driver(
-    dwmSpi,
+Dwm1000RangingDriver dwm1000Ranging(
+    Dwm1000Role::TAG_NODE,
+    DWM1000_EUI,
+    DWM1000_SHORT_ADDRESS,
     DWM1000_SCK_PIN,
     DWM1000_MISO_PIN,
     DWM1000_MOSI_PIN,
     DWM1000_CS_PIN,
-    DWM1000_RST_PIN
+    DWM1000_RST_PIN,
+    DWM1000_IRQ_PIN
 );
 
 bool mpuReady = false;
@@ -90,6 +104,8 @@ unsigned long lastImuMs = 0;
 unsigned long lastO2Ms = 0;
 unsigned long lastStatusMs = 0;
 unsigned long lastDwm1000CheckMs = 0;
+unsigned long lastUwbPublishMs = 0;
+unsigned long lastUwbSkipLogMs = 0;
 
 unsigned long lastNtpAttemptMs = 0;
 unsigned long ntpRetryIntervalMs = NTP_RETRY_INITIAL_MS;
@@ -99,53 +115,29 @@ unsigned long ntpRetryIntervalMs = NTP_RETRY_INITIAL_MS;
 // Time
 // ============================================================
 
-String hex32(
-    const uint32_t value
-) {
-    char buffer[11] = {};
-    snprintf(
-        buffer,
-        sizeof(buffer),
-        "0x%08lX",
-        static_cast<unsigned long>(value)
-    );
-    return String(buffer);
-}
-
 void logDwm1000Status(
     const char* prefix
 ) {
-    const Dwm1000Data& data =
-        dwm1000Driver.getData();
-
     Serial.print("[DWM1000] ");
     Serial.print(prefix);
-    Serial.print(": detected=");
+    Serial.print(": ready=");
     Serial.print(
-        data.detected
+        dwm1000Ranging.isReady()
             ? "true"
             : "false"
     );
-    Serial.print(", dev_id=");
-    Serial.println(
-        hex32(data.rawDeviceId)
+    Serial.print(", role=");
+    Serial.print(
+        dwm1000Ranging.roleName()
     );
-}
-
-void updateDwm1000() {
-    const bool detected =
-        dwm1000Driver.update();
-
-    if (detected != dwm1000Ready) {
-        dwm1000Ready =
-            detected;
-
-        logDwm1000Status(
-            detected
-                ? "connected"
-                : "disconnected"
-        );
-    }
+    Serial.print(", eui=");
+    Serial.print(
+        dwm1000Ranging.eui()
+    );
+    Serial.print(", device=");
+    Serial.println(
+        dwm1000Ranging.deviceIdentifier()
+    );
 }
 
 bool retryNtpIfDue() {
@@ -529,9 +521,10 @@ void publishStatus() {
         dwm1000Ready;
 
     data["dwm1000_device_id"] =
-        hex32(
-            dwm1000Driver.getData().rawDeviceId
-        );
+        dwm1000Ranging.deviceIdentifier();
+
+    data["dwm1000_role"] =
+        dwm1000Ranging.roleName();
 
 
     String payload;
@@ -547,6 +540,121 @@ void publishStatus() {
         false,
         1
     );
+}
+
+
+// ============================================================
+// UWB ranging publish
+// ============================================================
+
+void publishRanging() {
+    if (
+        !dwm1000Ready
+        || !mqttClient.connected()
+        || !dwm1000Ranging.hasNewRange()
+    ) {
+        return;
+    }
+
+    if (!ensureTimeSyncedForPublish("UWB RANGING")) {
+        return;
+    }
+
+    Dwm1000Range ranges[
+        Dwm1000RangingDriver::MAX_ANCHOR_RANGES
+    ];
+
+    const size_t count =
+        dwm1000Ranging.copyFreshRanges(
+            ranges,
+            Dwm1000RangingDriver::MAX_ANCHOR_RANGES,
+            UWB_RANGE_MAX_AGE_MS
+        );
+
+    if (count < UWB_MIN_RANGES_FOR_POSITION) {
+        const unsigned long nowMs =
+            millis();
+
+        if (nowMs - lastUwbSkipLogMs >= DWM1000_CHECK_INTERVAL_MS) {
+            lastUwbSkipLogMs =
+                nowMs;
+
+            Serial.print(
+                "[DWM1000] ranging publish skipped: fresh anchors="
+            );
+            Serial.println(count);
+        }
+        return;
+    }
+
+    JsonDocument document;
+
+    document["schema_version"] =
+        "1.1";
+    document["node_id"] =
+        NODE_ID;
+    document["message_id"] =
+        Ulid::generate();
+    document["sampled_at"] =
+        MqttTime::nowIso8601Utc();
+    document["source_mode"] =
+        "live";
+
+    JsonObject data =
+        document["data"].to<JsonObject>();
+
+    JsonArray jsonRanges =
+        data["ranges"].to<JsonArray>();
+
+    for (size_t i = 0; i < count; ++i) {
+        JsonObject entry =
+            jsonRanges.add<JsonObject>();
+
+        entry["anchor_id"] =
+            ranges[i].anchorId;
+        entry["distance_m"] =
+            ranges[i].distanceM;
+        entry["rx_power_dbm"] =
+            ranges[i].rxPowerDbm;
+    }
+
+    data["method"] =
+        "ds_twr";
+
+    JsonObject quality =
+        document["quality"].to<JsonObject>();
+
+    JsonObject sensors =
+        quality["sensors"].to<JsonObject>();
+
+    sensors["dwm1000"] =
+        "valid";
+
+    String payload;
+
+    serializeJson(
+        document,
+        payload
+    );
+
+    const bool ok =
+        mqttClient.publish(
+            MqttTopics::wearableRanging(NODE_ID),
+            payload,
+            false,
+            1
+        );
+
+    if (ok) {
+        dwm1000Ranging.clearNewRangeFlag();
+
+        Serial.print("[UWB MQTT] ");
+        Serial.println(payload);
+    } else {
+        Serial.println(
+            "[MQTT] UWB ranging publish failed."
+        );
+    }
 }
 
 
@@ -652,10 +760,10 @@ void setup() {
     );
 
     dwm1000Ready =
-        dwm1000Driver.begin();
+        dwm1000Ranging.begin();
 
     logDwm1000Status(
-        dwm1000Ready
+        dwm1000Ranging.isReady()
             ? "ready"
             : "not detected"
     );
@@ -722,6 +830,8 @@ void loop() {
 
     mqttClient.loop();
 
+    dwm1000Ranging.loop();
+
     if (oxygenReady) {
         if (oxygenDriver.update()) {
             if (oxygenDriver.hasNewData()) {
@@ -753,7 +863,8 @@ void loop() {
         lastDwm1000CheckMs =
             now;
 
-        updateDwm1000();
+        dwm1000Ready =
+            dwm1000Ranging.isReady();
     }
 
 
@@ -793,6 +904,19 @@ void loop() {
             now;
 
         publishStatus();
+    }
+
+
+    // UWB ranging 5 Hz
+    if (
+        now - lastUwbPublishMs
+        >= UWB_PUBLISH_INTERVAL_MS
+    ) {
+
+        lastUwbPublishMs =
+            now;
+
+        publishRanging();
     }
 
 

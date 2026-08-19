@@ -7,7 +7,7 @@
 
 #include "drivers/ads1115_mq_driver.h"
 #include "drivers/bme680_driver.h"
-#include "drivers/dwm1000_driver.h"
+#include "drivers/dwm1000_ranging_driver.h"
 #include "drivers/mhz19b_driver.h"
 #include "sensors/calibration.h"
 
@@ -36,6 +36,15 @@ constexpr int8_t DWM1000_MISO_PIN = 19;
 constexpr int8_t DWM1000_MOSI_PIN = 23;
 constexpr int8_t DWM1000_CS_PIN = 5;
 constexpr int8_t DWM1000_RST_PIN = 27;
+constexpr int8_t DWM1000_IRQ_PIN = 26;
+
+#ifndef DWM1000_EUI
+#define DWM1000_EUI "01:00:22:EA:82:60:3B:9C"
+#endif
+
+#ifndef DWM1000_SHORT_ADDRESS
+#define DWM1000_SHORT_ADDRESS 1
+#endif
 
 
 // ============================================================
@@ -70,14 +79,16 @@ Mhz19bDriver mhzDriver(
     MHZ19B_TX_PIN
 );
 
-SPIClass dwmSpi(VSPI);
-Dwm1000Driver dwm1000Driver(
-    dwmSpi,
+Dwm1000RangingDriver dwm1000Ranging(
+    Dwm1000Role::ANCHOR_NODE,
+    DWM1000_EUI,
+    DWM1000_SHORT_ADDRESS,
     DWM1000_SCK_PIN,
     DWM1000_MISO_PIN,
     DWM1000_MOSI_PIN,
     DWM1000_CS_PIN,
-    DWM1000_RST_PIN
+    DWM1000_RST_PIN,
+    DWM1000_IRQ_PIN
 );
 
 
@@ -196,53 +207,29 @@ bool mq2CalibrationReported = false;
 // DWM1000 status
 // ============================================================
 
-String hex32(
-    const uint32_t value
-) {
-    char buffer[11] = {};
-    snprintf(
-        buffer,
-        sizeof(buffer),
-        "0x%08lX",
-        static_cast<unsigned long>(value)
-    );
-    return String(buffer);
-}
-
 void logDwm1000Status(
     const char* prefix
 ) {
-    const Dwm1000Data& data =
-        dwm1000Driver.getData();
-
     Serial.print("[DWM1000] ");
     Serial.print(prefix);
-    Serial.print(": detected=");
+    Serial.print(": ready=");
     Serial.print(
-        data.detected
+        dwm1000Ranging.isReady()
             ? "true"
             : "false"
     );
-    Serial.print(", dev_id=");
-    Serial.println(
-        hex32(data.rawDeviceId)
+    Serial.print(", role=");
+    Serial.print(
+        dwm1000Ranging.roleName()
     );
-}
-
-void updateDwm1000() {
-    const bool detected =
-        dwm1000Driver.update();
-
-    if (detected != dwm1000Ready) {
-        dwm1000Ready =
-            detected;
-
-        logDwm1000Status(
-            detected
-                ? "connected"
-                : "disconnected"
-        );
-    }
+    Serial.print(", eui=");
+    Serial.print(
+        dwm1000Ranging.eui()
+    );
+    Serial.print(", device=");
+    Serial.println(
+        dwm1000Ranging.deviceIdentifier()
+    );
 }
 
 
@@ -1218,9 +1205,10 @@ void publishStatus() {
         dwm1000Ready;
 
     data["dwm1000_device_id"] =
-        hex32(
-            dwm1000Driver.getData().rawDeviceId
-        );
+        dwm1000Ranging.deviceIdentifier();
+
+    data["dwm1000_role"] =
+        dwm1000Ranging.roleName();
 
     JsonArray sensorsOnline =
         data["sensors_online"].to<JsonArray>();
@@ -1451,10 +1439,10 @@ void setup() {
     );
 
     dwm1000Ready =
-        dwm1000Driver.begin();
+        dwm1000Ranging.begin();
 
     logDwm1000Status(
-        dwm1000Ready
+        dwm1000Ranging.isReady()
             ? "ready"
             : "not detected"
     );
@@ -1585,14 +1573,11 @@ void loop() {
 
     mqttClient.loop();
 
-    if (
-        millis() - lastDwm1000CheckMs
-        >= DWM1000_CHECK_INTERVAL_MS
-    ) {
-        lastDwm1000CheckMs =
-            millis();
+    dwm1000Ranging.loop();
 
-        updateDwm1000();
+    if (millis() - lastDwm1000CheckMs >= DWM1000_CHECK_INTERVAL_MS) {
+        lastDwm1000CheckMs = millis();
+        dwm1000Ready = dwm1000Ranging.isReady();
     }
 
 
