@@ -626,3 +626,210 @@ GPIO32/33 등 ADC1 핀으로 옮기면 실제 전압이 보인다.
 - sensor-03·04 MH-Z19B 무응답 (§12.4)
 - SEN0322 O2 (§4.2) / MQ R0 기입 (§4.3) / 열화상 (§4.4)
 - #54 CO2 경보 정식 판정 — **sensor-02 로 가능**. 단 숨 불기 금지
+
+---
+
+# 13. 병합 경위와 커밋 내역
+
+## 13.1 병합 상황
+
+두 컴퓨터가 같은 베이스에서 각자 작업한 것을 합쳤다.
+
+```
+        cefa6d6 (공통 조상)
+        ├──────────────► GitHub main 391b453   (다른 컴퓨터)
+        └──────────────► 로컬 26_HP015         (이 컴퓨터, git 아님)
+```
+
+**로컬 폴더가 git 저장소가 아니었다.** `.git` 이 없어 `git status` 로 변경분을
+알 수 없었고, 파일 수정 시각을 뒤져서 무엇이 바뀌었는지 찾아야 했다.
+
+### 공통 조상 찾기
+
+태그가 없어 v1.0 에 해당하는 커밋 표식이 없었다. main 의 최근 25개 커밋 각각에 대해
+로컬 트리와 파일 해시를 비교해 **다른 파일 수가 가장 적은 커밋**을 찾았다.
+
+```
+cefa6d6   다름 2 / 공통 214   <- 공통 조상
+391b453   다름 4 / 공통 215   (main HEAD)
+6d15f4a   다름 2 / 공통 181
+e56fe39   다름 10 / 공통 173
+...
+8b741b8   다름 53 / 공통 146
+```
+
+`cefa6d6` 기준으로 로컬과 다른 파일이 **정확히 3개**였다 — 즉 이 컴퓨터의 작업은
+그날 세션에서 고친 3건이 전부였고, 나머지는 전부 `cefa6d6` 시점 그대로였다.
+
+### 양쪽이 건드린 파일
+
+| | 변경한 파일 |
+|---|---|
+| **GitHub (다른 컴퓨터)** | `platformio.ini`, `sensor_node/main.cpp`, `wearable_node/main.cpp`, 신규 `dwm1000_ranging_driver.{h,cpp}`, `scripts/hw_verify.py` |
+| **로컬 (이 컴퓨터)** | `sen0322_driver.cpp`, `wearable_node/main.cpp`, `frontend/Dockerfile` |
+
+겹친 것은 `wearable_node/main.cpp` 하나뿐이고, 수정 위치가 달랐다
+(GitHub 은 상단 `#include` + UWB ranging 코드, 로컬은 215줄 근처 `mqttClient.connect`).
+
+### 병합 방법
+
+패치 파일 적용(`git apply`)은 **실패했다.** 패치를 `firmware/` 디렉토리 안에서
+떠서 경로가 저장소 루트와 맞지 않았고, CRLF 문제도 겹쳤다.
+
+대신 git 의 3-way 병합을 그대로 썼다:
+
+```bash
+git checkout -b local-hw-work cefa6d6      # 공통 조상에서 분기
+cp <로컬의 변경 파일 3개> .                  # 로컬 작업 복원
+git commit                                  # "이 컴퓨터 작업" 커밋
+git checkout main && git merge local-hw-work
+```
+
+**결과: 충돌 0건.** `wearable_node/main.cpp` 는 자동 병합됐고, 양쪽 변경이
+모두 보존된 것을 확인했다 (우리 MQTT 인증 277줄 + GitHub UWB `SPI.h`·`Dwm1000RangingDriver`).
+
+### 의도적으로 제외한 것
+
+`sen0322_driver.cpp` 의 I2C 프라이밍 패치는 **병합에서 뺐다.**
+실측 근거는 확실했으나(콜드 버스에서 선행 트랜잭션 20~30회 필요) 이 수정으로도
+O2 값이 0.00 이라 근본 원인이 하드웨어일 가능성이 컸다. 하드웨어를 고친 뒤
+여전히 필요한지 재확인하고 넣는 것이 안전하다고 판단했다.
+
+패치는 아래에 보존돼 있다 (커밋되지 않음):
+```
+바탕 화면/26_HP015_hw_session_20260819_backup/patches/02-sen0322-i2c-priming.patch
+```
+
+## 13.2 커밋 내역 (391b453 → 0acb2c9)
+
+```
+0acb2c9  docs: 세션 후반 기록 — 보드별 MH-Z19B 상태, 진단 절차, 추가 결함 4건
+e3feb20  fix(firmware): MH-Z19B UART 수신 안정화 + 예열 게이트를 빌드 플래그로
+48fe75a  fix(firmware): 센서 읽기 실패 시 옛 값이 정상값으로 계속 발행되던 문제 + CO2 범위 검증
+2d46ce6  docs: 2026-08-19 하드웨어 검증 세션 인수인계
+08bcda1  test: 2026-08-19 하드웨어 검증 세션 증거 + 판정 도구
+20100ae  fix: wearable-node 빌드 실패 + 웨어러블 status 계약 위반 + wearable/+/status 미구독
+e265fb4  fix(backend): 노드 복귀 시 connection_lost 경보가 해제되지 않던 문제
+154d41a  Merge branch 'local-hw-work'
+5ef9d9e  fix: 웨어러블 MQTT 인증 누락 + 프론트 Dockerfile vite build 누락
+```
+
+### 파일별 변경 규모
+
+```
+backend/app/services/connection_monitor.py   +28
+backend/app/services/ingest.py               +54 -
+backend/app/services/mqtt_subscriber.py       +5 -
+firmware/include/drivers/mhz19b_driver.h     +39 -
+firmware/include/mqtt/mqtt_topics.h           +1
+firmware/src/drivers/mhz19b_driver.cpp      +122 -
+firmware/src/mqtt/mqtt_topics.cpp             +5
+firmware/src/sensor_node/main.cpp            +16
+firmware/src/wearable_node/main.cpp          +50 -
+frontend/Dockerfile                           +2 -1
+scripts/hw/{check,r0,tap}.sh                +101
+docs/HW_SESSION_HANDOFF_20260819.md         +628
+------------------------------------------------
+14 files changed, 984 insertions(+), 67 deletions(-)
+```
+
+## 13.3 커밋별 상세
+
+### `5ef9d9e` 웨어러블 MQTT 인증 + 프론트 vite build
+
+**웨어러블 MQTT 인증 누락** — `wearable_node/main.cpp:215`
+```cpp
+- if (mqttClient.connect(clientId.c_str())) {
++ if (mqttClient.connect(clientId.c_str(),
++         NetworkConfig::MQTT_USERNAME, NetworkConfig::MQTT_PASSWORD)) {
+```
+브로커가 `allow_anonymous false` 라 웨어러블은 접속 자체가 불가능했다.
+증거: `Client wearable-01-... disconnected, not authorised.`
+센서 노드(`sensor_node/main.cpp:202`)는 이미 인증 인자를 넘기고 있었다.
+
+**프론트 Dockerfile** — `vite build` 누락으로 `/app/dist` 가 안 생겨
+프론트 컨테이너 빌드가 항상 실패했다.
+증거: `failed to compute cache key: "/app/dist": not found`
+
+두 결함 모두 **주입 데이터로만 검증해온 탓에 드러나지 않았다.**
+
+### `154d41a` Merge branch 'local-hw-work'
+
+3-way 병합 커밋. 충돌 0건.
+
+### `e265fb4` connection_lost 경보 미해제
+
+`connection_monitor` 에 `online→offline` 발생 경로만 있고 `offline→online`
+해제 경로가 없었다. 노드가 복귀해도 alert 는 영구히 `active`.
+
+실측: `node_status` online(05:32:46) 인데 `alert_events` 는 04:31:56 발생분이
+active, `resolved_at` NULL.
+
+프론트(`useWebSocket.ts:32`)는 `to_level==='normal'` 을 이미 처리하고 있었고
+publisher 도 NORMAL→resolved 변환을 갖고 있었다. **발행 측만 없었다.**
+
+**구현 중 스스로 만든 버그를 테스트가 잡았다.** 조건을
+`previous_status != "online"` 으로 쓰면 **처음 보는 노드(None)** 에서 참이 되어
+없는 경보를 해제한다. `== "offline"` 으로 좁혀야 한다.
+
+검증(test-node-99 전체 주기): 최초등록→경보 0건 / 30초 무응답→L3 active /
+online 복귀→resolved(17초). `alerts_published=1, alerts_resolved=1`.
+
+세션 종료 시점 실적: **connection_lost resolved 50건** (수정 전에는 0건).
+
+### `20100ae` wearable-node 빌드 + status 계약 + 미구독
+
+**빌드 실패** — `MqttTopics::wearableRanging()` 이 선언·정의 없이 호출되고 있었다.
+**GitHub main(391b453) 단독으로도 컴파일이 안 된다** — 컴파일되지 않는 상태로
+push 되어 있었다.
+
+**웨어러블 status 계약 위반**
+
+| 계약 | 수정 전 |
+|---|---|
+| `message_id` | 없음 |
+| `data.wifi_rssi_dbm` | `wifi_rssi` (이름 다름) |
+| `data.battery_pct` | 없음 |
+| `data.free_heap_bytes` | 없음 |
+| `data.sensors_online` / `sensors_error` | 없음 |
+
+**`wearable/+/status` 미구독** — 백엔드가 `sensors/+/status` 만 구독해서
+웨어러블이 `node_status` 에 올라오지 못했다 = **연결 끊김 감지 대상에서 제외.**
+실측: `processed_messages` 에 wearable-01 379건인데 `node_status` 0행.
+
+(2)와 (3)은 함께 고쳐야 의미가 있다. 구독만 추가하면 `InvalidMessage` 로 버려진다.
+
+### `08bcda1` 검증 증거 + 판정 도구
+
+`test_results/hardware/2026-08-19/` 와 `scripts/hw/`.
+MQTT tap 원본은 11MB → gzip 599KB 로 압축해 커밋했다.
+
+### `2d46ce6` 인수인계 문서
+
+`.notes/` 가 `.gitignore` 대상이라 `docs/` 에 두었다.
+
+### `48fe75a` 옛 값 재발행 차단 + CO2 범위 검증
+
+§12.6-A, §12.6-B 참조. **오늘 세션에서 가장 중요한 발견.**
+
+### `e3feb20` MH-Z19B UART 안정화 + 예열 플래그
+
+§12.6-C, §12.6-D 참조.
+
+### `0acb2c9` 세션 후반 기록
+
+§12 신설.
+
+## 13.4 병합 중 겪은 문제 — 다음에 참고할 것
+
+| 문제 | 원인 | 대응 |
+|---|---|---|
+| 로컬 변경분을 알 수 없음 | 로컬이 git 저장소가 아님 | 파일 수정 시각 + 커밋별 해시 비교로 역추적 |
+| 공통 조상 불명 | 태그 없음 | 커밋별 "다른 파일 수" 비교로 `cefa6d6` 특정 |
+| `git apply` 실패 | 패치를 하위 디렉토리에서 떠 경로 불일치 + CRLF | 패치 포기, 3-way 병합으로 전환 |
+| `wearable-node` 빌드 실패 | main 자체가 컴파일 불가 상태 | 누락 함수 추가 (`20100ae`) |
+| 한글 경로에서 링크 실패 | `ld` 가 `바탕 화면` 경로에 맵 파일 못 씀 | ASCII 경로(`/c/hp015build`)에서 빌드 (§3) |
+| `.notes/` 커밋 거부 | gitignore 대상 | 문서를 `docs/` 로 이동 |
+
+**교훈: 두 머신을 오갈 때 로컬을 git 저장소로 유지할 것.** 이번에는 파일 시각과
+해시를 일일이 대조해야 했고, 백업을 먼저 떠두지 않았으면 오늘 작업이 날아갈 뻔했다.
