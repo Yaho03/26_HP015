@@ -1598,6 +1598,9 @@ void loop() {
 
                 mqDriver.clearNewData();
             }
+        } else if (hasMq) {
+            // 실패 상태도 반영한다 (MH-Z19B 와 같은 이유).
+            latestMq = mqDriver.getData();
         }
     }
 
@@ -1617,6 +1620,9 @@ void loop() {
 
                 bmeDriver.clearNewData();
             }
+        } else if (hasBme) {
+            // 실패 상태도 반영한다 (MH-Z19B 와 같은 이유).
+            latestBme = bmeDriver.getData();
         }
     }
 
@@ -1625,6 +1631,14 @@ void loop() {
     // MH-Z19B
     // ========================================================
 
+    /*
+     * 읽기에 실패해도 드라이버의 상태(valid=false)를 반드시 가져와야 한다.
+     * 성공했을 때만 복사하면 latestMhz 가 마지막 성공값에 굳고 valid 도 true 로
+     * 남아, 센서가 죽어도 옛 값이 정상값으로 계속 발행된다.
+     * 2026-08-19 실물에서 CO2 가 395 -> 18953 -> 고정으로 관측된 원인이다.
+     * 밀폐공간에서 CO2 센서가 죽었는데 화면이 '정상'으로 남는 것은
+     * 미검출보다 위험하다 (#113 과 같은 fail-safe 원칙).
+     */
     if (mhzDriver.update()) {
         if (mhzDriver.hasNewData()) {
 
@@ -1635,6 +1649,8 @@ void loop() {
 
             mhzDriver.clearNewData();
         }
+    } else if (hasMhz && !mhzDriver.isWarmingUp()) {
+        latestMhz = mhzDriver.getData();
     }
 
 

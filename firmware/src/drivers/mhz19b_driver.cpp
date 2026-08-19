@@ -72,6 +72,24 @@ bool Mhz19bDriver::update() {
         return false;
     }
 
+    /*
+     * 측정 범위 밖은 읽기 오류로 처리한다.
+     * 체크섬이 맞아도 범위를 벗어난 값은 측정값이 아니다 — 2026-08-19 실물에서
+     * 18,953ppm 이 정상값으로 발행되어 L3 경보까지 발화한 사례가 있었다.
+     * SEN0322 드라이버가 이미 같은 방식으로 방어하고 있다.
+     *
+     * MH-Z19B 는 0~2000 / 0~5000 / 0~10000ppm 변종이 있으므로 상한은 빌드
+     * 플래그로 둔다. 실제 구매 모델에 맞춰 MHZ19B_RANGE_PPM 을 지정할 것.
+     */
+    if (co2Ppm < 0 || co2Ppm > MHZ19B_RANGE_PPM) {
+        Serial.print("[MH-Z19B] Out of range: ");
+        Serial.print(co2Ppm);
+        Serial.print(" ppm (range 0~");
+        Serial.print(MHZ19B_RANGE_PPM);
+        Serial.println(")");
+        return false;
+    }
+
     data_.co2Ppm = co2Ppm;
     data_.valid = true;
 
