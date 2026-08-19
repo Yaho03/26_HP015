@@ -1,0 +1,167 @@
+--- Miniterm on COM6  115200,8,N,1 ---
+--- Quit: Ctrl+] | Menu: Ctrl+T | Help: Ctrl+T followed by Ctrl+H ---
+ets Jul 29 2019 12:21:46
+
+rst:0x1 (POWERON_RESET),boot:0x13 (SPI_FAST_FLASH_BOOT)
+configsip: 0, SPIWP:0xee
+clk_drv:0x00,q_drv:0x00,d_drv:0x00,cs0_drv:0x00,hd_drv:0x00,wp_drv:0x00
+mode:DIO, clock div:2
+load:0x3fff0030,len:1184
+load:0x40078000,len:13232
+load:0x40080400,len:3028
+entry 0x400805e4
+
+[SYSTEM] Wearable MQTT node
+[MPU6050] Initializing...
+[MPU6050] Not detected.
+[SEN0322] Initializing...
+[SEN0322] Initialization successful.
+[SEN0322] I2C address: 0x73
+[SEN0322] Waiting 15 seconds before sampling.
+[SEN0322] Ready.
+[WiFi] Connecting to iPad (74)
+.
+[WiFi] Connected.
+[WiFi] IP: 172.20.10.4
+[TIME] Starting NTP synchronization.
+[TIME] NTP synchronization successful.
+[MQTT] Connecting... connected.
+[SYSTEM] Wearable running.
+[SEN0322] O2 publish without o2_pct: invalid reading.
+[O2 MQTT] {"node_id":"wearable-01","message_id":"01M0C6462CC42W00DN76G92AR8","sampled_at":"2026-08-19T04:57:57.068Z","data":{},"quality":{"sensors":{"sen0322":"error"}}}
+[SEN0322] O2 publish without o2_pct: invalid reading.
+[O2 MQTT] {"node_id":"wearable-01","message_id":"01M0C6471MCV0M99P5MBZYHHZ4","sampled_at":"2026-08-19T04:57:58.068Z","data":{},"quality":{"sensors":{"sen0322":"error"}}}
+[SEN0322] O2 publish without o2_pct: invalid reading.
+[O2 MQTT] {"node_id":"wearable-01","message_id":"01M0C6480WYXQ77R454ZEHB007","sampled_at":"2026-08-19T04:57:59.068Z","data":{},"quality":{"sensors":{"sen0322":"error"}}}
+[SEN0322] O2 publish without o2_pct: invalid reading.
+[O2 MQTT] {"node_id":"wearable-01","message_id":"01M0C64904TJRM7M3DYYZRB0BP","sampled_at":"2026-08-19T04:58:00.068Z","data":{},"quality":{"sensors":{"sen0322":"error"}}}
+[SEN0322] O2 publish without o2_pct: invalid reading.
+[O2 MQTT] {"node_id":"wearable-01","message_id":"01M0C649ZC1Z69EFR66T05JAA3","sampled_at":"2026-08-19T04:58:01.068Z","data":{},"quality":{"sensors":{"sen0322":"error"}}}
+[SEN0322] O2 publish without o2_pct: invalid reading.
+[O2 MQTT] {"node_id":"wearable-01","message_id":"01M0C64AYMJFER7KHP0B55DYBW","sampled_at":"2026-08-19T04:58:02.068Z","data":{},"quality":{"sensors":{"sen0322":"error"}}}
+[SEN0322] O2 publish without o2_pct: invalid reading.
+[O2 MQTT] {"node_id":"wearable-01","message_id":"01M0C64BXWCGDXHVMH03JZEMKH","sampled_at":"2026-08-19T04:58:03.068Z","data":{},"quality":{"sensors":{"sen0322":"error"}}}
+[SEN0322] O2 publish without o2_pct: invalid reading.
+[O2 MQTT] {"node_id":"wearable-01","message_id":"01M0C64CX404X7TPDP8AC33472","sampled_at":"2026-08-19T04:58:04.068Z","data":{},"quality":{"sensors":{"sen0322":"error"}}}
+[SEN0322] O2 publish without o2_pct: invalid reading.
+[O2 MQTT] {"node_id":"wearable-01","message_id":"01M0C64DWCNFCXWJQTQX0C3JSQ","sampled_at":"2026-08-19T04:58:05.068Z","data":{},"quality":{"sensors":{"sen0322":"error"}}}
+[SEN0322] O2 publish without o2_pct: invalid reading.
+[O2 MQTT] {"node_id":"wearable-01","message_id":"01M0C64EVM9RA9J1JRRB6NBCQR","sampled_at":"2026-08-19T04:58:06.068Z","data":{},"quality":{"sensors":{"sen0322":"error"}}}
+[SEN0322] O2 publish without o2_pct: invalid reading.
+[O2 MQTT] {"node_id":"wearable-01","message_id":"01M0C64FTWNXQQ1JTZJRF47QAF","sampled_at":"2026-08-19T04:58:07.068Z","data":{},"quality":{"sensors":{"sen0322":"error"}}}
+[SEN0322] O2 publish without o2_pct: invalid reading.
+[O2 MQTT] {"node_id":"wearable-01","message_id":"01M0C64GT47Z1JYQS04TW8BT9B","sampled_at":"2026-08-19T04:58:08.068Z","data":{},"quality":{"sensors":{"sen0322":"error"}}}
+[ 17639][E][Wire.cpp:513] requestFrom(): i2cRead returned Error 263
+[ 18748][E][Wire.cpp:513] requestFrom(): i2cRead returned Error 263
+[SEN0322] Invalid O2 value: 0.00
+[SEN0322] O2 publish without o2_pct: invalid reading.
+[O2 MQTT] {"node_id":"wearable-01","message_id":"01M0C64KT4GNNAP8F09NAJPDJE","sampled_at":"2026-08-19T04:58:11.140Z","data":{},"quality":{"sensors":{"sen0322":"error"}}}
+[SEN0322] O2 publish without o2_pct: invalid reading.
+[O2 MQTT] {"node_id":"wearable-01","message_id":"01M0C64MSBJDMR57P2M37RTK7J","sampled_at":"2026-08-19T04:58:12.139Z","data":{},"quality":{"sensors":{"sen0322":"error"}}}
+[SEN0322] O2 publish without o2_pct: invalid reading.
+[O2 MQTT] {"node_id":"wearable-01","message_id":"01M0C64NRK6FA7PW63X4D74088","sampled_at":"2026-08-19T04:58:13.139Z","data":{},"quality":{"sensors":{"sen0322":"error"}}}
+[ 22639][E][Wire.cpp:513] requestFrom(): i2cRead returned Error 263
+[ 23747][E][Wire.cpp:513] requestFrom(): i2cRead returned Error 263
+[SEN0322] Invalid O2 value: 0.00
+[SEN0322] O2 publish without o2_pct: invalid reading.
+[O2 MQTT] {"node_id":"wearable-01","message_id":"01M0C64RPBX4KGWN3MG7F5CY2E","sampled_at":"2026-08-19T04:58:16.139Z","data":{},"quality":{"sensors":{"sen0322":"error"}}}
+[SEN0322] O2 publish without o2_pct: invalid reading.
+[O2 MQTT] {"node_id":"wearable-01","message_id":"01M0C64SNJ4J9ZKS7A72KTHANJ","sampled_at":"2026-08-19T04:58:17.138Z","data":{},"quality":{"sensors":{"sen0322":"error"}}}
+[SEN0322] O2 publish without o2_pct: invalid reading.
+[O2 MQTT] {"node_id":"wearable-01","message_id":"01M0C64TMTWMSFKMGEZ9C6VZAF","sampled_at":"2026-08-19T04:58:18.138Z","data":{},"quality":{"sensors":{"sen0322":"error"}}}
+[ 27639][E][Wire.cpp:513] requestFrom(): i2cRead returned Error 263
+[ 28747][E][Wire.cpp:513] requestFrom(): i2cRead returned Error 263
+[SEN0322] Invalid O2 value: 0.00
+[SEN0322] O2 publish without o2_pct: invalid reading.
+[O2 MQTT] {"node_id":"wearable-01","message_id":"01M0C64XJK3JEEBYXXQJQ2R2BR","sampled_at":"2026-08-19T04:58:21.139Z","data":{},"quality":{"sensors":{"sen0322":"error"}}}
+[SEN0322] O2 publish without o2_pct: invalid reading.
+[O2 MQTT] {"node_id":"wearable-01","message_id":"01M0C64YHT1391WAZRNHB8WY9E","sampled_at":"2026-08-19T04:58:22.138Z","data":{},"quality":{"sensors":{"sen0322":"error"}}}
+[SEN0322] O2 publish without o2_pct: invalid reading.
+[O2 MQTT] {"node_id":"wearable-01","message_id":"01M0C64ZH275CWSDMTDVHR2HG7","sampled_at":"2026-08-19T04:58:23.138Z","data":{},"quality":{"sensors":{"sen0322":"error"}}}
+[ 32639][E][Wire.cpp:513] requestFrom(): i2cRead returned Error 263
+[ 33747][E][Wire.cpp:513] requestFrom(): i2cRead returned Error 263
+[SEN0322] Invalid O2 value: 0.00
+[SEN0322] O2 publish without o2_pct: invalid reading.
+[O2 MQTT] {"node_id":"wearable-01","message_id":"01M0C652EV5WCSFS9Q4AVZC6PQ","sampled_at":"2026-08-19T04:58:26.139Z","data":{},"quality":{"sensors":{"sen0322":"error"}}}
+[SEN0322] O2 publish without o2_pct: invalid reading.
+[O2 MQTT] {"node_id":"wearable-01","message_id":"01M0C653E26SJDB7AFFCN3G1Q8","sampled_at":"2026-08-19T04:58:27.138Z","data":{},"quality":{"sensors":{"sen0322":"error"}}}
+[SEN0322] O2 publish without o2_pct: invalid reading.
+[O2 MQTT] {"node_id":"wearable-01","message_id":"01M0C654DAPCB67QTZ2EARRFBE","sampled_at":"2026-08-19T04:58:28.138Z","data":{},"quality":{"sensors":{"sen0322":"error"}}}
+[ 37639][E][Wire.cpp:513] requestFrom(): i2cRead returned Error 263
+[ 38747][E][Wire.cpp:513] requestFrom(): i2cRead returned Error 263
+[SEN0322] Invalid O2 value: 0.00
+[SEN0322] O2 publish without o2_pct: invalid reading.
+[O2 MQTT] {"node_id":"wearable-01","message_id":"01M0C657B3NG92NP7RV6H0TB0C","sampled_at":"2026-08-19T04:58:31.139Z","data":{},"quality":{"sensors":{"sen0322":"error"}}}
+[SEN0322] O2 publish without o2_pct: invalid reading.
+[O2 MQTT] {"node_id":"wearable-01","message_id":"01M0C658AAFFQ1N26RMTG5AA6P","sampled_at":"2026-08-19T04:58:32.138Z","data":{},"quality":{"sensors":{"sen0322":"error"}}}
+[SEN0322] O2 publish without o2_pct: invalid reading.
+[O2 MQTT] {"node_id":"wearable-01","message_id":"01M0C6599J85N49HX00TP6AXVD","sampled_at":"2026-08-19T04:58:33.138Z","data":{},"quality":{"sensors":{"sen0322":"error"}}}
+[ 42639][E][Wire.cpp:513] requestFrom(): i2cRead returned Error 263
+[ 43747][E][Wire.cpp:513] requestFrom(): i2cRead returned Error 263
+[SEN0322] Invalid O2 value: 0.00
+[SEN0322] O2 publish without o2_pct: invalid reading.
+[O2 MQTT] {"node_id":"wearable-01","message_id":"01M0C65C7BZE6HGJG0XYVE2Q93","sampled_at":"2026-08-19T04:58:36.139Z","data":{},"quality":{"sensors":{"sen0322":"error"}}}
+[SEN0322] O2 publish without o2_pct: invalid reading.
+[O2 MQTT] {"node_id":"wearable-01","message_id":"01M0C65D6J23Z4JAPKX44WZZHT","sampled_at":"2026-08-19T04:58:37.138Z","data":{},"quality":{"sensors":{"sen0322":"error"}}}
+[SEN0322] O2 publish without o2_pct: invalid reading.
+[O2 MQTT] {"node_id":"wearable-01","message_id":"01M0C65E5TPC7EJZCATKV2G1H5","sampled_at":"2026-08-19T04:58:38.138Z","data":{},"quality":{"sensors":{"sen0322":"error"}}}
+[ 47639][E][Wire.cpp:513] requestFrom(): i2cRead returned Error 263
+[ 48747][E][Wire.cpp:513] requestFrom(): i2cRead returned Error 263
+[SEN0322] Invalid O2 value: 0.00
+[SEN0322] O2 publish without o2_pct: invalid reading.
+[O2 MQTT] {"node_id":"wearable-01","message_id":"01M0C65H3KHJT23RMC45FWK6HF","sampled_at":"2026-08-19T04:58:41.139Z","data":{},"quality":{"sensors":{"sen0322":"error"}}}
+[SEN0322] O2 publish without o2_pct: invalid reading.
+[O2 MQTT] {"node_id":"wearable-01","message_id":"01M0C65J2TT0SREZ6VV8BV0Z5Q","sampled_at":"2026-08-19T04:58:42.138Z","data":{},"quality":{"sensors":{"sen0322":"error"}}}
+[SEN0322] O2 publish without o2_pct: invalid reading.
+[O2 MQTT] {"node_id":"wearable-01","message_id":"01M0C65K22XPYHQSCW6JK23HTN","sampled_at":"2026-08-19T04:58:43.138Z","data":{},"quality":{"sensors":{"sen0322":"error"}}}
+[ 52639][E][Wire.cpp:513] requestFrom(): i2cRead returned Error 263
+[ 53747][E][Wire.cpp:513] requestFrom(): i2cRead returned Error 263
+[SEN0322] Invalid O2 value: 0.00
+[SEN0322] O2 publish without o2_pct: invalid reading.
+[O2 MQTT] {"node_id":"wearable-01","message_id":"01M0C65NZVHXXTJ5CEYFEYG5WH","sampled_at":"2026-08-19T04:58:46.139Z","data":{},"quality":{"sensors":{"sen0322":"error"}}}
+[SEN0322] O2 publish without o2_pct: invalid reading.
+[O2 MQTT] {"node_id":"wearable-01","message_id":"01M0C65PZ2HBT91HMM178BVTFA","sampled_at":"2026-08-19T04:58:47.138Z","data":{},"quality":{"sensors":{"sen0322":"error"}}}
+[SEN0322] O2 publish without o2_pct: invalid reading.
+[O2 MQTT] {"node_id":"wearable-01","message_id":"01M0C65QYAXYXCB9STT3FW9MVH","sampled_at":"2026-08-19T04:58:48.138Z","data":{},"quality":{"sensors":{"sen0322":"error"}}}
+[ 57639][E][Wire.cpp:513] requestFrom(): i2cRead returned Error 263
+[ 58746][E][Wire.cpp:513] requestFrom(): i2cRead returned Error 263
+[SEN0322] Invalid O2 value: 0.00
+[SEN0322] O2 publish without o2_pct: invalid reading.
+[O2 MQTT] {"node_id":"wearable-01","message_id":"01M0C65TW269PAH620SGNTSYJR","sampled_at":"2026-08-19T04:58:51.138Z","data":{},"quality":{"sensors":{"sen0322":"error"}}}
+[SEN0322] O2 publish without o2_pct: invalid reading.
+[O2 MQTT] {"node_id":"wearable-01","message_id":"01M0C65VV9ZWCA1DP8635F5J9Z","sampled_at":"2026-08-19T04:58:52.137Z","data":{},"quality":{"sensors":{"sen0322":"error"}}}
+[SEN0322] O2 publish without o2_pct: invalid reading.
+[O2 MQTT] {"node_id":"wearable-01","message_id":"01M0C65WTHKANT36P98C05X0WQ","sampled_at":"2026-08-19T04:58:53.137Z","data":{},"quality":{"sensors":{"sen0322":"error"}}}
+[ 62639][E][Wire.cpp:513] requestFrom(): i2cRead returned Error 263
+[ 63747][E][Wire.cpp:513] requestFrom(): i2cRead returned Error 263
+[SEN0322] Invalid O2 value: 0.00
+[SEN0322] O2 publish without o2_pct: invalid reading.
+[O2 MQTT] {"node_id":"wearable-01","message_id":"01M0C65ZRBFRF6J93APT5EMF9D","sampled_at":"2026-08-19T04:58:56.139Z","data":{},"quality":{"sensors":{"sen0322":"error"}}}
+[SEN0322] O2 publish without o2_pct: invalid reading.
+[O2 MQTT] {"node_id":"wearable-01","message_id":"01M0C660QJDEFHZXQ89YYJEJJJ","sampled_at":"2026-08-19T04:58:57.138Z","data":{},"quality":{"sensors":{"sen0322":"error"}}}
+[SEN0322] O2 publish without o2_pct: invalid reading.
+[O2 MQTT] {"node_id":"wearable-01","message_id":"01M0C661PTJQDR725MJ6NJNSRY","sampled_at":"2026-08-19T04:58:58.138Z","data":{},"quality":{"sensors":{"sen0322":"error"}}}
+[ 67639][E][Wire.cpp:513] requestFrom(): i2cRead returned Error 263
+[ 68747][E][Wire.cpp:513] requestFrom(): i2cRead returned Error 263
+[SEN0322] Invalid O2 value: 0.00
+[SEN0322] O2 publish without o2_pct: invalid reading.
+[O2 MQTT] {"node_id":"wearable-01","message_id":"01M0C664MKB4C1FMT7EPHBWMCD","sampled_at":"2026-08-19T04:59:01.139Z","data":{},"quality":{"sensors":{"sen0322":"error"}}}
+[SEN0322] O2 publish without o2_pct: invalid reading.
+[O2 MQTT] {"node_id":"wearable-01","message_id":"01M0C665KTMAPXBB3QN79JSCMV","sampled_at":"2026-08-19T04:59:02.138Z","data":{},"quality":{"sensors":{"sen0322":"error"}}}
+[SEN0322] O2 publish without o2_pct: invalid reading.
+[O2 MQTT] {"node_id":"wearable-01","message_id":"01M0C666K2YV0PGCSG5FM3ZFEN","sampled_at":"2026-08-19T04:59:03.138Z","data":{},"quality":{"sensors":{"sen0322":"error"}}}
+[ 72639][E][Wire.cpp:513] requestFrom(): i2cRead returned Error 263
+[ 73747][E][Wire.cpp:513] requestFrom(): i2cRead returned Error 263
+[SEN0322] Invalid O2 value: 0.00
+[SEN0322] O2 publish without o2_pct: invalid reading.
+[MQTT] O2 publish failed.
+[MQTT] Connecting... connected.
+[SEN0322] O2 publish without o2_pct: invalid reading.
+[O2 MQTT] {"node_id":"wearable-01","message_id":"01M0C66AK2XFZ5PT78Z5X58G5R","sampled_at":"2026-08-19T04:59:07.234Z","data":{},"quality":{"sensors":{"sen0322":"error"}}}
+[SEN0322] O2 publish without o2_pct: invalid reading.
+[O2 MQTT] {"node_id":"wearable-01","message_id":"01M0C66BJ90KXW7MSBNGVV1AK8","sampled_at":"2026-08-19T04:59:08.233Z","data":{},"quality":{"sensors":{"sen0322":"error"}}}
+[ 77639][E][Wire.cpp:513] requestFrom(): i2cRead returned Error 263
+[ 78747][E][Wire.cpp:513] requestFrom(): i2cRead returned Error 263
+[SEN0322] Invalid O2 value: 0.00
+[SEN0322] O2 publish without o2_pct: invalid reading.
+[O2 MQTT] {"node_id":"wearable-01","message_id":"01M0C66ED3P0RARE9TR0Z6C6FS","sampled_at":"2026-08-19T04:59:11.139Z","data":{},"quality":{"sensors":{"sen0322":"error"}}}
