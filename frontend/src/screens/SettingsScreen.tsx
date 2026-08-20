@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { DemoControlPanel } from "../components/DemoControlPanel";
 import { WorkerRoster } from "../components/WorkerRoster";
+import { UserAdmin } from "../components/UserAdmin";
+import { hasRole, useAuthStore, type Role } from "../store/authStore";
 import { useThresholds } from "../hooks/useThresholds";
 import {
   fetchHealth,
@@ -13,7 +15,7 @@ import {
   type ThresholdLevel,
 } from "../services/api";
 
-type SettingsTab = "thresholds" | "workers" | "hazards" | "system" | "demo";
+type SettingsTab = "thresholds" | "workers" | "hazards" | "system" | "demo" | "users";
 type RowStatus = { key: string; tone: "success" | "error"; message: string } | null;
 
 interface MetricMeta {
@@ -46,12 +48,15 @@ const LEVELS: { key: ThresholdLevel; label: string }[] = [
   { key: "level3_critical", label: "L3 위험" },
 ];
 
-const TAB_ITEMS: { key: SettingsTab; label: string; hint: string }[] = [
+const TAB_ITEMS: { key: SettingsTab; label: string; hint: string; minRole?: Role }[] = [
   { key: "thresholds", label: "임계값", hint: "ALERT RULES" },
-  { key: "workers", label: "작업자", hint: "WORKER REGISTRY" },
+  // 작업자 명부 변경은 supervisor 이상 (FR-606). 탭 자체를 숨긴다 —
+  // 서버가 403 으로 막지만 권한 없는 사용자에게 메뉴를 보여줄 이유가 없다.
+  { key: "workers", label: "작업자", hint: "WORKER REGISTRY", minRole: "supervisor" },
   { key: "hazards", label: "위험 구역", hint: "ZONE PROFILE" },
   { key: "system", label: "시스템", hint: "HEALTH & METRICS" },
-  { key: "demo", label: "데모 제어", hint: "SCENARIO INJECTION" },
+  { key: "users", label: "사용자", hint: "ACCOUNTS", minRole: "admin" },
+  { key: "demo", label: "데모 제어", hint: "SCENARIO INJECTION", minRole: "admin" },
 ];
 
 function rowKey(metric: string, level: ThresholdLevel): string {
@@ -75,6 +80,7 @@ function formatUpdatedAt(value: string | null): string {
 
 export function SettingsScreen() {
   const [tab, setTab] = useState<SettingsTab>("thresholds");
+  const userRole = useAuthStore((s) => s.user?.role);
   const { reload: reloadThresholds } = useThresholds();
   const [thresholds, setThresholds] = useState<Threshold[]>([]);
   const [drafts, setDrafts] = useState<Record<string, ThresholdDraft>>({});
@@ -203,19 +209,22 @@ export function SettingsScreen() {
       </div>
 
       <div className="settings-tabs" role="tablist" aria-label="설정 메뉴">
-        {TAB_ITEMS.map((item) => (
-          <button
-            key={item.key}
-            type="button"
-            role="tab"
-            aria-selected={tab === item.key}
-            className={"settings-tab" + (tab === item.key ? " settings-tab--active" : "")}
-            onClick={() => setTab(item.key)}
-          >
-            <span className="settings-tab-hint">{item.hint}</span>
-            <span>{item.label}</span>
-          </button>
-        ))}
+        {TAB_ITEMS.map((item) => {
+          if (item.minRole && !hasRole(userRole, item.minRole)) return null;
+          return (
+            <button
+              key={item.key}
+              type="button"
+              role="tab"
+              aria-selected={tab === item.key}
+              className={"settings-tab" + (tab === item.key ? " settings-tab--active" : "")}
+              onClick={() => setTab(item.key)}
+            >
+              <span className="settings-tab-hint">{item.hint}</span>
+              <span>{item.label}</span>
+            </button>
+          );
+        })}
       </div>
 
       {tab === "thresholds" && (
@@ -353,7 +362,8 @@ export function SettingsScreen() {
         </section>
       )}
 
-      {tab === "workers" && <WorkerRoster />}
+      {tab === "workers" && hasRole(userRole, "supervisor") && <WorkerRoster />}
+      {tab === "users" && hasRole(userRole, "admin") && <UserAdmin />}
 
       {tab === "demo" && <DemoControlPanel />}
     </div>
