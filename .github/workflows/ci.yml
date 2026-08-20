@@ -136,3 +136,30 @@ jobs:
 
       - name: Build
         run: npm run build
+
+  firmware:
+    name: Firmware (PlatformIO 컴파일)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: firmware
+    # 펌웨어는 하드웨어 없이는 실행 검증이 불가능하지만, 컴파일은 된다.
+    # #107 완료 조건 — 드라이버/봉투 구조가 깨져도 실물 보드를 꽂기 전까지
+    # 아무도 몰랐다 (915줄 드라이버가 한 번도 인스턴스화되지 않은 채 방치됨).
+    # sensor-02~04는 sensor-01과 같은 src filter에 상수 플래그만 다르므로
+    # 컴파일 커버리지가 동일 — 세 빌드 유형(sensor/wearable/thermal)만 돌린다.
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python 3.10
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+
+      - name: Install PlatformIO
+        run: |
+          python -m pip install --upgrade pip
+          pip install platformio
+
+      - name: Compile (sensor-01 / wearable / thermal)
+        run: pio run -e sensor-01 -e wearable-node -e thermal-node
