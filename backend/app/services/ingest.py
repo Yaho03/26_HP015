@@ -71,7 +71,14 @@ def set_connection_recovery_callback(callback) -> None:
 
 
 class DuplicateMessage(Exception):
-    """이미 처리한 message_id (FR-101 dedup). 재시도 대상 아님 — 정상 스킵."""
+    """이미 처리한 message_id (FR-101 dedup). 재시도 대상 아님 — 정상 스킵.
+
+    node_id를 함께 싣는다 (이슈 #104) — 재부팅 후 message_id 재사용 같은
+    노드 국소 결함은 전역 카운터만으로는 어느 노드인지 알 수 없다."""
+
+    def __init__(self, message_id: str, node_id: str) -> None:
+        super().__init__(message_id)
+        self.node_id = node_id
 
 
 class InvalidMessage(Exception):
@@ -190,7 +197,7 @@ async def ingest_telemetry(payload: bytes) -> None:
         async with conn.transaction():
             is_new = await _mark_processed(conn, message_id, node_id)
             if not is_new:
-                raise DuplicateMessage(message_id)
+                raise DuplicateMessage(message_id, node_id)
 
             extracted = _extract_metrics(data)
             if extracted:
@@ -293,7 +300,7 @@ async def ingest_status(payload: bytes) -> None:
         async with conn.transaction():
             is_new = await _mark_processed(conn, message_id, node_id)
             if not is_new:
-                raise DuplicateMessage(message_id)
+                raise DuplicateMessage(message_id, node_id)
 
             await conn.execute(
                 """
