@@ -30,4 +30,27 @@ export interface LocationMessage extends WSBaseMessage {
   timestamp: string;
 }
 
-export type WSMessage = SnapshotMessage | AlertMessage | LocationMessage;
+export interface SensorReadingMessage extends WSBaseMessage {
+  type: "sensor_reading";
+  node_id: string;
+  metric: string;
+  value: number;
+  timestamp: string;
+}
+
+export interface NodeStatusMessage extends WSBaseMessage {
+  type: "node_status";
+  node_id: string;
+  battery_pct: number | null;
+  wifi_rssi_dbm: number | null;
+  sensors_online: string[];
+  sensors_error: string[];
+  timestamp: string;
+}
+
+export type WSMessage =
+  | SnapshotMessage
+  | AlertMessage
+  | LocationMessage
+  | SensorReadingMessage
+  | NodeStatusMessage;

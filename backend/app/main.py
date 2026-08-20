@@ -13,6 +13,7 @@ from app.services import (
     location_service,
     mqtt_subscriber,
     retention,
+    sensor_broadcast,
 )
 
 
@@ -32,6 +33,7 @@ async def lifespan(app: FastAPI):
         # 예외를 그대로 전파시켜 기동 자체를 실패시킨다 (컨테이너 재시작 루프로 즉시 드러남).
         await alert_service.init()
         location_service.init()
+        sensor_broadcast.init()
         connection_monitor.init()
         await mqtt_subscriber.start()
         started_mqtt = True
