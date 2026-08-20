@@ -21,6 +21,7 @@ _SKIP_FIELDS = {
 
 _alert_callback = None
 _location_callback = None
+_connection_recovery_callback = None
 
 
 def set_alert_callback(callback) -> None:
@@ -35,6 +36,14 @@ def set_location_callback(callback) -> None:
     만나면 호출한다 (#70). location_service.init() 에서 등록한다."""
     global _location_callback
     _location_callback = callback
+
+
+def set_connection_recovery_callback(callback) -> None:
+    """노드 offline→online 복귀 콜백 주입. ingest_connection 이 이전 상태가
+    offline이었던 노드로부터 online 메시지를 받으면 호출한다 (이슈 #111).
+    connection_monitor.init() 에서 등록한다."""
+    global _connection_recovery_callback
+    _connection_recovery_callback = callback
 
 
 class DuplicateMessage(Exception):
@@ -299,6 +308,9 @@ async def ingest_connection(payload: bytes) -> None:
 
     pool = get_pool()
     async with pool.acquire() as conn:
+        previous_status = await conn.fetchval(
+            "SELECT connection_status FROM node_status WHERE node_id = $1", node_id
+        )
         await conn.execute(
             """
             INSERT INTO node_status (node_id, connection_status, connection_reason,
@@ -317,3 +329,14 @@ async def ingest_connection(payload: bytes) -> None:
             reason,
             ts,
         )
+
+    # offline→online 복귀 감지 (이슈 #111). connection_monitor의 30초 타임아웃이
+    # connection_lost L3 경보를 발생시켜도 그걸 NORMAL로 되돌리는 코드가 없어서,
+    # 노드가 실제로 복귀해도 경보가 active_alert_ids에 영구 잔류하고 retain
+    # 메시지가 고착되던 문제였다. 재연결 시 main.cpp가 항상 이 토픽으로 online을
+    # 보내므로(연결 직후 connectMqtt()), 여기가 복귀를 감지하는 자연스러운 지점이다.
+    if status == "online" and previous_status == "offline" and _connection_recovery_callback is not None:
+        try:
+            await _connection_recovery_callback(node_id)
+        except Exception:
+            logger.exception("connection recovery callback failed (node=%s)", node_id)

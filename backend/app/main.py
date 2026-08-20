@@ -28,6 +28,7 @@ async def lifespan(app: FastAPI):
         except Exception:
             pass
         location_service.init()
+        connection_monitor.init()
         await mqtt_subscriber.start()
         started_mqtt = True
         alert_publisher.init_publisher(mqtt_subscriber.get_client())
