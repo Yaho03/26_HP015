@@ -20,6 +20,37 @@ CSRF_HEADER = "X-CSRF-Token"
 
 
 async def _bearer_user(request: Request) -> UserRow:
+    # 앱 게이트(enforce_authentication)가 이미 검증했다면 재검증하지 않는다 —
+    # 요청당 DB 왕복을 두 번 하지 않는다.
+    cached = getattr(request.state, "user", None)
+    if cached is not None:
+        return cached
+    return await _load_user(request)
+
+
+CurrentUser = Annotated[UserRow, Depends(_bearer_user)]
+
+
+# 화이트리스트 외 모든 HTTP 경로는 인증이 필요하다 (AUTH-3, 이슈 #133).
+# WebSocket(/ws)은 HTTP 의존성을 타지 않는다 — AUTH-4(#134)가 핸드셰이크에서
+# 따로 검증한다.
+PUBLIC_PATHS = frozenset({"/health", "/api/auth/login"})
+
+
+async def enforce_authentication(request: Request) -> None:
+    """앱 전체 인증 게이트 — app.dependencies 에 등록된다.
+
+    라우트별 Depends 를 빠뜨린 경로가 새어 나가는 것을 구조적으로 막는다.
+    #125 정리 때 no-op Depends 를 지운 것과 정반대 방향: 이번엔 실제 검증이
+    들어있고, 빠뜨리면 기본 거부다.
+    """
+    if request.url.path in PUBLIC_PATHS:
+        return
+    user = await _load_user(request)
+    request.state.user = user
+
+
+async def _load_user(request: Request) -> UserRow:
     token = request.cookies.get(SESSION_COOKIE)
     if not token:
         raise HTTPException(
@@ -36,9 +67,6 @@ async def _bearer_user(request: Request) -> UserRow:
     request.state.session_token = token
     request.state.csrf_token = session.csrf_token
     return session.user
-
-
-CurrentUser = Annotated[UserRow, Depends(_bearer_user)]
 
 
 def require_role(*allowed: str):

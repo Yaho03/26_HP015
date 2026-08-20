@@ -1,10 +1,11 @@
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI
+from fastapi import Depends, FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app import db, migration_runner, observability
 from app.config import settings
+from app.dependencies.auth import enforce_authentication
 from app.routers import (
     alert_events,
     auth,
@@ -65,7 +66,12 @@ async def lifespan(app: FastAPI):
             await db.disconnect()
 
 
-app = FastAPI(title="26_HP015 Backend", lifespan=lifespan)
+app = FastAPI(
+    title="26_HP015 Backend",
+    lifespan=lifespan,
+    # 화이트리스트(/health, /api/auth/login) 외 전 경로 인증 강제 (AUTH-3).
+    dependencies=[Depends(enforce_authentication)],
+)
 
 # 프론트엔드가 nginx 프록시 없이(예: vite dev server, :5173) 직접 API를 호출하는
 # 개발 환경을 위한 CORS 허용. 배포 환경은 nginx가 /api, /ws를 같은 오리진으로

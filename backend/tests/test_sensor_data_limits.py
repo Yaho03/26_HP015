@@ -24,6 +24,9 @@ def client(monkeypatch) -> TestClient:
     monkeypatch.setattr(sensor_data.sensor_data_repository, "query", fake_query)
     app = FastAPI()
     app.include_router(sensor_data.router)
+    from tests.conftest import install_admin_auth
+
+    install_admin_auth(app)
     c = TestClient(app)
     c.captured = captured  # type: ignore[attr-defined]
     return c

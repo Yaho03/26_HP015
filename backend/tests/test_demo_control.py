@@ -21,6 +21,9 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 def _client() -> TestClient:
     app = FastAPI()
     app.include_router(demo.router)
+    from tests.conftest import install_admin_auth
+
+    install_admin_auth(app)
     return TestClient(app)
 
 
