@@ -67,7 +67,8 @@ services:
     depends_on:
       - backend
     ports:
-      - "5173:80"
+      # 컨테이너는 비root nginx 라 8080 을 듣는다 (이슈 #128). 외부 포트는 그대로.
+      - "5173:8080"
 
 volumes:
   timescale-data:
