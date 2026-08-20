@@ -4,6 +4,7 @@ import { WSClient } from "../services/wsClient";
 import type { WSMessage } from "../types/ws";
 import { useDashboardStore } from "../store/dashboardStore";
 import { useToastStore } from "../store/toastStore";
+import { useAuthStore } from "../store/authStore";
 
 const ALERT_TITLES: Record<string, string> = {
   co2_ppm: "CO₂ 경보",
@@ -123,6 +124,7 @@ function handleMessage(msg: WSMessage): void {
 export function useWebSocket(url: string): void {
   const clientRef = useRef<WSClient | null>(null);
   const setConnectionStatus = useDashboardStore((s) => s.setConnectionStatus);
+  const expire = useAuthStore((s) => s.expire);
 
   useEffect(() => {
     const client = new WSClient(url);
@@ -131,12 +133,15 @@ export function useWebSocket(url: string): void {
     const offStatus = client.onStatusChange((connected) => {
       setConnectionStatus({ websocket_connected: connected });
     });
+    // WS close 1008 — 세션 만료. 재연결은 wsClient 가 이미 멈췄다 (#134).
+    const offAuthExpired = client.onAuthExpired(() => expire());
     client.connect();
     return () => {
       offMessage();
       offStatus();
+      offAuthExpired();
       client.disconnect();
       clientRef.current = null;
     };
-  }, [url, setConnectionStatus]);
+  }, [url, setConnectionStatus, expire]);
 }
