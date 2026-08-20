@@ -20,14 +20,21 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import List, Optional
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 
 from app.config import settings
+from app.dependencies.auth import require_role, verify_csrf
 
 logger = logging.getLogger(__name__)
 
-router = APIRouter(prefix="/api/demo", tags=["demo"])
+# 데모 제어는 가짜 값을 안전 시스템에 주입할 수 있다 — 전 엔드포인트 admin
+# 전용 + 상태 변경에는 CSRF (역할 매트릭스 상 가장 강한 제한).
+router = APIRouter(
+    prefix="/api/demo",
+    tags=["demo"],
+    dependencies=[Depends(require_role("admin"))],
+)
 
 SENSOR_NODES = ["sensor-01", "sensor-02", "sensor-03", "sensor-04"]
 WEARABLE_NODES = ["wearable-01"]
@@ -179,14 +186,14 @@ async def _terminate() -> None:
 
 
 @router.post("/stop", response_model=RunState)
-async def stop() -> RunState:
+async def stop(_csrf: None = Depends(verify_csrf)) -> RunState:
     _guard()
     await _terminate()
     return RunState(running=False)
 
 
 @router.post("/run", response_model=RunState)
-async def run(req: RunRequest) -> RunState:
+async def run(req: RunRequest, _csrf: None = Depends(verify_csrf)) -> RunState:
     _guard()
 
     info = _CATALOG_BY_NAME.get(req.scenario)

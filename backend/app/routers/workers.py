@@ -16,8 +16,9 @@ from __future__ import annotations
 
 import logging
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 
+from app.dependencies.auth import require_role, verify_csrf
 from app.models.worker import (
     AssignedWorker,
     Assignment,
@@ -47,7 +48,11 @@ async def list_workers():
 
 
 @router.post("", response_model=Worker, status_code=201)
-async def create_worker(payload: WorkerCreate):
+async def create_worker(
+    payload: WorkerCreate,
+    _supervisor=Depends(require_role("admin", "supervisor")),
+    _csrf: None = Depends(verify_csrf),
+):
     try:
         return await worker_repository.create(payload)
     except DuplicateEmployeeNo:
@@ -55,7 +60,12 @@ async def create_worker(payload: WorkerCreate):
 
 
 @router.patch("/{worker_id}", response_model=Worker)
-async def update_worker(worker_id: int, payload: WorkerUpdate):
+async def update_worker(
+    worker_id: int,
+    payload: WorkerUpdate,
+    _supervisor=Depends(require_role("admin", "supervisor")),
+    _csrf: None = Depends(verify_csrf),
+):
     try:
         worker = await worker_repository.update(worker_id, payload)
     except DuplicateEmployeeNo:
@@ -66,13 +76,22 @@ async def update_worker(worker_id: int, payload: WorkerUpdate):
 
 
 @router.delete("/{worker_id}", status_code=204)
-async def delete_worker(worker_id: int):
+async def delete_worker(
+    worker_id: int,
+    _supervisor=Depends(require_role("admin", "supervisor")),
+    _csrf: None = Depends(verify_csrf),
+):
     if not await worker_repository.delete(worker_id):
         raise HTTPException(status_code=404, detail="작업자를 찾을 수 없습니다")
 
 
 @router.post("/{worker_id}/assign", response_model=Assignment, status_code=201)
-async def assign_node(worker_id: int, payload: AssignmentCreate):
+async def assign_node(
+    worker_id: int,
+    payload: AssignmentCreate,
+    _supervisor=Depends(require_role("admin", "supervisor")),
+    _csrf: None = Depends(verify_csrf),
+):
     if await worker_repository.get(worker_id) is None:
         raise HTTPException(status_code=404, detail="작업자를 찾을 수 없습니다")
     try:
@@ -87,7 +106,11 @@ async def assign_node(worker_id: int, payload: AssignmentCreate):
 
 
 @router.post("/nodes/{node_id}/release", response_model=Assignment)
-async def release_node(node_id: str):
+async def release_node(
+    node_id: str,
+    _supervisor=Depends(require_role("admin", "supervisor")),
+    _csrf: None = Depends(verify_csrf),
+):
     assignment = await worker_repository.release(node_id)
     if assignment is None:
         raise HTTPException(status_code=404, detail=f"{node_id} 에 배정된 작업자가 없습니다")

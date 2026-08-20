@@ -9,8 +9,9 @@ PRD FR-204: 임계값은 코드에 하드코딩하지 않는다. DB + 관리 API
 from __future__ import annotations
 
 import logging
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 
+from app.dependencies.auth import require_role, verify_csrf
 from app.models.threshold import Threshold, ThresholdLevel, ThresholdUpdate
 from app.repositories import threshold_repository
 from app.services import alert_service
@@ -35,6 +36,9 @@ async def update_threshold(
     metric: str,
     level: ThresholdLevel,
     payload: ThresholdUpdate,
+    # 작업자 안전 경보 임계값 변경은 admin 전용 + CSRF (#116 P1-15, FR-602).
+    _admin=Depends(require_role("admin")),
+    _csrf: None = Depends(verify_csrf),
 ):
     if not metric:
         raise HTTPException(status_code=400, detail="metric is required")
