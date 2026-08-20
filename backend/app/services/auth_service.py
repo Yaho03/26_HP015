@@ -9,6 +9,7 @@
 from __future__ import annotations
 
 import hashlib
+import logging
 import secrets
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
@@ -19,6 +20,8 @@ from argon2.exceptions import VerifyMismatchError
 from app.config import settings
 from app.repositories import user_repository
 from app.repositories.user_repository import UserRow
+
+logger = logging.getLogger(__name__)
 
 _hasher = PasswordHasher()  # 기본 매개변수가 Argon2id 다.
 
@@ -146,6 +149,31 @@ async def change_password(user: UserRow, current_password: str, new_password: st
         raise InvalidCredentials()
     await user_repository.update_password(user.id, hash_password(new_password))
     await user_repository.revoke_all_for_user(user.id)
+
+
+async def bootstrap_admin() -> bool:
+    """최초 관리자 부트스트랩 (AUTH-9, FR-610). 생성했으면 True.
+
+    사용자 테이블이 비어 있을 때만 동작한다 — 기존 계정이 하나라도 있으면
+    환경 변수 값을 무시한다. 이미 운영 중인 시스템의 비밀번호가 .env 유출로
+    교체되는 사고를 막기 위해서다. 생성된 계정은 must_change_password=true —
+    첫 로그인 후 즉시 교체된다.
+    """
+    if not settings.bootstrap_admin_username or not settings.bootstrap_admin_password:
+        return False
+    if await user_repository.count_users() > 0:
+        return False
+    await user_repository.create_user(
+        settings.bootstrap_admin_username,
+        hash_password(settings.bootstrap_admin_password),
+        role="admin",
+        must_change_password=True,
+    )
+    logger.info(
+        "bootstrap admin created (user=%s) — 첫 로그인 후 비밀번호 변경 필요",
+        settings.bootstrap_admin_username,
+    )
+    return True
 
 
 def session_cookie_attributes() -> dict[str, object]:
