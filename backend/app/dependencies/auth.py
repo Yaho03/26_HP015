@@ -27,7 +27,7 @@ def _bearer_user(request: Request) -> UserRow:
             detail="Not authenticated",
         )
     try:
-        session = auth_service.validate_session(token)
+        session = await auth_service.validate_session(token)
     except auth_service.SessionExpired:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,

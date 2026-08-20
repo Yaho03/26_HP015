@@ -63,12 +63,13 @@ async def create_user(username: str, role: str = "viewer", *, must_change: bool 
 
 async def age_session(client: AsyncClient, field: str, delta: timedelta) -> None:
     """세션 행의 created/expires/last_seen 시각을 임의로 늙린다."""
+    assert field in {"created_at", "expires_at", "last_seen_at"}
     token = client.cookies.get("hp015_session")
     assert token, "로그인 먼저"
     pool = db.get_pool()
     async with pool.acquire() as conn:
         await conn.execute(
-            f"UPDATE sessions SET {field} = {field} - $2 "
+            f"UPDATE sessions SET {field} = {field} - $2::interval "
             "WHERE session_hash = $1",
             auth_service.hash_token(token), delta,
         )
