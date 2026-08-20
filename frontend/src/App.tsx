@@ -50,7 +50,9 @@ function App() {
 
   // Overall risk (TopBar pill + SideNav critical blink) — spec 10_UI_FLOW §2.1.
   const overall_level = useDashboardStore((s): AlertLevel => {
-    let lv: AlertLevel = "normal";
+    // 임계값이 없으면 노드가 하나도 없어도 "정상"이라 말할 수 없다 (이슈 #165).
+    // 시드를 unknown 으로 두면 낙상·서버 경보 같은 실제 위험은 rank 상 그대로 이긴다.
+    let lv: AlertLevel = s.thresholds.length > 0 ? "normal" : "unknown";
     for (const n of Object.values(s.sensor_nodes)) lv = maxLevel(lv, nodeAlertLevel(n));
     const w = s.wearable;
     if (w) {

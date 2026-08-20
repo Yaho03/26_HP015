@@ -4,10 +4,13 @@ import {
   classifyO2High,
   classifyO2Low,
   isThresholdTableLoaded,
+  maxLevel,
+  nodeAlertLevel,
   setThresholdTable,
   thresholdLinesFor,
   type ServerThreshold,
 } from "./alerts";
+import type { MetricKey, SensorNodeState } from "../types";
 
 /** 서버 GET /api/thresholds 응답 형태. */
 function server(rows: [string, string, "above" | "below", number][]): ServerThreshold[] {
@@ -17,6 +20,22 @@ function server(rows: [string, string, "above" | "below", number][]): ServerThre
     direction,
     enter_threshold,
   }));
+}
+
+/** 판정에 필요한 필드만 채운 노드. */
+function nodeWith(values: Partial<Record<MetricKey, number>>): SensorNodeState {
+  const readings: SensorNodeState["readings"] = {};
+  for (const [metric, value] of Object.entries(values) as [MetricKey, number][]) {
+    readings[metric] = { metric, value, sampled_at: "2026-01-01T00:00:00Z" };
+  }
+  return {
+    node_id: "sensor-01",
+    readings,
+    battery_pct: null,
+    wifi_rssi_dbm: null,
+    connection_status: "online",
+    last_seen_at: null,
+  };
 }
 
 const DEFAULTS = server([
@@ -99,12 +118,61 @@ describe("로딩 전 상태 — 하드코딩 폴백이 없다", () => {
     setThresholdTable([]);
     expect(isThresholdTableLoaded()).toBe(false);
     // 하드코딩이 남아 있었다면 여기서 level3_critical 이 나온다.
-    expect(classifyMetric("co2_ppm", 9999)).toBe("normal");
+    expect(classifyMetric("co2_ppm", 9999)).not.toBe("level3_critical");
     expect(thresholdLinesFor("co2_ppm")).toEqual([]);
   });
 
   it("로드되면 loaded 가 true", () => {
     setThresholdTable(DEFAULTS);
     expect(isThresholdTableLoaded()).toBe(true);
+  });
+});
+
+// 이슈 #165 — 임계값을 못 받은 동안 "정상"으로 표시하면 안 된다.
+// 모르는 상태를 안전하다고 말하는 것은 안전 화면에서 가장 위험한 거짓말이다.
+describe("임계값 미로딩 — 정상이 아니라 판정 불가다", () => {
+  beforeEach(() => setThresholdTable([]));
+
+  it("어떤 값이 와도 normal 이 아니다", () => {
+    expect(classifyMetric("co2_ppm", 9999)).toBe("unknown");
+    expect(classifyMetric("co2_ppm", 0)).toBe("unknown");
+  });
+
+  it("O₂ 는 양방향 모두 판정 불가다", () => {
+    expect(classifyO2Low(10)).toBe("unknown");
+    expect(classifyO2High(30)).toBe("unknown");
+  });
+
+  it("노드 종합 등급도 판정 불가다", () => {
+    expect(nodeAlertLevel(nodeWith({ co2_ppm: 9999 }))).toBe("unknown");
+  });
+
+  it("백엔드가 등급을 내려줬으면 그것을 쓴다", () => {
+    // 서버 판정은 서버 임계값으로 이미 끝났다. 프론트 테이블과 무관하다.
+    const node = { ...nodeWith({ co2_ppm: 9999 }), alert_level: "level2_warning" as const };
+    expect(nodeAlertLevel(node)).toBe("level2_warning");
+  });
+});
+
+describe("임계값 로딩 후 — 규칙 없는 지표는 여전히 normal", () => {
+  it("테이블은 받았지만 그 지표에 규칙이 없으면 normal", () => {
+    setThresholdTable(DEFAULTS);
+    // 미로딩(unknown)과 구분되어야 한다. 규칙이 없다 = 판정할 게 없다 = 정상.
+    expect(classifyMetric("humidity_pct", 99)).toBe("normal");
+    expect(nodeAlertLevel(nodeWith({ humidity_pct: 99 }))).toBe("normal");
+  });
+});
+
+describe("maxLevel — unknown 은 normal 보다 위다", () => {
+  it("판정 불가가 정상을 이긴다", () => {
+    // 한 지표라도 판정 못 하면 노드 전체를 정상이라 말할 수 없다.
+    expect(maxLevel("unknown", "normal")).toBe("unknown");
+    expect(maxLevel("normal", "unknown")).toBe("unknown");
+  });
+
+  it("실제 경보는 판정 불가를 이긴다", () => {
+    // 모르는 지표 하나 때문에 확인된 위험이 가려지면 안 된다.
+    expect(maxLevel("unknown", "level1_caution")).toBe("level1_caution");
+    expect(maxLevel("level3_critical", "unknown")).toBe("level3_critical");
   });
 });

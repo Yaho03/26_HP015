@@ -46,6 +46,9 @@
   --l1-wash: rgba(201, 162, 39, 0.10);
   --l2-wash: rgba(209, 118, 44, 0.12);
   --l3-wash: rgba(214, 69, 80, 0.14);
+  /* 판정 불가 (이슈 #165) — 무채색이라 안전 등급 램프 어디에도 속하지 않는다. */
+  --unknown: #8b93a1;
+  --unknown-wash: rgba(139, 147, 161, 0.10);
 
   /* 시안 C (브리지 콘솔): Barlow 본문·수치, Barlow Condensed 대문자 마이크로 라벨.
      --font-mono 는 이름만 남기고 실제로는 라벨용 콘덴스드 폰트를 가리킨다. */
@@ -84,13 +87,34 @@
   --l1-wash: rgba(138, 109, 18, 0.12);
   --l2-wash: rgba(171, 83, 19, 0.11);
   --l3-wash: rgba(179, 35, 47, 0.10);
+  --unknown: #5d6675;
+  --unknown-wash: rgba(93, 102, 117, 0.10);
 }
 
 /* Level channel — components read var(--lv) / var(--lv-wash) */
+.is-unknown { --lv: var(--unknown); --lv-wash: var(--unknown-wash); }
 .is-normal { --lv: var(--normal); --lv-wash: var(--normal-wash); }
 .is-level1_caution { --lv: var(--l1); --lv-wash: var(--l1-wash); }
 .is-level2_warning { --lv: var(--l2); --lv-wash: var(--l2-wash); }
 .is-level3_critical { --lv: var(--l3); --lv-wash: var(--l3-wash); }
+
+/* 임계값 미로딩 경고 배너 (이슈 #165). 경보가 아니라 "판정 자체가 불가"라는
+   메타 상태이므로 L1~L3 색을 쓰지 않는다. */
+.threshold-gap-banner {
+  display: flex; align-items: flex-start; gap: var(--s2);
+  padding: var(--s2) var(--s3);
+  border: 1px dashed var(--unknown);
+  background: var(--unknown-wash);
+  color: var(--ink-1);
+  font-size: 13px; line-height: 1.5;
+}
+.threshold-gap-banner strong { color: var(--ink-0); }
+.threshold-gap-banner svg { flex: none; margin-top: 2px; color: var(--unknown); }
+
+
+@media (max-width: 900px) {
+  .worker-form { grid-template-columns: repeat(2, 1fr); }
+}
 
 * { box-sizing: border-box; }
 
@@ -265,6 +289,7 @@ button { cursor: pointer; }
   font-size: 30px; font-weight: 500; line-height: 1; color: var(--ink-1);
   font-feature-settings: "zero" 1;
 }
+.summary-item.is-unknown .summary-count,
 .summary-item.is-level1_caution .summary-count,
 .summary-item.is-level2_warning .summary-count,
 .summary-item.is-level3_critical .summary-count { color: var(--lv); }
@@ -304,9 +329,12 @@ button { cursor: pointer; }
   content: ""; position: absolute; inset: 0 0 auto 0; height: 2px;
   background: var(--lv, transparent);
 }
+.sensor-card.is-unknown,
 .sensor-card.is-level1_caution,
 .sensor-card.is-level2_warning,
 .sensor-card.is-level3_critical { background: var(--lv-wash); }
+/* 판정 불가는 빗금으로도 표시한다 — 색만으로 구분하면 회색이 그냥 비활성으로 읽힌다. */
+.sensor-card.is-unknown { border-style: dashed; }
 .sensor-card.is-level3_critical { animation: crit-flash 1.15s steps(2, jump-none) infinite; }
 @keyframes crit-flash { 50% { background: transparent; } }
 .sensor-card--offline { opacity: 0.45; }
@@ -481,6 +509,8 @@ button { cursor: pointer; }
 .twin-node-id { color: var(--ink-1); font-weight: 500; }
 .twin-node-level { font-size: 9px; font-weight: 700; padding: 0 4px; letter-spacing: 0.08em; }
 .twin-node-normal .twin-node-level { display: none; }
+.twin-node-unknown .twin-node-level { background: var(--unknown); color: #fff; }
+.twin-node-unknown { border-style: dashed; }
 .twin-node-level1_caution .twin-node-level { background: var(--l1); color: #131315; }
 .twin-node-level2_warning .twin-node-level { background: var(--l2); color: #131315; }
 .twin-node-level3_critical .twin-node-level { background: var(--l3); color: #fff; }
@@ -610,6 +640,8 @@ button { cursor: pointer; }
   --l1-wash: rgba(245, 197, 49, 0.12);
   --l2-wash: rgba(255, 139, 51, 0.13);
   --l3-wash: rgba(255, 69, 80, 0.15);
+  --unknown: #93a1b0;
+  --unknown-wash: rgba(147, 161, 176, 0.12);
   --shadow-console: 0 12px 26px rgba(0, 0, 0, 0.30);
 }
 
@@ -636,6 +668,8 @@ button { cursor: pointer; }
   --l1-wash: rgba(150, 112, 10, 0.12);
   --l2-wash: rgba(184, 84, 16, 0.11);
   --l3-wash: rgba(184, 18, 31, 0.11);
+  --unknown: #55606e;
+  --unknown-wash: rgba(85, 96, 110, 0.10);
   --shadow-console: 0 10px 24px rgba(48, 66, 54, 0.10);
 }
 

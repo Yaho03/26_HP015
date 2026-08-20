@@ -6,6 +6,7 @@ import { projectThresholdCrossing } from "../utils/trend";
 import { IconClock, LEVEL_ICON } from "./icons";
 
 const PROJECTION_LABEL: Record<AlertLevel, string> = {
+  unknown: "판정 불가",
   normal: "정상",
   level1_caution: "L1 주의",
   level2_warning: "L2 경고",
@@ -123,7 +124,9 @@ function TrendLine({ points }: { points: TrendPoint[] }) {
 /** One card. When `node` is null the slot renders in a "대기" (pending) state
  *  so the spec layout is complete before live data is wired (#106). */
 export const SensorCard = memo(function SensorCard({ node_id, node, trend }: SensorCardProps) {
-  const level = node ? nodeAlertLevel(node) : "normal";
+  // 노드가 아직 없는 슬롯은 판정 불가다 (이슈 #165). normal 로 두면 아무것도
+  // 모르는 빈 슬롯이 "정상" 배지를 달고 나온다.
+  const level = node ? nodeAlertLevel(node) : "unknown";
   const offline = node?.connection_status === "offline";
   const sim = node?.source_mode === "simulation";
   const co2 = node?.readings.co2_ppm ?? null;

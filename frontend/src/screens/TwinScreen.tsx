@@ -1,7 +1,8 @@
 import { useMemo } from "react";
 import { TwinScene } from "../components/TwinScene";
 import { useDashboardStore } from "../store/dashboardStore";
-import type { AlertLevel, MetricKey } from "../types";
+import type { MetricKey } from "../types";
+import { nodeAlertLevel } from "../utils/alerts";
 import type { SensorSample } from "../utils/idw";
 import {
   displayPositionFor,
@@ -11,42 +12,7 @@ import {
   type MappingPreset,
 } from "../utils/coordinates";
 
-const METRIC_PRIORITY: MetricKey[] = ["co2_ppm", "co_ppm", "h2s_ppm", "temperature_c"];
 const HEATMAP_METRIC: MetricKey = "co2_ppm";
-
-function pickNodeLevel(readings: Partial<Record<MetricKey, { value: number }>>): AlertLevel {
-  let highest: AlertLevel = "normal";
-  const numeric: Record<AlertLevel, number> = {
-    normal: 0,
-    level1_caution: 1,
-    level2_warning: 2,
-    level3_critical: 3,
-  };
-  for (const m of METRIC_PRIORITY) {
-    const r = readings[m];
-    if (!r) continue;
-    let level: AlertLevel = "normal";
-    if (m === "co2_ppm") {
-      if (r.value >= 5000) level = "level3_critical";
-      else if (r.value >= 2000) level = "level2_warning";
-      else if (r.value >= 1000) level = "level1_caution";
-    } else if (m === "co_ppm") {
-      if (r.value >= 200) level = "level3_critical";
-      else if (r.value >= 50) level = "level2_warning";
-      else if (r.value >= 25) level = "level1_caution";
-    } else if (m === "h2s_ppm") {
-      if (r.value >= 10) level = "level3_critical";
-      else if (r.value >= 5) level = "level2_warning";
-      else if (r.value >= 1) level = "level1_caution";
-    } else if (m === "temperature_c") {
-      if (r.value >= 40) level = "level3_critical";
-      else if (r.value >= 38) level = "level2_warning";
-      else if (r.value >= 35) level = "level1_caution";
-    }
-    if (numeric[level] > numeric[highest]) highest = level;
-  }
-  return highest;
-}
 
 export function TwinPanel({
   preset = UNIFORM_PRESET,
@@ -65,7 +31,10 @@ export function TwinPanel({
       id: n.node_id,
       x: SENSOR_POSITIONS[n.node_id].x,
       y: SENSOR_POSITIONS[n.node_id].y,
-      level: pickNodeLevel(n.readings),
+      // 판정은 alerts.ts 한 곳에서만 한다 (PRD FR-204, 이슈 #114/#165).
+      // 예전에는 여기에 임계값이 복사돼 있어 서버에서 값을 바꿔도 트윈 화면만
+      // 옛 기준으로 칠해졌고, 임계값 미로딩 구간에도 정상으로 보였다.
+      level: nodeAlertLevel(n),
     }));
 
   // 실측 좌표(position_raw)만 입력으로 쓴다. 이미 ship-visual 인 값에는 매핑을
