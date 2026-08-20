@@ -39,6 +39,17 @@ bool Sen0322Driver::update() {
 
     lastSampleMs_ = now;
 
+    /*
+     * 변환식 근거 (이슈 #113 문제 1 — 검증):
+     * 공식 DFRobot_OxygenSensor v1.0.2 (lib_deps 고정) 의 getOxygenData() 에
+     * 위임한다. 라이브러리 소스의 변환식은
+     *   key * (b0 + b1/10.0 + b2/100.0)   [%vol]
+     * 이며 key 는 센서의 공장 교정 레지스터 값(value/1000, 비정상 시 20.9/120
+     * 폴백) 이다. 예전 자체 구현은 b2 를 버리고 /1024*100 을 썼다 — DFRobot
+     * 표준과 달라 본 이슈의 지적 대상이었고, 라이브러리 위임으로 제거됐다.
+     * 교차 검증: 주변 공기에서 raw3 + raw4/10 + raw5/100 ≈ 20.7~20.9%vol
+     * (DFRobot 포럼 실측 사례 및 데이터시트 정상 범위 일치).
+     */
     const float oxygenPct =
         sensor_.getOxygenData(collectNumber_);
 
