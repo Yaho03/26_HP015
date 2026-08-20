@@ -75,6 +75,17 @@ function handleMessage(msg: WSMessage): void {
     store.setSensorNodeReading(msg.node_id, msg.metric as MetricKey, msg.value, msg.timestamp);
     return;
   }
+  // 누적 노출량 (FR-701~708). 5초 스로틀이라 여기서 추가 throttle 을 걸지 않는다.
+  if (msg.type === "worker_exposure") {
+    store.setWorkerExposure(msg);
+    return;
+  }
+  // 탈출 경로 (FR-801~808). route_id 가 바뀔 때만 백엔드가 보낸다 —
+  // 경로 교체 히스테리시스가 백엔드에 있으므로(§3.4) 프론트는 받은 대로 그린다.
+  if (msg.type === "evacuation_route") {
+    store.setEvacuationRoute(msg);
+    return;
+  }
   if (msg.type === "node_status") {
     store.setSensorNodeStatus(msg.node_id, {
       battery_pct: msg.battery_pct,

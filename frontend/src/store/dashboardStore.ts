@@ -10,6 +10,7 @@ import type {
   Position3D,
   WearableState,
 } from "../types";
+import type { EvacuationRouteMessage, WorkerExposureMessage } from "../types/ws";
 
 /** One point of a node's trend buffer (10_UI_FLOW §3.2 미니 차트). */
 export interface TrendPoint {
@@ -51,6 +52,18 @@ interface DashboardStore {
   /** 서버 임계값 (PRD FR-204). 비어 있으면 아직 못 받은 것. */
   thresholds: ServerThreshold[];
 
+  /**
+   * 웨어러블 노드별 누적 노출량 (FR-701~708).
+   *
+   * 웨어러블 상태(`wearable`)와 합치지 않고 따로 둔다 — 갱신 주기가 다르다.
+   * 노출량은 5초 스로틀이고 O₂·위치는 그보다 자주 온다. 한 객체에 넣으면
+   * 노출량 프레임 하나가 웨어러블을 구독하는 모든 컴포넌트를 다시 그린다
+   * (10_UI_FLOW §10.3 렌더링 영역 격리).
+   */
+  worker_exposure: Record<NodeId, WorkerExposureMessage>;
+  /** 웨어러블 노드별 현재 탈출 경로 (FR-801~808). */
+  evacuation_route: Record<NodeId, EvacuationRouteMessage>;
+
   setSensorNodeReading: (
     node_id: NodeId,
     metric: MetricKey,
@@ -71,6 +84,8 @@ interface DashboardStore {
   resolveAlert: (alert_key: AlertKey) => void;
   setConnectionStatus: (patch: Partial<ConnectionStatus>) => void;
   setThresholds: (rows: ServerThreshold[]) => void;
+  setWorkerExposure: (msg: WorkerExposureMessage) => void;
+  setEvacuationRoute: (msg: EvacuationRouteMessage) => void;
   hydrateSnapshot: (
     nodes: Record<string, Partial<SensorNodeState>>,
     alerts: Record<string, AlertState>,
@@ -90,6 +105,8 @@ export const useDashboardStore = create<DashboardStore>((set) => ({
   active_alerts: {},
   connection_status: initial_connection_status,
   thresholds: [],
+  worker_exposure: {},
+  evacuation_route: {},
 
   setSensorNodeReading: (node_id, metric, value, timestamp) =>
     set((state) => {
@@ -233,6 +250,20 @@ export const useDashboardStore = create<DashboardStore>((set) => ({
         wearable: state.wearable ? { ...state.wearable } : null,
       };
     }),
+
+  // 노드 단위로 통째 교체한다. 노출량은 지표별 부분 갱신이 없다 — 백엔드가
+  // 매번 전체 metrics 를 함께 보낸다 (11_EXPOSURE_DOSE_SPEC.md §6.1). 부분 병합을
+  // 하면 unavailable 로 내려간 지표가 이전 값에 가려져 화면에 남는다.
+  setWorkerExposure: (msg) =>
+    set((state) => ({
+      worker_exposure: { ...state.worker_exposure, [msg.node_id]: msg },
+    })),
+
+  // 경로도 통째 교체다. waypoints 를 병합하면 옛 경로의 꼬리가 남는다.
+  setEvacuationRoute: (msg) =>
+    set((state) => ({
+      evacuation_route: { ...state.evacuation_route, [msg.node_id]: msg },
+    })),
 
   // WS 연결 직후 snapshot 메시지로 현재 상태를 한 번에 채운다 (#106) — 이게
   // 없으면 새로고침할 때마다 경보가 다시 발생하기 전까지 화면이 비어 보인다.
