@@ -19,5 +19,13 @@ class Settings(BaseSettings):
     # 빈 기본값 허용(현재는 DB 연결 없음). 필수값 검증은 실제 연결이 들어가는 #50에서 추가한다.
     timescale_url: str = ""
 
+    # CORS 허용 오리진 (콤마 구분, 이슈 #105). 와일드카드는 금지 — 배포 시 실제
+    # 프론트엔드 오리진으로 교체한다.
+    cors_origins: str = "http://localhost:5173"
+
+    @property
+    def cors_origins_list(self) -> list[str]:
+        return [o.strip() for o in self.cors_origins.split(",") if o.strip()]
+
 
 settings = Settings()

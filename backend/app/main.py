@@ -1,8 +1,10 @@
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 
 from app import db, migration_runner, observability
+from app.config import settings
 from app.routers import alert_events, health, sensor_data, thresholds, websocket
 from app.services import (
     alert_publisher,
@@ -52,6 +54,18 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(title="26_HP015 Backend", lifespan=lifespan)
+
+# 프론트엔드가 nginx 프록시 없이(예: vite dev server, :5173) 직접 API를 호출하는
+# 개발 환경을 위한 CORS 허용. 배포 환경은 nginx가 /api, /ws를 같은 오리진으로
+# 프록시하므로 CORS 자체가 발생하지 않지만, 개발 편의를 위해 명시적으로 허용
+# 오리진을 설정한다(와일드카드 금지, 이슈 #105).
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=settings.cors_origins_list,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 app.include_router(health.router)
 app.include_router(thresholds.router)
