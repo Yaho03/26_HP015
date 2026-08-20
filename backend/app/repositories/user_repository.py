@@ -53,6 +53,34 @@ async def get_by_username(username: str) -> Optional[UserRow]:
         return UserRow(dict(row)) if row else None
 
 
+async def count_users() -> int:
+    pool = get_pool()
+    async with pool.acquire() as conn:
+        return await conn.fetchval("SELECT count(*) FROM users")
+
+
+async def create_user(
+    username: str,
+    password_hash: str,
+    *,
+    role: str = "viewer",
+    must_change_password: bool = False,
+) -> UserRow:
+    pool = get_pool()
+    async with pool.acquire() as conn:
+        row = await conn.fetchrow(
+            """
+            INSERT INTO users (username, password_hash, display_name, role,
+                               must_change_password)
+            VALUES ($1, $2, $1, $3, $4)
+            RETURNING id, username, password_hash, display_name, role, is_active,
+                      must_change_password
+            """,
+            username, password_hash, role, must_change_password,
+        )
+        return UserRow(dict(row))
+
+
 async def update_password(user_id: int, password_hash: str, *, must_change: bool = False) -> None:
     pool = get_pool()
     async with pool.acquire() as conn:

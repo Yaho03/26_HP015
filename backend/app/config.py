@@ -53,6 +53,13 @@ class Settings(BaseSettings):
     # HTTPS 운영에서만 true (Secure 쿠키 속성). 개발(http)에서는 false.
     cookie_secure: bool = False
 
+    # 최초 관리자 부트스트랩 (AUTH-9, FR-610). 사용자 테이블이 비어 있을 때만
+    # 1회 생성한다. 빈 값이면 부트스트랩 자체를 건너뛴다. 마이그레이션 SQL 이나
+    # 코드에 계정을 심지 않는다 — 첫 로그인 후 must_change_password 로 강제
+    # 교체된다.
+    bootstrap_admin_username: str = ""
+    bootstrap_admin_password: str = ""
+
     @property
     def cors_origins_list(self) -> list[str]:
         return [o.strip() for o in self.cors_origins.split(",") if o.strip()]
