@@ -20,6 +20,8 @@ from app.services import (
     alert_publisher,
     alert_service,
     connection_monitor,
+    evacuation_service,
+    exposure_service,
     location_service,
     mqtt_subscriber,
     retention,
@@ -47,6 +49,12 @@ async def lifespan(app: FastAPI):
         uwb_service.init()
         sensor_broadcast.init()
         connection_monitor.init()
+        # 신규 기능 2건 (FR-701 누적 노출량, FR-801 탈출 경로). 지금은 스텁이라
+        # 경고만 남기고 넘어간다. 두 기능을 병렬 세션에서 만들기 때문에 lifespan
+        # 등록 자리를 미리 잡아둔다 — 각 세션이 자기 서비스 모듈 내부만 채우면
+        # 되고, 이 파일의 같은 줄을 양쪽에서 고치는 일이 없다.
+        await exposure_service.init()
+        await evacuation_service.init()
         await mqtt_subscriber.start()
         started_mqtt = True
         alert_publisher.init_publisher(mqtt_subscriber.get_client())
