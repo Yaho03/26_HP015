@@ -25,6 +25,12 @@ export interface AlertEvent {
   activated_at: string;
   resolved_at: string | null;
   published_at: string;
+  // 경보 발생 시점에 해당 노드를 착용하고 있던 작업자 (이슈 #136).
+  // 배정 이력이 없던 시절의 경보는 전부 null 이다.
+  worker_id: number | null;
+  worker_name: string | null;
+  worker_employee_no: string | null;
+  worker_emergency_contact: string | null;
 }
 
 export interface AlertEventFilter {
@@ -122,6 +128,89 @@ export async function updateThreshold(
     throw new Error(`threshold update failed: ${resp.status}`);
   }
   return (await resp.json()) as Threshold;
+}
+
+// ── 작업자 명부 + 웨어러블 배정 (이슈 #136, FR-306) ─────────────────────
+// 작업자는 로그인 주체가 아니다. 대시보드 계정과 다른 개념이라 인증과 무관하게 쓴다.
+
+export interface Worker {
+  id: number;
+  employee_no: string;
+  name: string;
+  phone: string | null;
+  emergency_contact: string | null;
+}
+
+export interface WorkerInput {
+  employee_no: string;
+  name: string;
+  phone?: string | null;
+  emergency_contact?: string | null;
+}
+
+/** 현재 착용 중인 배정. node_id 로 사람을 찾을 때 쓴다. */
+export interface AssignedWorker {
+  worker_id: number;
+  employee_no: string;
+  name: string;
+  phone: string | null;
+  emergency_contact: string | null;
+  node_id: string;
+  assigned_at: string;
+}
+
+/** 서버가 한국어 detail 을 주면 그대로 보여준다 (사번 중복, 중복 배정 등). */
+async function readError(resp: Response, fallback: string): Promise<never> {
+  let detail = "";
+  try {
+    detail = ((await resp.json()) as { detail?: string }).detail ?? "";
+  } catch {
+    // 본문이 JSON 이 아니면 상태 코드만 쓴다
+  }
+  throw new Error(detail || `${fallback}: ${resp.status}`);
+}
+
+export async function fetchWorkers(): Promise<Worker[]> {
+  const resp = await fetch(`${API_BASE}/api/workers`);
+  if (!resp.ok) throw new Error(`workers fetch failed: ${resp.status}`);
+  return (await resp.json()) as Worker[];
+}
+
+export async function fetchAssignments(): Promise<AssignedWorker[]> {
+  const resp = await fetch(`${API_BASE}/api/workers/assignments`);
+  if (!resp.ok) throw new Error(`assignments fetch failed: ${resp.status}`);
+  return (await resp.json()) as AssignedWorker[];
+}
+
+export async function createWorker(payload: WorkerInput): Promise<Worker> {
+  const resp = await fetch(`${API_BASE}/api/workers`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+  if (!resp.ok) await readError(resp, "작업자 등록 실패");
+  return (await resp.json()) as Worker;
+}
+
+export async function deleteWorker(workerId: number): Promise<void> {
+  const resp = await fetch(`${API_BASE}/api/workers/${workerId}`, { method: "DELETE" });
+  if (!resp.ok) await readError(resp, "작업자 삭제 실패");
+}
+
+export async function assignWorker(workerId: number, nodeId: string): Promise<void> {
+  const resp = await fetch(`${API_BASE}/api/workers/${workerId}/assign`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ node_id: nodeId }),
+  });
+  if (!resp.ok) await readError(resp, "배정 실패");
+}
+
+export async function releaseNode(nodeId: string): Promise<void> {
+  const resp = await fetch(`${API_BASE}/api/workers/nodes/${nodeId}/release`, {
+    method: "POST",
+  });
+  if (!resp.ok) await readError(resp, "배정 해제 실패");
 }
 
 export async function fetchHealth(): Promise<HealthStatus> {

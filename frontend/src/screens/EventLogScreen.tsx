@@ -216,6 +216,7 @@ export function EventLogScreen() {
                 <tr>
                   <th>시각</th>
                   <th>노드</th>
+                  <th>당시 작업자</th>
                   <th>유형</th>
                   <th>등급</th>
                   <th>메시지</th>
@@ -229,6 +230,18 @@ export function EventLogScreen() {
                   <tr key={ev.message_id} className={ev.status === "active" ? "event-row-active" : ""}>
                     <td className="cell-time">{formatTime(ev.activated_at)}</td>
                     <td className="event-node">{ev.source_node_id}</td>
+                    {/* 이슈 #136 — 지금 착용자가 아니라 이 경보가 났을 때의 착용자다.
+                        배정이 바뀐 뒤 조회해도 당시 사람이 나와야 사고 조사가 성립한다. */}
+                    <td className="event-worker">
+                      {ev.worker_name ? (
+                        <>
+                          <span className="event-worker__name">{ev.worker_name}</span>
+                          <span className="event-worker__no">{ev.worker_employee_no}</span>
+                        </>
+                      ) : (
+                        <span className="pending">미배정</span>
+                      )}
+                    </td>
                     <td>
                       <span className="event-type">{formatType(ev.alert_type)}</span>
                       <span className="event-key">{ev.alert_key}</span>
