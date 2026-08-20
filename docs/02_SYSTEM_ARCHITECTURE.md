@@ -106,6 +106,31 @@ graph TD
 | 3D 렌더링 | React Three Fiber + Three.js |
 | 3D 모델 | Blender -> glTF/GLB (1 unit = 1 meter) |
 
+### 2.7 인증 계층 (AUTH — 2026-08-20 추가)
+
+| 항목 | 내용 |
+|------|------|
+| 방식 | 서버 side 세션 + HttpOnly 쿠키 (ADR-007) |
+| 해싱 | Argon2id (argon2-cffi) |
+| 역할 | admin / supervisor / viewer 3역할 RBAC |
+| 만료 | 유휴 8h / 절대 12h |
+| CSRF | double-submit 토큰 (상태 변경 요청) |
+| WebSocket | accept() 이전 쿠키 검증, 실패 시 close 1008 |
+
+```
+브라우저 ──POST /api/auth/login──▶ FastAPI
+        ◀── Set-Cookie: session=HttpOnly ──┘
+브라우저 ──Cookie: session──▶ 보호 자원 (REST/WS) ──▶ 세션 조회/검증
+                                   │
+                                   ├─ 역할 부족 → 403
+                                   ├─ 세션 없음/만료 → 401
+                                   └─ 통과 → 핸들러
+```
+
+- 공개 경로는 `/health`, `/api/auth/login` 뿐 — 나머지 전 엔드포인트 인증 강제.
+- 임계값 수정 등 안전 영향 변경은 감사 로그(audit_log)에 전/후 값 기록.
+- 세션 만료 시에도 활성 경보 UI는 유지된다 (FR-607, §08 안전 트레이드오프).
+
 ---
 
 ## 3. 데이터 흐름
