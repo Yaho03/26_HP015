@@ -7,6 +7,7 @@ import {
   maxLevel,
   nodeAlertLevel,
   setThresholdTable,
+  thresholdApproach,
   thresholdLinesFor,
   type ServerThreshold,
 } from "./alerts";
@@ -174,5 +175,48 @@ describe("maxLevel — unknown 은 normal 보다 위다", () => {
     // 모르는 지표 하나 때문에 확인된 위험이 가려지면 안 된다.
     expect(maxLevel("unknown", "level1_caution")).toBe("level1_caution");
     expect(maxLevel("level3_critical", "unknown")).toBe("level3_critical");
+  });
+});
+
+describe("thresholdApproach — 임계값 대비 근접도", () => {
+  it("다음 등급의 진입 임계값을 기준으로 채운다", () => {
+    const a = thresholdApproach("co2_ppm", 500);
+    expect(a).not.toBeNull();
+    expect(a!.level).toBe("level1_caution");
+    expect(a!.enter).toBe(1000);
+    expect(a!.ratio).toBeCloseTo(0.5, 5);
+  });
+
+  it("한 등급을 넘으면 그 다음 관문으로 기준이 바뀐다", () => {
+    const a = thresholdApproach("co2_ppm", 1500);
+    expect(a!.level).toBe("level2_warning");
+    expect(a!.enter).toBe(2000);
+    expect(a!.ratio).toBeCloseTo(0.75, 5);
+  });
+
+  it("최고 등급 구간이면 가득 찬다", () => {
+    const a = thresholdApproach("co2_ppm", 9000);
+    expect(a!.level).toBe("level3_critical");
+    expect(a!.ratio).toBe(1);
+  });
+
+  it("below 방향(O₂ 저농도)은 값이 내려갈수록 찬다", () => {
+    const far = thresholdApproach("o2_low", 20.9);
+    const near = thresholdApproach("o2_low", 19.8);
+    expect(far!.level).toBe("level1_caution");
+    expect(far!.enter).toBe(19.5);
+    expect(near!.ratio).toBeGreaterThan(far!.ratio);
+    expect(thresholdApproach("o2_low", 19.5)!.ratio).toBe(1);
+  });
+
+  it("임계값을 못 받았으면 null — 바를 그리지 않는다", () => {
+    // 여기서 임의의 만점 눈금을 만들면, 판정 불가 상태의 바가 "여유 있음"으로
+    // 보인다 (이슈 #165).
+    setThresholdTable([]);
+    expect(thresholdApproach("co2_ppm", 500)).toBeNull();
+  });
+
+  it("규칙이 없는 지표(온도·습도)도 null", () => {
+    expect(thresholdApproach("temperature_c", 24.5)).toBeNull();
   });
 });
