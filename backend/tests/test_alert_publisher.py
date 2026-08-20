@@ -19,7 +19,7 @@ from pathlib import Path
 from typing import Any
 
 import pytest
-from jsonschema import validate, ValidationError
+from jsonschema import validate, ValidationError, FormatChecker
 
 from app.models.alert import AlertLevel, AlertTransition
 
@@ -179,6 +179,58 @@ async def test_message_id_and_alert_id_are_ulid(monkeypatch):
 
 
 # ============================================================
+# 4-1. resolved-only 오발행 방지 (이슈 #111 P2 후속)
+# ============================================================
+
+@pytest.mark.asyncio
+async def test_resolved_only_transition_skipped_when_no_active_alert(monkeypatch):
+    """to_level=NORMAL인데 해당 (node_id, metric)이 active로 추적된 적 없으면
+    발행하지 않는다. connection_lost가 LWT/명시적 offline처럼 timeout 경보를
+    띄운 적 없는 상태에서 복귀해도 무조건 NORMAL transition이 만들어지므로,
+    publisher 단에서 "진짜 해제할 게 있었는지"로 최종 필터링해야 한다."""
+    from app.services import alert_publisher
+
+    publisher = alert_publisher.AlertEventPublisher(mqtt_client=None)
+    persist_calls: list[Any] = []
+    mqtt_calls: list[Any] = []
+
+    async def _fake_persist(event):
+        persist_calls.append(event)
+    monkeypatch.setattr(publisher, "_persist_event", _fake_persist)
+    monkeypatch.setattr(publisher, "_publish_mqtt", lambda *a, **kw: mqtt_calls.append(a))
+
+    transition = _transition(
+        from_level=AlertLevel.LEVEL3, to_level=AlertLevel.NORMAL, metric="connection_lost",
+    )
+    await publisher.publish_transition(transition)
+
+    assert persist_calls == [], "active 경보가 없었으면 DB에 아무것도 써선 안 됨"
+    assert mqtt_calls == [], "active 경보가 없었으면 MQTT도 발행하면 안 됨 (retain 오염 방지)"
+    assert publisher.last_event is None
+
+
+@pytest.mark.asyncio
+async def test_resolved_transition_published_when_active_alert_exists(monkeypatch):
+    """반대로, 진짜 active 경보가 있었으면(ENTER를 먼저 거쳤으면) 정상적으로
+    resolved 이벤트를 발행해야 한다 — 기존 계약(조건 유지) 회귀 방지."""
+    from app.services import alert_publisher
+
+    publisher = alert_publisher.AlertEventPublisher(mqtt_client=None)
+    monkeypatch.setattr(publisher, "_persist_event", _async_noop)
+    monkeypatch.setattr(publisher, "_publish_mqtt", lambda *a, **kw: None)
+
+    await publisher.publish_transition(
+        _transition(to_level=AlertLevel.LEVEL3, metric="connection_lost")
+    )
+    await publisher.publish_transition(
+        _transition(from_level=AlertLevel.LEVEL3, to_level=AlertLevel.NORMAL, metric="connection_lost")
+    )
+
+    assert publisher.last_event["status"] == "resolved"
+    assert publisher.last_event["alert_key"] == "connection_lost"
+
+
+# ============================================================
 # 5. MQTT 발행 — 두 토픽
 # ============================================================
 
@@ -221,7 +273,7 @@ async def test_event_conforms_to_schema(monkeypatch):
     monkeypatch.setattr(publisher, "_publish_mqtt", lambda *a, **kw: None)
 
     await publisher.publish_transition(_transition(to_level=AlertLevel.LEVEL1))
-    validate(instance=publisher.last_event, schema=schema)
+    validate(instance=publisher.last_event, schema=schema, format_checker=FormatChecker())
 
 
 @pytest.mark.asyncio
@@ -237,7 +289,58 @@ async def test_resolved_event_conforms_to_schema(monkeypatch):
     await publisher.publish_transition(
         _transition(from_level=AlertLevel.LEVEL1, to_level=AlertLevel.NORMAL, threshold=900.0)
     )
-    validate(instance=publisher.last_event, schema=schema)
+    validate(instance=publisher.last_event, schema=schema, format_checker=FormatChecker())
+
+
+# ============================================================
+# 9. 이슈 #102 — TIMESTAMPTZ 회귀 방지
+# ============================================================
+
+@pytest.mark.asyncio
+async def test_mqtt_timestamps_round_trip_through_fromisoformat(monkeypatch):
+    """activated_at/resolved_at/published_at이 tz-aware datetime.fromisoformat()으로
+    예외 없이 왕복 파싱되는지 확인한다. 수정 전에는 tz-aware datetime에 '+00:00Z'
+    이중 오프셋이 붙어 fromisoformat()이 ValueError를 냈다 (이슈 #102)."""
+    from app.services import alert_publisher
+
+    publisher = alert_publisher.AlertEventPublisher(mqtt_client=None)
+    monkeypatch.setattr(publisher, "_persist_event", _async_noop)
+    monkeypatch.setattr(publisher, "_publish_mqtt", lambda *a, **kw: None)
+
+    await publisher.publish_transition(_transition(to_level=AlertLevel.LEVEL1))
+    active = publisher.last_event
+    datetime.fromisoformat(active["activated_at"].replace("Z", "+00:00"))
+    datetime.fromisoformat(active["published_at"].replace("Z", "+00:00"))
+    assert active["resolved_at"] is None
+
+    await publisher.publish_transition(
+        _transition(from_level=AlertLevel.LEVEL1, to_level=AlertLevel.NORMAL, threshold=900.0)
+    )
+    resolved = publisher.last_event
+    datetime.fromisoformat(resolved["resolved_at"].replace("Z", "+00:00"))
+
+
+@pytest.mark.asyncio
+async def test_persist_event_receives_datetime_not_str(monkeypatch):
+    """_persist_event()에 넘어가는 시각 필드가 str이 아니라 datetime 객체여야
+    asyncpg가 TIMESTAMPTZ 컬럼에 바인딩할 수 있다 (str을 넘기면 DataError)."""
+    from app.services import alert_publisher
+
+    publisher = alert_publisher.AlertEventPublisher(mqtt_client=None)
+    captured: list[dict] = []
+
+    async def _capture(event):
+        captured.append(event)
+
+    monkeypatch.setattr(publisher, "_persist_event", _capture)
+    monkeypatch.setattr(publisher, "_publish_mqtt", lambda *a, **kw: None)
+
+    await publisher.publish_transition(_transition(to_level=AlertLevel.LEVEL1))
+
+    persisted = captured[0]
+    assert isinstance(persisted["activated_at"], datetime)
+    assert isinstance(persisted["published_at"], datetime)
+    assert persisted["resolved_at"] is None
 
 
 # ============================================================

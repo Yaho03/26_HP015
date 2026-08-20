@@ -19,7 +19,7 @@ from __future__ import annotations
 
 import json
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Dict, Optional, Tuple
 
 from ulid import ULID
@@ -27,6 +27,7 @@ from ulid import ULID
 from app.db import get_pool
 from app.models.alert import AlertLevel, AlertTransition
 from app.observability import metrics
+from app.utils import to_iso_z
 
 logger = logging.getLogger(__name__)
 
@@ -47,23 +48,39 @@ class AlertEventPublisher:
         self.last_event: Optional[dict] = None
 
     async def publish_transition(self, transition: AlertTransition) -> None:
+        # to_level==NORMAL인데 해당 (node_id, metric)에 대해 active 상태로 추적 중인
+        # 경보가 없으면 발행하지 않는다 (이슈 #111 P2 후속) — connection_lost는
+        # offline이 timeout(connection_monitor가 실제로 L3 경보를 띄운 경우)이든
+        # LWT/명시적 offline(경보를 띄운 적 없는 경우)이든 상관없이 ingest_connection이
+        # offline→online 전이만 보고 무조건 NORMAL transition을 만들어 보내므로,
+        # 여기서 "진짜 해제할 active 경보가 있었는지"를 최종적으로 걸러줘야 한다.
+        # 이 가드는 connection_lost뿐 아니라 모든 metric의 resolved-only 오발행을
+        # 막아준다 (active_alert_ids에 없으면 애초에 해제할 게 없다는 뜻이므로).
+        key = (transition.node_id, transition.metric)
+        if transition.to_level == AlertLevel.NORMAL and key not in self._active_alert_ids:
+            logger.debug(
+                "skipping resolved-only publish, no active alert tracked for %s", key
+            )
+            return
+
         event = self._build_event(transition)
-        self.last_event = event
         await self._persist_event(event)
-        self._publish_mqtt(f"alerts/events/{transition.node_id}", event, retain=False)
+        wire_event = self._to_wire(event)
+        self.last_event = wire_event
+        self._publish_mqtt(f"alerts/events/{transition.node_id}", wire_event, retain=False)
         self._publish_mqtt(
             f"alerts/state/{transition.node_id}/{transition.metric}",
-            event,
+            wire_event,
             retain=True,
         )
-        if event["status"] == "active":
+        if wire_event["status"] == "active":
             metrics.increment("alerts_published")
         else:
             metrics.increment("alerts_resolved")
 
     def _build_event(self, transition: AlertTransition) -> dict:
         key = (transition.node_id, transition.metric)
-        now = datetime.utcnow()
+        now = datetime.now(timezone.utc)
 
         if transition.to_level == AlertLevel.NORMAL:
             alert_id, activated_at = self._active_alert_ids.pop(key, (str(ULID()), transition.timestamp))
@@ -94,10 +111,19 @@ class AlertEventPublisher:
             "metric": transition.metric,
             "message": self._human_message(transition),
             "status": status,
-            "activated_at": activated_at.isoformat() + "Z",
-            "resolved_at": resolved_at.isoformat() + "Z" if resolved_at else None,
-            "published_at": now.isoformat() + "Z",
+            "activated_at": activated_at,
+            "resolved_at": resolved_at,
+            "published_at": now,
         }
+
+    @staticmethod
+    def _to_wire(event: dict) -> dict:
+        """DB에 저장된 datetime 객체를 MQTT 페이로드용 ISO8601 문자열로 변환."""
+        wire = dict(event)
+        wire["activated_at"] = to_iso_z(event["activated_at"])
+        wire["resolved_at"] = to_iso_z(event["resolved_at"]) if event["resolved_at"] else None
+        wire["published_at"] = to_iso_z(event["published_at"])
+        return wire
 
     @staticmethod
     def _human_message(transition: AlertTransition) -> str:

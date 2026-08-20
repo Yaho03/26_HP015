@@ -17,7 +17,7 @@ const ALERT_TITLES: Record<string, string> = {
   zone_intrusion: "위험 구역 진입",
 };
 
-// 모든 경보를 node_id로 스코프한다 (코드리뷰 반영). 이전엔 co2_ppm 등 가스
+// 모든 경보를 node_id로 스코프한다 (이슈 #112, 코드리뷰 반영). 이전엔 co2_ppm 등 가스
 // metric이 node_id 없이 metric명 그대로 키가 돼서, active_alerts 딕셔너리에서
 // 다른 노드의 같은 metric 경보가 서로 덮어썼다 — 예: sensor-01의 L2 경보를
 // sensor-03의 L1이 덮어쓰고, sensor-03이 정상 복귀하면 sensor-01 경보까지

@@ -26,12 +26,15 @@ async def lifespan(app: FastAPI):
     started_conn_monitor = False
     try:
         await migration_runner.apply_all()
-        try:
-            await alert_service.init()
-        except Exception:
-            pass
+        # alert_service.init() 실패를 여기서 삼키면(기존 except Exception: pass) 임계값
+        # 로드/콜백 등록이 안 된 채로 서버가 "정상" 기동돼 데이터는 계속 쌓이는데 경보
+        # 판정만 영구히 멈춘다 — 로그 한 줄도 안 남아 발견이 불가능했다 (이슈 #109,
+        # safety-critical). 다른 서비스들(mqtt_subscriber.start() 등)과 동일하게
+        # 예외를 그대로 전파시켜 기동 자체를 실패시킨다 (컨테이너 재시작 루프로 즉시 드러남).
+        await alert_service.init()
         location_service.init()
         sensor_broadcast.init()
+        connection_monitor.init()
         await mqtt_subscriber.start()
         started_mqtt = True
         alert_publisher.init_publisher(mqtt_subscriber.get_client())
