@@ -63,6 +63,17 @@ export function IconXCircle({ size = "1em", className }: IconProps) {
   );
 }
 
+/** 판정 불가 (이슈 #165). 임계값을 못 받아 등급을 매길 수 없는 상태. */
+export function IconQuestionCircle({ size = "1em", className }: IconProps) {
+  return (
+    <svg {...svgProps(size, className)}>
+      <circle cx="12" cy="12" r="9" />
+      <path d="M9.6 9.3a2.5 2.5 0 1 1 3.2 2.9c-.6.2-.9.7-.9 1.3v.4" />
+      <path d="M12 17.1h.01" />
+    </svg>
+  );
+}
+
 export function IconClock({ size = "1em", className }: IconProps) {
   return (
     <svg {...svgProps(size, className)}>
@@ -139,6 +150,7 @@ export function IconMoon({ size = "1em", className }: IconProps) {
 
 /* Level → icon, so risk is never carried by color alone. */
 export const LEVEL_ICON = {
+  unknown: IconQuestionCircle,
   normal: IconCheck,
   level1_caution: IconWarning,
   level2_warning: IconWarningCircle,

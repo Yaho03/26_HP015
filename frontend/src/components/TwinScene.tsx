@@ -17,10 +17,13 @@ interface TwinSceneProps {
 }
 
 const LEVEL_COLOR: Record<AlertLevel, string> = {
+  // 판정 불가는 회색이다 — 안전(초록)으로도 위험(빨강)으로도 읽히면 안 된다.
+  unknown: "#94a3b8",
   normal: "#10b981", level1_caution: "#facc15",
   level2_warning: "#fb923c", level3_critical: "#ef4444",
 };
 const LEVEL_LABEL: Record<AlertLevel, string> = {
+  unknown: "판정불가",
   normal: "정상", level1_caution: "L1",
   level2_warning: "L2", level3_critical: "L3",
 };
@@ -600,7 +603,9 @@ function HazardZone({ level }: { level: AlertLevel }) {
 
 function SensorMarker({ id, x, y, level }: { id: string; x: number; y: number; level: AlertLevel }) {
   const color = LEVEL_COLOR[level];
-  const isDanger = level !== "normal";
+  // 판정 불가는 위험이 아니다 (이슈 #165). 여기에 포함하면 임계값을 못 받은
+  // 동안 전 노드가 위험처럼 맥동해서 진짜 경보를 구분할 수 없다.
+  const isDanger = level !== "normal" && level !== "unknown";
   const showHazard = level === "level2_warning" || level === "level3_critical";
   const groupRef = useRef<Group>(null);
   const [hov, setHov] = useState(false);
