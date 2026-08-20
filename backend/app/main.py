@@ -7,6 +7,7 @@ from app import db, migration_runner, observability
 from app.config import settings
 from app.routers import (
     alert_events,
+    auth,
     demo,
     health,
     sensor_data,
@@ -79,6 +80,7 @@ app.add_middleware(
 )
 
 app.include_router(health.router)
+app.include_router(auth.router)
 app.include_router(thresholds.router)
 app.include_router(sensor_data.router)
 app.include_router(alert_events.router)

@@ -47,6 +47,12 @@ class Settings(BaseSettings):
     # 주입 도구 위치 (저장소 루트 기준). 컨테이너 배포본에는 없을 수 있다.
     demo_inject_cwd: str = ""
 
+    # 인증 세션 (AUTH-2, ADR-007). 유휴 8h / 절대 12h (FR-604).
+    session_idle_ttl_hours: float = 8.0
+    session_absolute_ttl_hours: float = 12.0
+    # HTTPS 운영에서만 true (Secure 쿠키 속성). 개발(http)에서는 false.
+    cookie_secure: bool = False
+
     @property
     def cors_origins_list(self) -> list[str]:
         return [o.strip() for o in self.cors_origins.split(",") if o.strip()]
