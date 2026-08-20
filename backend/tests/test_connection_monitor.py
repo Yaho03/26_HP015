@@ -235,7 +235,7 @@ async def test_emit_connection_recovered_sends_l3_to_normal_transition(monkeypat
 async def test_recovery_after_timeout_lost_alert_publishes_resolved(monkeypatch):
     """timeout으로 connection_lost가 실제로 떴던 노드가 복귀하면 resolved
     이벤트가 발행돼야 한다 (기존 계약 유지 확인)."""
-    from app.services import connection_monitor, alert_service
+    from app.services import connection_monitor, alert_publisher
     from app.services.alert_publisher import AlertEventPublisher
 
     publisher = AlertEventPublisher(mqtt_client=None)
@@ -245,7 +245,9 @@ async def test_recovery_after_timeout_lost_alert_publishes_resolved(monkeypatch)
         persisted.append(event)
     monkeypatch.setattr(publisher, "_persist_event", _fake_persist)
     monkeypatch.setattr(publisher, "_publish_mqtt", lambda *a, **kw: None)
-    monkeypatch.setattr(alert_service, "_publisher", publisher)
+    # alert_service는 이제 매번 alert_publisher 모듈의 현재 publisher를 찾는다
+    # (#118 리팩터링) — 복사본이 아니라 원본 전역을 패치해야 경로에 끼어든다.
+    monkeypatch.setattr(alert_publisher, "_publisher", publisher)
 
     await connection_monitor._emit_connection_lost("sensor-01")
     persisted.clear()  # active 진입 이벤트는 이 테스트 관심사가 아니므로 비움
@@ -263,7 +265,7 @@ async def test_recovery_without_timeout_lost_alert_does_not_publish(monkeypatch)
     한 번도 뜬 적 없는 노드가 online으로 복귀해도, ingest_connection은
     offline→online 전이만 보고 무조건 복귀 콜백을 호출한다. 이때 실제로
     해제할 active 경보가 없으므로 resolved-only 이벤트가 발행되면 안 된다."""
-    from app.services import connection_monitor, alert_service
+    from app.services import connection_monitor, alert_publisher
     from app.services.alert_publisher import AlertEventPublisher
 
     publisher = AlertEventPublisher(mqtt_client=None)
@@ -274,7 +276,7 @@ async def test_recovery_without_timeout_lost_alert_does_not_publish(monkeypatch)
         persisted.append(event)
     monkeypatch.setattr(publisher, "_persist_event", _fake_persist)
     monkeypatch.setattr(publisher, "_publish_mqtt", lambda *a, **kw: mqtt_calls.append(a))
-    monkeypatch.setattr(alert_service, "_publisher", publisher)
+    monkeypatch.setattr(alert_publisher, "_publisher", publisher)
 
     # _emit_connection_lost를 한 번도 호출하지 않음 — LWT/offline으로만
     # 오프라인이 된 상태를 재현 (connection_monitor의 타임아웃 경로를 안 거침)

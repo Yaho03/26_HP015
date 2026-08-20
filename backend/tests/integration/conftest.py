@@ -30,12 +30,19 @@ pytestmark = pytest.mark.skipif(
 
 
 def pytest_collection_modifyitems(items):
-    """DB 가 없으면 이 디렉터리 전체를 skip 한다."""
+    """DB 가 없으면 tests/integration 하위만 skip 한다.
+
+    pytest_collection_modifyitems 는 conftest 위치과 무관하게 세션 전체 items 를
+    받으므로, 경로로 이 디렉터리 하위인지 직접 걸러야 한다 — 안 그러면 DB 없는
+    로컬에서 단위 테스트까지 전부 skip 된다 (2026-08-20 머지 중 발견).
+    """
     if TEST_DB_URL:
         return
     skip = pytest.mark.skip(reason="TEST_TIMESCALE_URL 미설정")
+    here = os.path.dirname(os.path.abspath(__file__))
     for item in items:
-        item.add_marker(skip)
+        if os.path.commonpath([str(item.fspath), here]) == here:
+            item.add_marker(skip)
 
 
 @pytest_asyncio.fixture
