@@ -4,6 +4,7 @@ import { Header } from "./components/Header";
 import { Sidebar, type ScreenKey } from "./components/Sidebar";
 import { Toaster } from "./components/Toaster";
 import { ChartScreen } from "./screens/ChartScreen";
+import { LoginScreen } from "./screens/LoginScreen";
 import { SettingsScreen } from "./screens/SettingsScreen";
 import { TwinScreen } from "./screens/TwinScreen";
 import { SafetyWorkspace, type SafetyWorkspaceView } from "./components/SafetyWorkspace";
@@ -11,6 +12,8 @@ import { useWebSocket } from "./hooks/useWebSocket";
 import { useHealthPoll } from "./hooks/useHealthPoll";
 import { useThresholds } from "./hooks/useThresholds";
 import { useDashboardStore } from "./store/dashboardStore";
+import { useAuthStore } from "./store/authStore";
+import { fetchMe } from "./services/authApi";
 import { classifyO2High, classifyO2Low, maxLevel, nodeAlertLevel } from "./utils/alerts";
 import type { AlertLevel } from "./types";
 
@@ -37,6 +40,17 @@ function App() {
   const [theme, setTheme] = useState<Theme>(
     () => (localStorage.getItem("hp015-theme") as Theme | null) ?? "dark",
   );
+  const authStatus = useAuthStore((s) => s.status);
+  const authUser = useAuthStore((s) => s.user);
+
+  // 앱 부팅 시 세션 확인 — 200이면 저장된 세션으로 복귀, 401이면 LoginScreen
+  // (AUTH-8). 미인증 상태에서는 어떤 화면도 데이터를 렌더링하지 않는다.
+  useEffect(() => {
+    if (authStatus !== "booting") return;
+    fetchMe().catch(() => {
+      // UnauthorizedError — fetchApi 가 이미 expire() 를 불렀다.
+    });
+  }, [authStatus]);
 
   useEffect(() => {
     document.documentElement.dataset.theme = theme;
@@ -67,6 +81,10 @@ function App() {
   useHealthPoll();
   useThresholds();
 
+  if (authStatus !== "authenticated") {
+    return <LoginScreen />;
+  }
+
   return (
     <div className="app">
       <Sidebar
@@ -75,6 +93,7 @@ function App() {
         active_alert_count={active_alert_count}
         connection={connection}
         overall_level={overall_level}
+        userRole={authUser?.role}
       />
       <div className="app-main">
         <Header

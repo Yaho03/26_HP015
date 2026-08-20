@@ -1,5 +1,7 @@
 import type { ComponentType } from "react";
 import type { AlertLevel, ConnectionStatus } from "../types";
+import type { Role } from "../store/authStore";
+import { hasRole } from "../store/authStore";
 import { IconChart, IconCube, IconGauge, IconList, IconSettings } from "./icons";
 
 export type ScreenKey = "monitoring" | "twin" | "chart" | "event-log" | "settings";
@@ -8,6 +10,7 @@ interface MenuItem {
   key: ScreenKey;
   label: string;
   Icon: ComponentType<{ size?: number | string }>;
+  minRole?: Role;
 }
 
 const MENU: MenuItem[] = [
@@ -24,6 +27,7 @@ interface SidebarProps {
   active_alert_count: number;
   connection: ConnectionStatus;
   overall_level: AlertLevel;
+  userRole?: Role;
 }
 
 export function Sidebar({
@@ -32,6 +36,7 @@ export function Sidebar({
   active_alert_count,
   connection,
   overall_level,
+  userRole,
 }: SidebarProps) {
   const critical = overall_level === "level3_critical";
   return (
@@ -41,7 +46,10 @@ export function Sidebar({
         <span className="sidebar-brand-sub">console</span>
       </div>
       <nav className="sidebar-nav">
-        {MENU.map(({ key, label, Icon }) => (
+        {MENU.map(({ key, label, Icon, minRole }) => {
+          // 역할 게이팅 — 서버 권한이 정본, 이 필터는 UX 다 (AUTH-8).
+          if (minRole && !hasRole(userRole, minRole)) return null;
+          return (
           <button
             key={key}
             type="button"
@@ -61,7 +69,8 @@ export function Sidebar({
               <span className="sidebar-badge">{active_alert_count}</span>
             )}
           </button>
-        ))}
+          );
+        })}
       </nav>
       <div className="sidebar-status">
         <StatusDot label="BE" ok={connection.backend_connected} />
