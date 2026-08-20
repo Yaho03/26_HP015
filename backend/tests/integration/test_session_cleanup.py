@@ -45,7 +45,7 @@ async def test_cleanup_deletes_old_revoked_and_expired_sessions(db_pool):
                       created_days_ago=31, expires_days_ago=31, revoked_days_ago=None)
     # (c) 어제 폐기 세션 — 보존 (아직 30일 안 지남)
     await conn_insert(pool, user_id, "recent-revoked",
-                      created_days_ago=1, expires_days_ago=0.5, revoked_days_ago=1)
+                      created_days_ago=1, expires_days_ago=1, revoked_days_ago=1)
     # (d) 활성 세션 (내일 만료) — 절대 삭제 금지
     await conn_insert(pool, user_id, "active",
                       created_days_ago=0, expires_days_ago=-1, revoked_days_ago=None)
@@ -75,17 +75,17 @@ async def conn_insert(pool, user_id: int, token: str, *, created_days_ago: float
             INSERT INTO sessions (user_id, session_hash, csrf_token, expires_at,
                                   created_at, last_seen_at, revoked_at)
             VALUES ($1, $2, 'csrf',
-                    now() - make_interval(days => $3),
-                    now() - make_interval(days => $4),
+                    now() - ($3::int * interval '1 day'),
+                    now() - ($4::int * interval '1 day'),
                     now(),
-                    CASE WHEN $5::double precision IS NULL THEN NULL
-                         ELSE now() - make_interval(days => $5) END)
+                    CASE WHEN $5::int IS NULL THEN NULL
+                         ELSE now() - ($5::int * interval '1 day') END)
             """,
             user_id,
             auth_service.hash_token(token),
-            expires_days_ago,
-            created_days_ago,
-            revoked_days_ago,
+            int(expires_days_ago),
+            int(created_days_ago),
+            (int(revoked_days_ago) if revoked_days_ago is not None else None),
         )
 
 
