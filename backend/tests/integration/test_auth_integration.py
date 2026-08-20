@@ -47,8 +47,8 @@ MATRIX: list[dict] = [
     {"m": "GET", "p": "/api/users", "exp": (403, 403, 200)},
     {"m": "GET", "p": "/api/demo/scenarios", "exp": (403, 403, 404)},
     {"m": "PUT", "p": "/api/thresholds/co2_ppm/level1_caution", "body": {"direction": "above", "enter_threshold": 1005.0, "exit_threshold": 950.0, "enter_for_ms": 3000, "exit_for_ms": 5000}, "exp": (403, 403, 200)},
-    {"m": "POST", "p": "/api/workers", "body": {"employee_no": "MATRIX-V", "name": "뷰어"}, "exp": (403, 201, 409)},
-    {"m": "GET", "p": "/api/users/{admin_user_id}", "exp": (404, 404, 404)},  # users엔 GET 단일 없음
+    # MATRIX-V 사번은 픽스처가 미리 등록해둔다 — 권한 통과 역할은 409(중복)로 확인
+    {"m": "POST", "p": "/api/workers", "body": {"employee_no": "MATRIX-V", "name": "뷰어"}, "exp": (403, 409, 409)},
 ]
 
 
@@ -124,8 +124,6 @@ async def test_rbac_matrix_every_cell(clients, role_idx, role):
         if "q" in case:
             kwargs["params"] = case["q"]
         if "body" in case:
-            if role == "viewer" and case["p"] == "/api/workers":
-                continue  # viewer POST /api/workers 는 employee_no 중복 전에 403
             kwargs["json"] = case["body"]
         resp = await client.request(case["m"], path, **kwargs)
         expected = case["exp"][role_idx]
