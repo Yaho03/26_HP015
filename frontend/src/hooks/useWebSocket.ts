@@ -1,5 +1,5 @@
 import { useEffect, useRef } from "react";
-import type { AlertLevel } from "../types";
+import type { AlertLevel, AlertState, MetricKey, SensorNodeState } from "../types";
 import { WSClient } from "../services/wsClient";
 import type { WSMessage } from "../types/ws";
 import { useDashboardStore } from "../store/dashboardStore";
@@ -17,12 +17,14 @@ const ALERT_TITLES: Record<string, string> = {
   zone_intrusion: "위험 구역 진입",
 };
 
-// 모든 경보를 node_id로 스코프한다 (이슈 #112). 이전엔 co2_ppm 등 가스 metric이
-// node_id 없이 metric명 그대로 키가 돼서, active_alerts 딕셔너리에서 다른 노드의
-// 같은 metric 경보가 서로 덮어썼다 — 예: sensor-01의 L2 경보가 sensor-03의 L1으로
-// 덮어써지고, sensor-03이 정상 복귀하면 sensor-01 경보까지 함께 사라짐. 백엔드
-// alert_publisher._active_alert_ids도 이미 (node_id, metric) 튜플로 관리하므로
-// 프론트도 동일한 스코프 규칙으로 맞춘다.
+// 모든 경보를 node_id로 스코프한다 (이슈 #112, 코드리뷰 반영). 이전엔 co2_ppm 등 가스
+// metric이 node_id 없이 metric명 그대로 키가 돼서, active_alerts 딕셔너리에서
+// 다른 노드의 같은 metric 경보가 서로 덮어썼다 — 예: sensor-01의 L2 경보를
+// sensor-03의 L1이 덮어쓰고, sensor-03이 정상 복귀하면 sensor-01 경보까지
+// 함께 사라짐. connection_lost만 예외적으로 node_id를 붙이던 것도 통일해서
+// 제거 — 백엔드 alert_publisher._active_alert_ids도 이미 (node_id, metric)
+// 튜플로 관리하므로 프론트도 동일한 스코프 규칙(`${node_id}:${metric}`)으로 맞춘다.
+// snapshot(ws_manager.py)도 동일 규칙으로 키를 만들어야 여기서 일관되게 매칭된다.
 function deriveAlertKey(metric: string, nodeId: string): string {
   return `${nodeId}:${metric}`;
 }
@@ -53,13 +55,65 @@ function handleMessage(msg: WSMessage): void {
         toastStore.push({ level: msg.to_level as AlertLevel, title, body });
       }
     }
-    if (msg.metric.startsWith("o2_") || msg.metric === "co2_ppm" || msg.metric === "co_ppm" || msg.metric === "h2s_ppm" || msg.metric === "temperature_c") {
-      store.setSensorNodeReading(msg.node_id, msg.metric as never, msg.value, msg.timestamp);
-    }
     return;
   }
   if (msg.type === "location") {
     store.setWearablePosition(msg.node_id, msg.x, msg.y, msg.z, msg.timestamp);
+    return;
+  }
+  if (msg.type === "sensor_reading") {
+    // 웨어러블(o2_pct)은 센서 노드 목록이 아니라 별도 wearable 상태로 가야 한다
+    // (코드리뷰 반영) — UI_FLOW상 웨어러블은 SENSOR NODES 카드가 아니라 별도
+    // WEARABLE 카드로 표시되므로, node_id가 wearable- 접두면 분기한다.
+    if (msg.node_id.startsWith("wearable-") && msg.metric === "o2_pct") {
+      store.setWearableO2Reading(msg.node_id, msg.value, msg.timestamp);
+      return;
+    }
+    store.setSensorNodeReading(msg.node_id, msg.metric as MetricKey, msg.value, msg.timestamp);
+    return;
+  }
+  if (msg.type === "node_status") {
+    store.setSensorNodeStatus(msg.node_id, {
+      battery_pct: msg.battery_pct,
+      wifi_rssi_dbm: msg.wifi_rssi_dbm,
+      last_seen_at: msg.timestamp,
+    });
+    return;
+  }
+  if (msg.type === "snapshot") {
+    const rawNodes = msg.nodes as Record<string, Partial<SensorNodeState>>;
+    // snapshot도 실시간 sensor_reading과 동일하게 wearable을 분리해야 한다
+    // (코드리뷰 반영) — 안 그러면 새로고침 시 wearable이 SENSOR NODES 카드에
+    // 섞이고 WEARABLE 카드는 계속 비어 보인다(실제로 재현/확인함).
+    const nodes: Record<string, Partial<SensorNodeState>> = {};
+    for (const [node_id, patch] of Object.entries(rawNodes)) {
+      if (node_id.startsWith("wearable-")) {
+        const o2 = patch.readings?.o2_pct;
+        if (o2) {
+          store.setWearableO2Reading(node_id, o2.value, o2.sampled_at);
+        }
+        continue;
+      }
+      nodes[node_id] = patch;
+    }
+    const rawAlerts = msg.alerts as Record<
+      string,
+      { node_id: string; level: AlertLevel; trigger_value: number; threshold: number; activated_at: string }
+    >;
+    const alerts: Record<string, AlertState> = {};
+    for (const [alert_key, a] of Object.entries(rawAlerts)) {
+      alerts[alert_key] = {
+        alert_key,
+        node_id: a.node_id,
+        level: a.level,
+        status: "active",
+        trigger_value: a.trigger_value,
+        threshold: a.threshold,
+        activated_at: a.activated_at,
+        resolved_at: null,
+      };
+    }
+    store.hydrateSnapshot(nodes, alerts);
   }
 }
 
