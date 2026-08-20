@@ -1,9 +1,10 @@
 """health & metrics API (이슈 #88, #119)."""
 from __future__ import annotations
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends
 
 from app import db
+from app.dependencies.auth import require_role
 from app.services import mqtt_subscriber
 
 router = APIRouter()
@@ -30,6 +31,6 @@ async def health():
 
 
 @router.get("/api/metrics")
-def get_metrics():
+def get_metrics(_admin=Depends(require_role("admin"))):
     from app.observability import metrics
     return metrics.snapshot()

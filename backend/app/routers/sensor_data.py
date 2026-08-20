@@ -10,9 +10,10 @@ import io
 from datetime import datetime, timedelta
 from typing import Iterator, Literal
 
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import StreamingResponse
 
+from app.dependencies.auth import require_role
 from app.repositories import sensor_data_repository
 
 router = APIRouter(prefix="/api/sensor-data", tags=["sensor-data"])
@@ -85,6 +86,8 @@ async def export_sensor_data(
     end: str = Query(...),
     interval: Literal["1min"] | None = Query(None),
     limit: int = Query(DEFAULT_LIMIT, ge=1, le=MAX_LIMIT),
+    # 원시 시계열 CSV 반출은 supervisor 이상 (FR-602 역할 매트릭스).
+    _supervisor=Depends(require_role("admin", "supervisor")),
 ):
     start_dt, end_dt = _validated_range(start, end)
     rows = await sensor_data_repository.query(
