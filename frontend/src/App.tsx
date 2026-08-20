@@ -4,6 +4,7 @@ import { Header } from "./components/Header";
 import { Sidebar, type ScreenKey } from "./components/Sidebar";
 import { Toaster } from "./components/Toaster";
 import { ChartScreen } from "./screens/ChartScreen";
+import { ExposureScreen } from "./screens/ExposureScreen";
 import { SettingsScreen } from "./screens/SettingsScreen";
 import { TwinScreen } from "./screens/TwinScreen";
 import { SafetyWorkspace, type SafetyWorkspaceView } from "./components/SafetyWorkspace";
@@ -19,6 +20,7 @@ const TITLES: Record<ScreenKey, string> = {
   twin: "3D 디지털 트윈",
   chart: "시계열 차트",
   "event-log": "이벤트 로그",
+  exposure: "작업자 누적 노출량",
   settings: "설정",
 };
 
@@ -93,6 +95,7 @@ function App() {
           )}
           {screen === "twin" && <TwinScreen />}
           {screen === "chart" && <ChartScreen />}
+          {screen === "exposure" && <ExposureScreen />}
           {screen === "settings" && <SettingsScreen />}
         </main>
       </div>

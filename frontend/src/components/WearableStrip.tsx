@@ -2,6 +2,8 @@ import type { ComponentType } from "react";
 import type { AlertLevel, WearableState } from "../types";
 import type { AssignedWorker } from "../services/api";
 import { classifyO2High, classifyO2Low, levelLabel, maxLevel } from "../utils/alerts";
+import { useExposure } from "../hooks/useExposure";
+import { formatFraction, worstDoseFraction, worstExposureLevel } from "../utils/exposure";
 import { LEVEL_ICON } from "./icons";
 
 interface WearableStripProps {
@@ -49,6 +51,14 @@ export function WearableStrip({ node_id, wearable, worker }: WearableStripProps)
   const Icon = LEVEL_ICON[stripLevel] as ComponentType<{
     size?: number | string;
   }>;
+
+  // 누적 노출량 요약 (11_EXPOSURE_DOSE_SPEC §6.4 — 요약은 웨어러블 영역, 상세는 별도 화면).
+  // 줄 전체의 등급(stripLevel)은 건드리지 않는다. 노출량 경보는 자동 해제되지
+  // 않으므로(§5.2) 스트립을 승격시키면 윈도우가 끝날 때까지 줄이 계속 붉게 남아
+  // 낙상·O₂ 같은 즉시 대응이 필요한 상태를 덮어 버린다.
+  const { exposure } = useExposure(node_id);
+  const doseFraction = worstDoseFraction(exposure);
+  const doseLevel = doseFraction !== null ? worstExposureLevel(exposure) : "unknown";
 
   return (
     <div
@@ -98,6 +108,23 @@ export function WearableStrip({ node_id, wearable, worker }: WearableStripProps)
       <span className="wstrip__fact">
         <span className="wstrip__label">위치품질</span>
         <strong className={q.cls}>{q.text}</strong>
+      </span>
+      {/* 산출 불가를 "0%" 로 그리지 않는다. 측정 못 한 것을 노출 없음으로 보여주면
+          안전하다고 오해한다 (11_EXPOSURE_DOSE_SPEC §6.4 MUST). */}
+      <span className={"wstrip__fact is-" + doseLevel}>
+        <span className="wstrip__label">누적노출</span>
+        <strong
+          className="wstrip__dose"
+          title={
+            doseFraction === null
+              ? "노출량을 산출할 수 없습니다. 노출이 없다는 뜻이 아닙니다."
+              : doseLevel === "unknown"
+                ? "산출되지 않은 지표가 있어 이 값은 하한입니다. 상세는 노출량 화면에서 확인합니다."
+                : "노출 기준 대비 소진율. 상세는 노출량 화면에서 확인합니다."
+          }
+        >
+          {doseFraction !== null ? formatFraction(doseFraction) : "확인 필요"}
+        </strong>
       </span>
 
       {fall && (

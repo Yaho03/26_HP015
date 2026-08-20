@@ -2015,3 +2015,202 @@ body { background: var(--ground); }
   .console__right { grid-template-rows: var(--panel2-share, 15fr) var(--panel3-share, 85fr) 150px; }
   .panel-5 { padding: 8px; }
 }
+
+/* ── 누적 노출량 (FR-701~708) ──────────────────────────────────────────── */
+
+/* 스트립의 소진율. 값 색은 등급을 따르되 줄 전체는 승격시키지 않는다.
+   .wstrip__fact strong 이 (0,1,1) 이라 클래스 하나로는 못 이긴다. */
+.wstrip__fact strong.wstrip__dose { color: var(--lv, var(--ink-1)); }
+
+/* 게이지 ------------------------------------------------------------- */
+.egauge {
+  position: relative;
+  display: flex; flex-direction: column; align-items: center; gap: 4px;
+  padding: 12px 10px 10px;
+  border: 1px solid var(--lv, var(--rule)); border-radius: var(--r2);
+  background: var(--panel);
+}
+/* 산출 불가는 등급색을 쓰지 않는다. 무채색이어야 "모른다"로 읽힌다. */
+.egauge--na { border-color: var(--rule); border-style: dashed; }
+
+/* 링 상자. 캡션을 여기에 inset:0 으로 얹어 폰트 높이와 무관하게 정중앙에 둔다. */
+.egauge__ring { position: relative; width: 100%; max-width: 132px; aspect-ratio: 1; }
+.egauge__svg {
+  display: block; width: 100%; height: 100%;
+  /* pattern 안의 currentColor 가 여기서 해석된다. */
+  color: var(--lv, var(--ink-3));
+}
+.egauge__svg path { fill: none; stroke-linecap: round; }
+.egauge__track { stroke: var(--rule); stroke-width: 9; }
+.egauge__value { stroke: var(--lv, var(--ink-2)); stroke-width: 9; transition: d 260ms ease; }
+/* 신뢰도가 낮을 때 덮는 빗금. 값은 그대로 보여주되 그대로 믿지 말라고 말한다. */
+.egauge__suspect { stroke-width: 9; }
+.egauge__na-arc { stroke-width: 9; }
+/* 초과분은 안쪽 링. 바깥 링이 꽉 찬 채로 멈추면 110% 와 300% 가 같은 그림이 된다. */
+.egauge__over { stroke: var(--l3); stroke-width: 5; }
+.egauge__tick { stroke: var(--rule-strong); stroke-width: 1.2; }
+.egauge__tick--limit { stroke: var(--ink-2); stroke-width: 2; }
+
+.egauge__cap {
+  position: absolute; inset: 0;
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: 1px;
+}
+.egauge__label {
+  color: var(--ink-3); font-family: var(--font-mono); font-size: 9px;
+  font-weight: 600; letter-spacing: 0.12em;
+}
+.egauge__pct {
+  color: var(--lv, var(--ink-1)); font-family: var(--font-num);
+  font-size: 21px; font-weight: 700; font-variant-numeric: tabular-nums; line-height: 1;
+}
+.egauge__na-text {
+  max-width: 88px;
+  color: var(--unknown); font-size: 11px; font-weight: 600; line-height: 1.25;
+  text-align: center; cursor: help;
+}
+
+.egauge__badge, .egauge__trust {
+  position: absolute; top: 7px;
+  padding: 1px 6px; border-radius: var(--r1);
+  font-family: var(--font-mono); font-size: 9px; font-weight: 700; letter-spacing: 0.08em;
+}
+.egauge__badge { right: 7px; background: var(--l3); color: #fff; }
+.egauge__trust {
+  left: 7px; border: 1px solid var(--rule-strong);
+  background: var(--raise); color: var(--ink-2); cursor: help;
+}
+
+.egauge__facts { display: flex; gap: 12px; margin: 0; }
+.egauge__facts div { display: flex; flex-direction: column; align-items: center; gap: 1px; }
+.egauge__facts dt {
+  color: var(--ink-3); font-family: var(--font-mono); font-size: 8px;
+  font-weight: 600; letter-spacing: 0.1em;
+}
+.egauge__facts dd {
+  margin: 0; color: var(--ink-2); font-family: var(--font-num);
+  font-size: 10px; font-variant-numeric: tabular-nums;
+}
+.egauge__facts dd em {
+  margin-left: 2px; color: var(--ink-3); font-family: var(--font-mono);
+  font-size: 8px; font-style: normal;
+}
+.egauge--compact .egauge__ring { max-width: 84px; }
+.egauge--compact .egauge__pct { font-size: 15px; }
+
+/* 상세 화면 --------------------------------------------------------- */
+.exposure {
+  display: flex; flex-direction: column; gap: 14px;
+  max-width: 1180px; padding: 4px 2px 20px;
+}
+.exposure__empty { color: var(--ink-3); font-size: 12px; }
+
+.exposure__head {
+  display: flex; align-items: center; justify-content: space-between;
+  flex-wrap: wrap; gap: 10px 20px;
+  padding: 10px 13px; border: 1px solid var(--rule); border-radius: var(--r2);
+  background: var(--raise);
+}
+.exposure__who { display: inline-flex; align-items: baseline; gap: 8px; }
+.exposure__who strong { color: var(--ink-1); font-size: 15px; font-weight: 700; }
+.exposure__who em {
+  color: var(--ink-3); font-family: var(--font-mono); font-size: 10px;
+  font-style: normal; letter-spacing: 0.06em;
+}
+/* 목 데이터임을 화면이 숨기지 않는다 (10_UI_FLOW §11 의 SIM 배지와 같은 이유). */
+.exposure__mock-badge {
+  padding: 1px 6px; border: 1px dashed var(--rule-strong); border-radius: var(--r1);
+  color: var(--ink-3); font-family: var(--font-mono); font-size: 9px; letter-spacing: 0.1em;
+}
+
+.exposure__window { display: flex; flex-wrap: wrap; gap: 6px 22px; margin: 0; }
+.exposure__window div { display: flex; flex-direction: column; gap: 1px; }
+.exposure__window dt {
+  color: var(--ink-3); font-family: var(--font-mono); font-size: 9px;
+  font-weight: 600; letter-spacing: 0.1em;
+}
+.exposure__window dd {
+  margin: 0; color: var(--ink-1); font-family: var(--font-num);
+  font-size: 13px; font-weight: 600; font-variant-numeric: tabular-nums;
+}
+.exposure__trust--medium { color: var(--l1) !important; }
+.exposure__trust--low { color: var(--l3) !important; }
+.exposure__trust { cursor: help; }
+
+/* 공백은 곧 과소평가다 (§4.2 MUST). 경고색이 아니라 정보색으로 두되 눈에 걸리게. */
+.exposure__gap {
+  display: flex; align-items: flex-start; gap: 8px; margin: 0;
+  padding: 8px 12px; border: 1px solid var(--l1); border-radius: var(--r2);
+  background: var(--l1-wash); color: var(--ink-1); font-size: 12px; line-height: 1.45;
+}
+.exposure__gap svg { flex: none; margin-top: 2px; color: var(--l1); }
+
+.exposure__gauges {
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px;
+}
+
+.exposure__table { width: 100%; border-collapse: collapse; font-size: 12px; }
+.exposure__table th, .exposure__table td {
+  padding: 6px 9px; text-align: left; border-bottom: 1px solid var(--rule);
+}
+.exposure__table thead th {
+  color: var(--ink-3); font-family: var(--font-mono); font-size: 9px;
+  font-weight: 600; letter-spacing: 0.1em;
+}
+.exposure__table tbody th { color: var(--lv, var(--ink-1)); font-weight: 700; }
+.exposure__table tbody td {
+  color: var(--ink-2); font-family: var(--font-num); font-variant-numeric: tabular-nums;
+}
+.exposure__table td em {
+  margin-left: 4px; color: var(--ink-3); font-family: var(--font-mono);
+  font-size: 9px; font-style: normal;
+}
+/* 빈 칸으로 두면 "해당 없음"으로 읽힌다. 사유를 그 자리에 적는다. */
+.exposure__row--na td { color: var(--unknown); font-family: var(--font-sans); }
+.exposure__row--na td strong { color: var(--unknown); }
+.exposure__stel--over { color: var(--l3) !important; font-weight: 700; }
+
+.exposure__o2 {
+  padding: 10px 13px; border: 1px solid var(--lv, var(--rule)); border-radius: var(--r2);
+  background: var(--panel);
+}
+.exposure__o2-grid { display: flex; flex-wrap: wrap; gap: 10px 28px; margin: 6px 0 0; }
+.exposure__o2-grid div { display: flex; flex-direction: column; gap: 1px; }
+.exposure__o2-grid dt { color: var(--ink-3); font-size: 10px; }
+.exposure__o2-grid dd {
+  margin: 0; color: var(--ink-1); font-family: var(--font-num);
+  font-size: 14px; font-weight: 600; font-variant-numeric: tabular-nums;
+}
+.exposure__o2-severe { color: var(--l3) !important; }
+.exposure__o2-na { margin: 6px 0 0; color: var(--unknown); font-size: 12px; }
+
+.exposure__disclaimer {
+  padding-top: 10px; border-top: 1px solid var(--rule);
+  color: var(--ink-3); font-size: 10px; line-height: 1.6;
+}
+
+/* 목 토글 — 운영 빌드에서는 렌더 자체를 하지 않는다 (ExposureScreen 참고). */
+.exposure__mock {
+  display: flex; align-items: center; flex-wrap: wrap; gap: 8px 14px;
+  padding: 6px 10px; border: 1px dashed var(--rule-strong); border-radius: var(--r2);
+}
+.exposure__mock-toggle {
+  display: inline-flex; align-items: center; gap: 6px;
+  color: var(--ink-2); font-family: var(--font-mono); font-size: 10px;
+  letter-spacing: 0.08em; cursor: pointer;
+}
+.exposure__mock-states { display: inline-flex; flex-wrap: wrap; gap: 5px; }
+.exposure__mock-btn {
+  padding: 3px 9px; border: 1px solid var(--rule); border-radius: var(--r1);
+  background: var(--panel); color: var(--ink-2); font-size: 11px; cursor: pointer;
+}
+.exposure__mock-btn:hover:not(:disabled) { border-color: var(--rule-strong); color: var(--ink-1); }
+.exposure__mock-btn.is-active {
+  border-color: var(--select); background: var(--select-bg); color: var(--select); font-weight: 600;
+}
+.exposure__mock-btn:disabled { opacity: 0.45; cursor: not-allowed; }
+
+@media (max-width: 767px) {
+  .exposure__head { flex-direction: column; align-items: flex-start; }
+  .exposure__gauges { grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); }
+}
