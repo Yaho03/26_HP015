@@ -38,6 +38,11 @@ class AlertState:
     current_level: AlertLevel = AlertLevel.NORMAL
     enter_started_at: datetime | None = None
     exit_started_at: datetime | None = None
+    # enter_started_at이 "어느 level을 향한" 타이머인지 (이슈 #108). 이게 없으면
+    # 낮은 level(L1)에서 쌓인 경과시간이 desired_level이 갑자기 L3로 튄 순간
+    # L3의 (더 짧은) enter_for_ms와 비교되어, 실제로 L3 값이 한 번도 그 시간만큼
+    # 지속되지 않았는데도 즉시 L3로 오탐 전환되는 문제가 있었다.
+    enter_pending_level: AlertLevel | None = None
 
 
 class AlertTransition(BaseModel):
