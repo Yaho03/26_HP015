@@ -2,7 +2,12 @@ import { useState, type FormEvent } from "react";
 import { login } from "../services/authApi";
 import { useAuthStore } from "../store/authStore";
 
-export function LoginScreen() {
+/**
+ * overlay 모드(AUTH-7/#137): 세션 만료 시 기존 대시보드 위에 덮는다.
+ * 배경이 반투명해서 경보 배너·요약바가 그 아래로 보인다 — 전체 전환이
+ * 금지된 이유는 FR-607 (인증이 경보를 가리면 안 된다).
+ */
+export function LoginScreen({ overlay = false }: { overlay?: boolean }) {
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -27,7 +32,7 @@ export function LoginScreen() {
   }
 
   return (
-    <div className="login-screen">
+    <div className={"login-screen" + (overlay ? " login-screen--overlay" : "")}>
       <form className="login-card" onSubmit={onSubmit}>
         <h1 className="login-title">HP015 Console</h1>
         <p className="login-subtitle">밀폐공간 모니터링 시스템</p>

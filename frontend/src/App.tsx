@@ -43,6 +43,15 @@ function App() {
   const authStatus = useAuthStore((s) => s.status);
   const authUser = useAuthStore((s) => s.user);
 
+  // 세션이 한 번이라도 유효했는가 — 만료된 경우(401/WS 1008) 로그인을
+  // "오버레이"로 띄우고 기존 화면을 유지한다 (FR-607, AUTH-7/#137).
+  // 경보 배너·모달이 마운트된 채 남아야 세션 만료가 경보를 가리지 않는다.
+  // 첫 방문(한 번도 인증된 적 없음)은 전체 로그인 화면이 맞다.
+  const [hadSession, setHadSession] = useState(false);
+  useEffect(() => {
+    if (authStatus === "authenticated") setHadSession(true);
+  }, [authStatus]);
+
   // 앱 부팅 시 세션 확인 — 200이면 저장된 세션으로 복귀, 401이면 LoginScreen
   // (AUTH-8). 미인증 상태에서는 어떤 화면도 데이터를 렌더링하지 않는다.
   useEffect(() => {
@@ -81,7 +90,9 @@ function App() {
   useHealthPoll();
   useThresholds();
 
-  if (authStatus !== "authenticated") {
+  // 첫 방문 미인증 — 전체 로그인 화면. 부팅 중에는 아무것도 그리지 않는다.
+  if (authStatus === "booting") return null;
+  if (authStatus === "unauthenticated" && !hadSession) {
     return <LoginScreen />;
   }
 
@@ -115,6 +126,9 @@ function App() {
           {screen === "settings" && <SettingsScreen />}
         </main>
       </div>
+      {/* 세션 만료 오버레이 — 기존 화면 위에 덮는다. AlertModal(z-index 2000)이
+          로그인 카드(200)보다 위에 렌더링돼 활성 경보가 계속 보인다 (FR-607). */}
+      {authStatus === "unauthenticated" && hadSession && <LoginScreen overlay />}
       <Toaster />
       <AlertModal />
     </div>

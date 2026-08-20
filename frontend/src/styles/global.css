@@ -1466,3 +1466,6 @@ body { background: var(--ground); }
   cursor: pointer;
 }
 .login-submit:disabled { opacity: 0.55; cursor: not-allowed; }
+
+/* 세션 만료 오버레이 (AUTH-7, FR-607) — 대시보드가 그 아래로 보인다 */
+.login-screen--overlay { background: rgba(8, 10, 16, 0.72); backdrop-filter: blur(2px); }
