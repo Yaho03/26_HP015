@@ -40,3 +40,7 @@ tools/extract_pyinstaller.py
 AGENTS.md
 PRODUCT.md
 .worktrees/
+
+# 하드웨어 검증 DB 원본 덤프 — sensor_data 만 441,726행(2.9MB)
+# 보고서용 집계본은 같은 폴더 csv/ 에 커밋되어 있다
+test_results/hardware/*/db_exports/
