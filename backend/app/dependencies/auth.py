@@ -19,7 +19,7 @@ CSRF_COOKIE = "hp015_csrf"
 CSRF_HEADER = "X-CSRF-Token"
 
 
-def _bearer_user(request: Request) -> UserRow:
+async def _bearer_user(request: Request) -> UserRow:
     token = request.cookies.get(SESSION_COOKIE)
     if not token:
         raise HTTPException(
