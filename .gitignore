@@ -34,3 +34,22 @@ tools/extract_pyinstaller.py
 
 # 에이전트 세션 아티플랙트 — 코드가 참조하지 않는다 (이슈 #129)
 .omo/
+
+# 로컬 작업 메모 — 커밋하지 않는다
+.notes/
+AGENTS.md
+PRODUCT.md
+.worktrees/
+
+# 하드웨어 검증 DB 원본 덤프 — sensor_data 만 441,726행(2.9MB)
+# 보고서용 집계본은 같은 폴더 csv/ 에 커밋되어 있다
+test_results/hardware/*/db_exports/
+
+# 하드웨어 검증 원시 증거 — 저장소에는 판정 결과(result_summary.md)만 두고
+# 원시 로그·CSV·MQTT 캡처는 멘토에게 직접 전달한다 (CSV 2개만 38,000줄)
+test_results/hardware/*/csv/
+test_results/hardware/*/serial_*.log
+test_results/hardware/*/mqtt_tap.jsonl.gz
+
+# 컴퓨터 간 이관 안내 — 특정 노트북의 SSID/IP 가 들어 있고 저장소 가치가 없다
+docs/HW_TRANSFER_README_*.md
