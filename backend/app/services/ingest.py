@@ -21,6 +21,8 @@ _SKIP_FIELDS = {
 
 _alert_callback = None
 _location_callback = None
+_reading_callback = None
+_status_callback = None
 
 
 def set_alert_callback(callback) -> None:
@@ -28,6 +30,21 @@ def set_alert_callback(callback) -> None:
     백엔드 startup(mqtt_subscriber.start)에서 alert_service 로부터 주입한다 (#54)."""
     global _alert_callback
     _alert_callback = callback
+
+
+def set_reading_callback(callback) -> None:
+    """정상 센서 측정값 브로드캐스트 콜백 주입. ingest_telemetry 가 각 metric 저장 후
+    호출한다. sensor_broadcast.init() 에서 등록한다 (#106) — 경보가 없어도
+    대시보드가 실시간 값을 받아야 하므로 alert_callback과는 별개로 항상 호출된다."""
+    global _reading_callback
+    _reading_callback = callback
+
+
+def set_status_callback(callback) -> None:
+    """node_status 브로드캐스트 콜백 주입. ingest_status 가 저장 후 호출한다.
+    sensor_broadcast.init() 에서 등록한다 (#106)."""
+    global _status_callback
+    _status_callback = callback
 
 
 def set_location_callback(callback) -> None:
@@ -182,6 +199,14 @@ async def ingest_telemetry(payload: bytes) -> None:
                             "alert evaluation failed (node=%s metric=%s value=%s)",
                             node_id, metric, value,
                         )
+                if _reading_callback is not None:
+                    try:
+                        await _reading_callback(node_id, metric, value, sampled_at)
+                    except Exception:
+                        logger.exception(
+                            "reading broadcast failed (node=%s metric=%s value=%s)",
+                            node_id, metric, value,
+                        )
                 metrics.increment("messages_processed")
 
     if _location_callback is not None and isinstance(data, dict):
@@ -274,6 +299,21 @@ async def ingest_status(payload: bytes) -> None:
                 sensors_error,
                 sampled_at,
             )
+
+    if _status_callback is not None:
+        try:
+            await _status_callback(
+                node_id,
+                {
+                    "battery_pct": battery_pct,
+                    "wifi_rssi_dbm": wifi_rssi_dbm,
+                    "sensors_online": sensors_online,
+                    "sensors_error": sensors_error,
+                },
+                sampled_at,
+            )
+        except Exception:
+            logger.exception("status broadcast failed (node=%s)", node_id)
 
 
 async def ingest_connection(payload: bytes) -> None:
