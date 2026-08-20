@@ -97,3 +97,20 @@ def verify_csrf(request: Request, user: CurrentUser) -> None:
             status_code=status.HTTP_403_FORBIDDEN,
             detail="CSRF token missing or invalid",
         )
+
+
+async def authenticate_ws(ws) -> UserRow | None:
+    """WebSocket 핸드셰이크 인증 (AUTH-4, 이슈 #134).
+
+    브라우저 WebSocket API 는 커스텀 헤더를 못 붙인다 — 그래서 세션 쿠키로
+    인증한다 (ADR-007 이 쿠키 세션을 고른 결정적 이유). 핸드셰이크 쿠키는
+    자동으로 따라온다.
+    """
+    token = ws.cookies.get(SESSION_COOKIE)
+    if not token:
+        return None
+    try:
+        session = await auth_service.validate_session(token)
+    except auth_service.SessionExpired:
+        return None
+    return session.user
