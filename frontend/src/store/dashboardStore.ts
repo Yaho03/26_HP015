@@ -37,7 +37,6 @@ interface DashboardStore {
     timestamp: string,
   ) => void;
   setSensorNodeStatus: (node_id: NodeId, patch: Partial<SensorNodeState>) => void;
-  setWearableState: (state: WearableState) => void;
   setWearableO2Reading: (node_id: NodeId, value: number, timestamp: string) => void;
   setWearablePosition: (
     node_id: NodeId,
@@ -125,8 +124,6 @@ export const useDashboardStore = create<DashboardStore>((set) => ({
         },
       };
     }),
-
-  setWearableState: (wearable) => set({ wearable }),
 
   // 웨어러블 O₂ 는 센서 노드 카드가 아니라 웨어러블 카드에 들어가야 한다
   // (10_UI_FLOW 3.3). node_id 가 wearable- 이면 여기로 보낸다.
