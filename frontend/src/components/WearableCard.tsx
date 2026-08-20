@@ -1,11 +1,34 @@
 import type { WearableState } from "../types";
+import type { AssignedWorker } from "../services/api";
 import { classifyO2High, classifyO2Low, levelLabel, maxLevel } from "../utils/alerts";
 
 interface WearableCardProps {
   node_id: string;
   wearable: WearableState | null;
+  /** 이 웨어러블을 착용 중인 작업자 (이슈 #136). 미배정이면 null. */
+  worker?: AssignedWorker | null;
 }
 
+/** 착용자 표시. 밀폐공간에서 "누가 안에 있는지" 모르는 것은 그 자체가 위험 정보다. */
+function WearerLine({ node_id, worker }: { node_id: string; worker?: AssignedWorker | null }) {
+  if (!worker) {
+    return (
+      <div className="wearable__wearer wearable__wearer--none">
+        <span className="wearable__wearer-name">미배정</span>
+        <span className="wearable__wearer-meta">{node_id} · 착용자를 등록하세요</span>
+      </div>
+    );
+  }
+  return (
+    <div className="wearable__wearer">
+      <span className="wearable__wearer-name">{worker.name}</span>
+      <span className="wearable__wearer-meta">
+        {worker.employee_no}
+        {worker.emergency_contact ? ` · ${worker.emergency_contact}` : ""}
+      </span>
+    </div>
+  );
+}
 
 function batteryClass(pct: number | null): string {
   if (pct === null) return "";
@@ -22,10 +45,11 @@ function quality(q: WearableState["location_quality"]): { text: string; cls: str
   return { text: "POOR", cls: "q-poor" };
 }
 
-export function WearableCard({ node_id, wearable }: WearableCardProps) {
+export function WearableCard({ node_id, wearable, worker }: WearableCardProps) {
   if (!wearable) {
     return (
       <div className="wearable-card is-unknown" aria-label={node_id}>
+        <WearerLine node_id={node_id} worker={worker} />
         <div className="wearable__o2">
           <span className="wearable__o2-value">—</span>
           <span className="wearable__o2-label">O₂ %</span>
@@ -48,8 +72,9 @@ export function WearableCard({ node_id, wearable }: WearableCardProps) {
   return (
     <div
       className={"wearable-card is-" + o2Level + (fall ? " wearable-card--fall" : "")}
-      aria-label={`${node_id} ${fall ? "낙상 감지" : levelLabel(o2Level)}`}
+      aria-label={`${worker ? worker.name : node_id} ${fall ? "낙상 감지" : levelLabel(o2Level)}`}
     >
+      <WearerLine node_id={node_id} worker={worker} />
       <div className="wearable__o2">
         <span className="wearable__o2-value">{o2 !== null ? o2.toFixed(1) : "—"}</span>
         <span className="wearable__o2-label">O₂ % · 응답 지연 ≤15초</span>

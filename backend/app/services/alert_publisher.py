@@ -63,7 +63,8 @@ class AlertEventPublisher:
             )
             return
 
-        event = self._build_event(transition)
+        worker = await self._assigned_worker(transition)
+        event = self._build_event(transition, worker)
         await self._persist_event(event)
         wire_event = self._to_wire(event)
         self.last_event = wire_event
@@ -78,7 +79,28 @@ class AlertEventPublisher:
         else:
             metrics.increment("alerts_resolved")
 
-    def _build_event(self, transition: AlertTransition) -> dict:
+    @staticmethod
+    async def _assigned_worker(transition: AlertTransition):
+        """경보 발생 시각에 이 노드를 착용하던 작업자 (이슈 #136).
+
+        조회는 경보 발행을 막을 수 없다. 명부가 비어 있든 DB 가 흔들리든 경보는
+        나가야 한다 — 이름을 못 붙이는 것과 경보를 못 보내는 것은 위험도가 다르다.
+        실패하면 None 으로 떨어져 예전처럼 노드 ID 만 나온다.
+        """
+        try:
+            from app.repositories import worker_repository
+
+            return await worker_repository.assigned_at_time(
+                transition.node_id, transition.timestamp
+            )
+        except Exception:
+            logger.exception(
+                "assigned worker lookup failed for %s — 경보는 노드 ID 로 계속 발행한다",
+                transition.node_id,
+            )
+            return None
+
+    def _build_event(self, transition: AlertTransition, worker=None) -> dict:
         key = (transition.node_id, transition.metric)
         now = datetime.now(timezone.utc)
 
@@ -109,7 +131,7 @@ class AlertEventPublisher:
             "trigger_value": transition.value,
             "threshold": transition.threshold,
             "metric": transition.metric,
-            "message": self._human_message(transition),
+            "message": self._human_message(transition, worker),
             "status": status,
             "activated_at": activated_at,
             "resolved_at": resolved_at,
@@ -126,12 +148,18 @@ class AlertEventPublisher:
         return wire
 
     @staticmethod
-    def _human_message(transition: AlertTransition) -> str:
+    def _human_message(transition: AlertTransition, worker=None) -> str:
         direction = "진입" if transition.to_level != AlertLevel.NORMAL else "해제"
-        return (
+        base = (
             f"{transition.metric} {transition.from_level.value}→{transition.to_level.value} "
             f"{direction}: value={transition.value:.2f}, threshold={transition.threshold:.2f}"
         )
+        if worker is None:
+            return base
+        # 이슈 #136 — 관리자가 읽는 첫 줄에 사람이 있어야 대피 지시가 나간다.
+        # 이 문자열은 alert_events 에 그대로 저장된다. 나중에 명부에서 이름을 고쳐도
+        # 사고 기록은 당시 표기를 유지하는 편이 맞다.
+        return f"{worker.name}({worker.employee_no}) — {base}"
 
     async def _persist_event(self, event: dict) -> None:
         pool = get_pool()
