@@ -15,6 +15,7 @@ from app.routers import (
     health,
     sensor_data,
     thresholds,
+    users,
     websocket,
     workers,
 )
@@ -99,6 +100,7 @@ app.add_middleware(
 app.include_router(health.router)
 app.include_router(auth.router)
 app.include_router(audit_log.router)
+app.include_router(users.router)
 app.include_router(thresholds.router)
 app.include_router(sensor_data.router)
 app.include_router(alert_events.router)

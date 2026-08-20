@@ -1469,3 +1469,32 @@ body { background: var(--ground); }
 
 /* 세션 만료 오버레이 (AUTH-7, FR-607) — 대시보드가 그 아래로 보인다 */
 .login-screen--overlay { background: rgba(8, 10, 16, 0.72); backdrop-filter: blur(2px); }
+
+/* ── 설정 > 사용자 탭 (AUTH-10, 이슈 #140) ─────────────────────────── */
+
+.user-admin { display: flex; flex-direction: column; gap: 12px; }
+.user-admin-title { margin: 0; font-size: 15px; }
+.user-admin-sub { margin: 0; font-size: 12px; color: var(--ink-3, #8a93a6); }
+.user-admin-form { display: flex; gap: 8px; flex-wrap: wrap; }
+.user-admin-form input, .user-admin-form select {
+  padding: 8px 10px; font-size: 13px;
+  background: var(--bg-1, #0b0e14); color: var(--ink-1, #e8ecf3);
+  border: 1px solid var(--line-1, #232b3a); border-radius: 6px;
+}
+.user-admin-form button {
+  padding: 8px 14px; font-size: 13px; font-weight: 600; color: #fff;
+  background: var(--accent-1, #2f6fed); border: none; border-radius: 6px; cursor: pointer;
+}
+.user-admin-error { margin: 0; font-size: 12px; color: #f27979; }
+.user-admin-temp {
+  display: flex; gap: 10px; align-items: center; padding: 10px 12px;
+  font-size: 13px; background: rgba(47, 111, 237, 0.12);
+  border: 1px solid rgba(47, 111, 237, 0.4); border-radius: 8px;
+}
+.user-admin-temp code { font-size: 13px; letter-spacing: 0.04em; }
+.user-admin-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.user-admin-table th, .user-admin-table td { padding: 8px 10px; text-align: left; border-bottom: 1px solid var(--line-1, #232b3a); }
+.user-admin-table select { padding: 4px 6px; font-size: 12px; background: var(--bg-1, #0b0e14); color: var(--ink-1, #e8ecf3); border: 1px solid var(--line-1, #232b3a); border-radius: 4px; }
+.user-admin-table button { margin-right: 6px; padding: 4px 10px; font-size: 12px; background: transparent; color: var(--ink-2, #aab3c5); border: 1px solid var(--line-1, #232b3a); border-radius: 4px; cursor: pointer; }
+.user-admin-row-inactive { opacity: 0.5; }
+.user-admin-flag { margin-left: 6px; padding: 1px 6px; font-size: 11px; color: #e8b34b; border: 1px solid #e8b34b55; border-radius: 999px; }
