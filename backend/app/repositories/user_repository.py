@@ -94,8 +94,8 @@ async def find_active_session(session_hash: str) -> Optional[dict]:
             """
             SELECT s.id AS session_id, s.csrf_token, s.expires_at, s.created_at,
                    s.last_seen_at,
-                   u.id AS user_id, u.username, u.display_name, u.role,
-                   u.is_active, u.must_change_password
+                   u.id AS user_id, u.username, u.password_hash, u.display_name,
+                   u.role, u.is_active, u.must_change_password
             FROM sessions s
             JOIN users u ON u.id = s.user_id
             WHERE s.session_hash = $1

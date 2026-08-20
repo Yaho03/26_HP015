@@ -113,7 +113,9 @@ async def validate_session(token: str) -> ValidSession:
         {
             "id": row["user_id"],
             "username": row["username"],
-            "password_hash": "",  # 조인 쿼리가 해시를 아예 안 가져온다
+            # 서비스 계층 내부(비밀번호 변경 검증)에서만 쓴다. UserOut 변환
+            # 시점에 떨어져 나가 응답에는 절대 나가지 않는다.
+            "password_hash": row["password_hash"],
             "display_name": row["display_name"],
             "role": row["role"],
             "is_active": row["is_active"],
