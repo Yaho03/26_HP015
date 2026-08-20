@@ -19,9 +19,13 @@ const TITLES: Record<ScreenKey, string> = {
   settings: "Settings",
 };
 
+// 상대 경로 기본값 — 현재 오리진의 /ws로 접속 (nginx/vite dev proxy가 백엔드로
+// 프록시). :8000 직접 접속은 CORS/배포 환경에서 실패하므로 쓰지 않는다 (이슈 #105).
 const WS_URL =
   (import.meta.env.VITE_WS_URL as string | undefined) ??
-  `ws://${typeof window !== "undefined" ? window.location.hostname : "localhost"}:8000/ws`;
+  (typeof window !== "undefined"
+    ? `${window.location.protocol === "https:" ? "wss:" : "ws:"}//${window.location.host}/ws`
+    : "ws://localhost/ws");
 
 function App() {
   const [screen, setScreen] = useState<ScreenKey>("monitoring");
