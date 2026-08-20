@@ -83,13 +83,23 @@ async def test_bootstrap_account_full_lifecycle(client, monkeypatch):
 
 @pytest.mark.asyncio
 async def test_migrations_contain_no_seed_account(db_pool):
-    """FR-610 — 마이그레이션 SQL 에 계정/해시가 하드코딩되지 않는다."""
+    """FR-610 — 마이그레이션 SQL 에 계정/해시가 하드코딩되지 않는다.
+
+    주석(Argon2id 방식 설명 등)은 허용한다 — 실제 시드(INSERT INTO users,
+    해시 리터럴 $argon2...)만 금지한다.
+    """
     from pathlib import Path
 
     migrations = Path(__file__).resolve().parents[2] / "migrations"
     for sql_file in migrations.glob("*.sql"):
-        content = sql_file.read_text(encoding="utf-8").upper()
-        assert "INSERT INTO USERS" not in content, (
+        executable_lines = [
+            line for line in sql_file.read_text(encoding="utf-8").splitlines()
+            if not line.strip().startswith("--")
+        ]
+        executable = "\n".join(executable_lines).upper()
+        assert "INSERT INTO USERS" not in executable, (
             f"{sql_file.name} 이 users 를 시드하고 있다 — 부트스트랩은 환경 변수로만"
         )
-        assert "ARGON2" not in content, f"{sql_file.name} 에 해시가 하드코딩되어 있다"
+        assert "$ARGON2" not in executable, (
+            f"{sql_file.name} 에 해시 리터럴이 하드코딩되어 있다"
+        )
