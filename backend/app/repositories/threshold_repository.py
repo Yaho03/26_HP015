@@ -41,6 +41,22 @@ async def list_by_metric(metric: str) -> List[Threshold]:
         return [Threshold(**dict(r)) for r in rows]
 
 
+async def find(metric: str, level: str) -> Threshold | None:
+    """단일 임계값 조회 — 감사 로그의 before 값 등에 쓴다 (이슈 #135)."""
+    pool = get_pool()
+    async with pool.acquire() as conn:
+        row = await conn.fetchrow(
+            """
+            SELECT metric, level, direction, enter_threshold, exit_threshold,
+                   enter_for_ms, exit_for_ms, updated_at
+            FROM thresholds
+            WHERE metric = $1 AND level = $2
+            """,
+            metric, level,
+        )
+        return Threshold(**dict(row)) if row else None
+
+
 async def upsert(threshold: Threshold) -> Threshold:
     pool = get_pool()
     async with pool.acquire() as conn:

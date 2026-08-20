@@ -8,6 +8,7 @@ from app.config import settings
 from app.dependencies.auth import enforce_authentication
 from app.routers import (
     alert_events,
+    audit_log,
     auth,
     demo,
     health,
@@ -87,6 +88,7 @@ app.add_middleware(
 
 app.include_router(health.router)
 app.include_router(auth.router)
+app.include_router(audit_log.router)
 app.include_router(thresholds.router)
 app.include_router(sensor_data.router)
 app.include_router(alert_events.router)
