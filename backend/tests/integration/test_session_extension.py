@@ -73,9 +73,9 @@ async def _set_active_alert(level: str) -> None:
             INSERT INTO alert_events (message_id, alert_id, source_node_id, alert_key,
                                       alert_type, level, trigger_value, threshold,
                                       metric, message, status, activated_at,
-                                      schema_version)
+                                      published_at, schema_version)
             VALUES ($1, $2, 'sensor-01', 'sensor-01:co2_ppm', 'threshold', $3,
-                    5100, 5000, 'co2_ppm', '테스트 경보', 'active', now(), '1.1')
+                    5100, 5000, 'co2_ppm', '테스트 경보', 'active', now(), now(), '1.1')
             """,
             f"authz7-{level}", f"authz7-{level}", level,
         )
