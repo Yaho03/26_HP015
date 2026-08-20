@@ -24,6 +24,7 @@ _location_callback = None
 _ranging_callback = None
 _reading_callback = None
 _status_callback = None
+_connection_recovery_callback = None
 
 
 def set_alert_callback(callback) -> None:
@@ -54,12 +55,19 @@ def set_ranging_callback(callback) -> None:
     global _ranging_callback
     _ranging_callback = callback
 
-
 def set_location_callback(callback) -> None:
     """위치 필터링 콜백 주입. ingest_telemetry 가 location metric(x_m/y_m/z_m) 을
     만나면 호출한다 (#70). location_service.init() 에서 등록한다."""
     global _location_callback
     _location_callback = callback
+
+
+def set_connection_recovery_callback(callback) -> None:
+    """노드 offline→online 복귀 콜백 주입. ingest_connection 이 이전 상태가
+    offline이었던 노드로부터 online 메시지를 받으면 호출한다 (이슈 #111).
+    connection_monitor.init() 에서 등록한다."""
+    global _connection_recovery_callback
+    _connection_recovery_callback = callback
 
 
 class DuplicateMessage(Exception):
@@ -328,8 +336,16 @@ async def ingest_connection(payload: bytes) -> None:
     """nodes/*/connection (LWT) 처리. 이 페이로드엔 message_id가 없어 dedup 대상이 아니다
     (최신 상태로 upsert만 하면 되므로 중복 수신되어도 안전). 능동적 30초 타임아웃 감지는 #52.
 
-    connection_updated_at 기준으로도 오래된 메시지의 덮어쓰기를 방지한다
-    (node_status.updated_at과는 별도 컬럼이므로 독립적으로 가드).
+    connection_updated_at 기준으로 오래된 메시지의 덮어쓰기를 방지하되, status가
+    "offline"이면 이 가드를 건너뛰고 무조건 반영한다 (이슈 #107 리뷰 3번).
+    MQTT LWT payload는 브로커에 CONNECT 시점에 등록해두고 클라이언트가 죽은 뒤
+    브로커가 그 "고정된" bytes를 그대로 발행하는 구조라, LWT의 timestamp는 항상
+    "연결했던 시각"이다. 반면 연결 직후 보통 status=online 메시지가 (LWT보다 늦은)
+    현재 시각으로 connection_updated_at을 먼저 갱신해두므로, 나중에 노드가 실제로
+    죽어 브로커가 LWT를 발행해도 그 timestamp(연결 시각)가 이미 저장된 online의
+    timestamp보다 항상 과거라 가드에 막혀 offline 전환이 영구히 반영되지 않았다.
+    offline은 safety-critical(연결 끊김 감지)이라 timestamp 신뢰성보다 반영 자체가
+    우선이므로 무조건 통과시킨다.
 
     reason 은 옵셔널 (#96). MQTT LWT offline 메시지가 reason 없이 발행되는 경우가
     있어, 이를 InvalidMessage 로 drop 하면 safety-critical disconnect 이벤트가
@@ -347,6 +363,9 @@ async def ingest_connection(payload: bytes) -> None:
 
     pool = get_pool()
     async with pool.acquire() as conn:
+        previous_status = await conn.fetchval(
+            "SELECT connection_status FROM node_status WHERE node_id = $1", node_id
+        )
         await conn.execute(
             """
             INSERT INTO node_status (node_id, connection_status, connection_reason,
@@ -357,7 +376,8 @@ async def ingest_connection(payload: bytes) -> None:
                 connection_reason     = EXCLUDED.connection_reason,
                 connection_updated_at = EXCLUDED.connection_updated_at,
                 backend_received_at   = now()
-            WHERE node_status.connection_updated_at IS NULL
+            WHERE EXCLUDED.connection_status = 'offline'
+               OR node_status.connection_updated_at IS NULL
                OR node_status.connection_updated_at < EXCLUDED.connection_updated_at
             """,
             node_id,
@@ -365,6 +385,17 @@ async def ingest_connection(payload: bytes) -> None:
             reason,
             ts,
         )
+
+    # offline→online 복귀 감지 (이슈 #111). connection_monitor의 30초 타임아웃이
+    # connection_lost L3 경보를 발생시켜도 그걸 NORMAL로 되돌리는 코드가 없어서,
+    # 노드가 실제로 복귀해도 경보가 active_alert_ids에 영구 잔류하고 retain
+    # 메시지가 고착되던 문제였다. 재연결 시 main.cpp가 항상 이 토픽으로 online을
+    # 보내므로(연결 직후 connectMqtt()), 여기가 복귀를 감지하는 자연스러운 지점이다.
+    if status == "online" and previous_status == "offline" and _connection_recovery_callback is not None:
+        try:
+            await _connection_recovery_callback(node_id)
+        except Exception:
+            logger.exception("connection recovery callback failed (node=%s)", node_id)
 
 
 async def ingest_ranging(payload: bytes) -> None:

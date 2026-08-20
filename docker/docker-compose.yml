@@ -52,8 +52,11 @@ services:
       MQTT_PORT: 1883
       MQTT_USERNAME: ${MQTT_USERNAME:-}
       MQTT_PASSWORD: ${MQTT_PASSWORD:-}
-    ports:
-      - "8000:8000"
+    # 호스트에 포트를 노출하지 않는다 (이슈 #105 수정안, 코드리뷰 반영) — 프론트엔드는
+    # nginx(frontend 컨테이너)가 /api, /ws를 backend:8000으로 내부 프록시하므로 필요 없고,
+    # 호스트에 열어두면 CORS 우회 경로가 하나 더 생기는 셈이라 배포 스택에선 막는 게 맞다.
+    # 로컬에서 백엔드를 직접 찌르며 디버깅해야 하면 `docker compose exec backend curl ...`
+    # 또는 `docker compose port backend 8000`으로 임시 확인.
 
   frontend:
     build:

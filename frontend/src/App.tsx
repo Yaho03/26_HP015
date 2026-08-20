@@ -28,7 +28,7 @@ const WS_URL =
   (import.meta.env.VITE_WS_URL as string | undefined) ??
   (typeof window !== "undefined"
     ? `${window.location.protocol === "https:" ? "wss:" : "ws:"}//${window.location.host}/ws`
-    : "ws://localhost:8000/ws");
+    : "ws://localhost/ws");
 
 type Theme = "dark" | "light";
 

@@ -28,3 +28,6 @@ firmware/src/wifi_credentials.h
 # HP015 와 무관한 리버스 엔지니어링 산출물 (제3자 API 키 포함)
 recovered_py/
 tools/extract_pyinstaller.py
+
+# 하드웨어 검증 tap 기록 (scripts/hw_verify.py) — 실행 산출물
+.hw_verify_tap.jsonl

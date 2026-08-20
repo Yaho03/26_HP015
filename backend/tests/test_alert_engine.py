@@ -158,6 +158,39 @@ async def test_escalation_skips_when_no_duration_required():
     assert transition.to_level == AlertLevel.LEVEL3
 
 
+@pytest.mark.asyncio
+async def test_lower_level_elapsed_time_not_reused_for_higher_level(monkeypatch):
+    """이슈 #108: L1을 향해 쌓인 경과시간이 L3 판정에 재사용되면 안 된다.
+
+    재현 시나리오(이슈 본문과 동일): L1 값이 12초간 지속되다가(L1 자체
+    enter_for_ms=15s라 아직 L1 진입 전) 첫 L3 샘플이 들어옴. 수정 전이면
+    enter_started_at이 12초 전 그대로라 elapsed(12s) >= L3 enter_for(10s)로
+    즉시 L3 전환되던 오탐. 수정 후에는 L3를 향한 타이머가 그 샘플부터 새로
+    시작해야 하므로, t+22s(L3 값이 실제로 10초 지속된 시점)에야 전환된다.
+    """
+    thresholds = {
+        "co2_ppm": [
+            _threshold("co2_ppm", AlertLevel.LEVEL1, enter=1000, exit_=900, enter_ms=15000, exit_ms=5000),
+            _threshold("co2_ppm", AlertLevel.LEVEL3, enter=5000, exit_=4500, enter_ms=10000, exit_ms=5000),
+        ]
+    }
+    evaluator = AlertEvaluator(thresholds=thresholds)
+
+    await evaluator.evaluate("sensor-01", "co2_ppm", 1100.0, _ts(0))
+    # 12초 뒤 첫 L3 샘플 — 수정 전이면 여기서 즉시(오탐) 전환됨
+    transition = await evaluator.evaluate("sensor-01", "co2_ppm", 5500.0, _ts(12.0))
+    assert transition is None, "L1 타이머가 L3 판정에 재사용되어 즉시 전환되면 안 됨(오탐)"
+
+    # L3 타이머가 t=12에 새로 시작했으므로, 그로부터 10초 미만이면 아직 전환 안 됨
+    still_none = await evaluator.evaluate("sensor-01", "co2_ppm", 5500.0, _ts(20.0))
+    assert still_none is None
+
+    # t=22 (L3 타이머 시작 후 정확히 10초) → 실제로 전환
+    transition = await evaluator.evaluate("sensor-01", "co2_ppm", 5500.0, _ts(22.0))
+    assert transition is not None
+    assert transition.to_level == AlertLevel.LEVEL3
+
+
 # ============================================================
 # 4. De-escalation (한 단계씩)
 # ============================================================

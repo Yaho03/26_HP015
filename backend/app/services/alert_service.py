@@ -57,6 +57,13 @@ async def _on_metric_ingested(
             await _handle_transition(transition)
 
 
+async def handle_transition(transition: AlertTransition) -> None:
+    """AlertTransition을 발행/브로드캐스트 경로로 전달하는 공개 API (이슈 #111).
+    connection_monitor처럼 AlertEvaluator를 거치지 않고 자체적으로 transition을
+    만드는 호출자가 내부 함수(_handle_transition)에 직접 접근하지 않도록 한다."""
+    await _handle_transition(transition)
+
+
 async def _handle_transition(transition: AlertTransition) -> None:
     logger.info(
         "alert transition: node=%s metric=%s %s→%s value=%.2f threshold=%.2f",

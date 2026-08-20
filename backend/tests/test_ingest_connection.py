@@ -30,8 +30,12 @@ class _FakeTx:
 
 
 class FakeConn:
-    def __init__(self) -> None:
+    def __init__(self, previous_status: str | None = None) -> None:
         self.executed: list[tuple[str, tuple]] = []
+        self.previous_status = previous_status
+
+    async def fetchval(self, sql: str, *args: object):
+        return self.previous_status
 
     async def execute(self, sql: str, *args: object) -> str:
         self.executed.append((sql, args))
@@ -137,6 +141,61 @@ async def test_connection_message_empty_reason_normalized_to_unknown(monkeypatch
 
 
 @pytest.mark.asyncio
+async def test_recovery_callback_fires_on_offline_to_online_transition(monkeypatch):
+    """이슈 #111: 이전 상태가 offline이었던 노드가 online 메시지를 보내면
+    복귀 콜백이 호출돼야 한다 (connection_lost 경보 해제 트리거)."""
+    conn = FakeConn(previous_status="offline")
+    pool = FakePool(conn)
+    monkeypatch.setattr(ingest, "get_pool", lambda: pool)
+
+    recovered: list[str] = []
+
+    async def _on_recovery(node_id: str) -> None:
+        recovered.append(node_id)
+    monkeypatch.setattr(ingest, "_connection_recovery_callback", _on_recovery)
+
+    await ingest.ingest_connection(_connection_payload(status="online", reason="connect"))
+
+    assert recovered == ["sensor-01"]
+
+
+@pytest.mark.asyncio
+async def test_recovery_callback_not_fired_when_already_online(monkeypatch):
+    """이전 상태가 이미 online이면 (중복 online 메시지) 복귀 콜백을 또 쏘면 안 됨."""
+    conn = FakeConn(previous_status="online")
+    pool = FakePool(conn)
+    monkeypatch.setattr(ingest, "get_pool", lambda: pool)
+
+    recovered: list[str] = []
+
+    async def _on_recovery(node_id: str) -> None:
+        recovered.append(node_id)
+    monkeypatch.setattr(ingest, "_connection_recovery_callback", _on_recovery)
+
+    await ingest.ingest_connection(_connection_payload(status="online", reason="connect"))
+
+    assert recovered == []
+
+
+@pytest.mark.asyncio
+async def test_recovery_callback_not_fired_for_offline_message(monkeypatch):
+    """offline 메시지 자체는 복귀가 아니므로 콜백이 호출되면 안 됨."""
+    conn = FakeConn(previous_status="online")
+    pool = FakePool(conn)
+    monkeypatch.setattr(ingest, "get_pool", lambda: pool)
+
+    recovered: list[str] = []
+
+    async def _on_recovery(node_id: str) -> None:
+        recovered.append(node_id)
+    monkeypatch.setattr(ingest, "_connection_recovery_callback", _on_recovery)
+
+    await ingest.ingest_connection(_connection_payload(status="offline", reason="lwt"))
+
+    assert recovered == []
+
+
+@pytest.mark.asyncio
 async def test_connection_message_missing_node_id_still_rejected(monkeypatch):
     """node_id 가 없으면 여전히 InvalidMessage."""
     conn = FakeConn()
@@ -165,6 +224,28 @@ async def test_connection_message_missing_status_still_rejected(monkeypatch):
 
     with pytest.raises(ingest.InvalidMessage):
         await ingest.ingest_connection(payload)
+
+
+@pytest.mark.asyncio
+async def test_offline_status_bypasses_timestamp_ordering_guard(monkeypatch):
+    """이슈 #107 리뷰 3번: offline은 timestamp 순서 가드 없이 항상 반영돼야 한다.
+
+    LWT payload는 CONNECT 시점에 고정되어 나중에 실제 오프라인 시각을 반영하지
+    못하므로(항상 "연결했던 시각"), timestamp가 기존 connection_updated_at보다
+    과거여도 offline 전환만은 무조건 통과해야 한다. 실제 DB에서의 재현/검증은
+    커밋 메시지 참조 — 여기서는 실행되는 SQL이 offline을 무조건 통과시키는
+    분기를 포함하는지 확인한다."""
+    conn = FakeConn()
+    pool = FakePool(conn)
+    monkeypatch.setattr(ingest, "get_pool", lambda: pool)
+
+    await ingest.ingest_connection(_connection_payload(status="offline"))
+
+    sql = conn.executed[0][0]
+    assert "connection_status = 'offline'" in sql, (
+        "WHERE 절에 offline 무조건 통과 분기가 없으면 LWT가 항상 stale timestamp로 "
+        "드롭될 수 있음"
+    )
 
 
 @pytest.mark.asyncio
