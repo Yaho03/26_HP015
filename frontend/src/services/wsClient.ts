@@ -2,16 +2,22 @@ import type { WSMessage } from "../types/ws";
 
 type MessageHandler = (msg: WSMessage) => void;
 type StatusHandler = (connected: boolean) => void;
+type AuthExpiredHandler = () => void;
 
 const INITIAL_BACKOFF_MS = 1000;
 const MAX_BACKOFF_MS = 30000;
 const BACKOFF_MULTIPLIER = 2;
+
+// 서버가 세션 없음/만료로 닫을 때 쓰는 close code (backend websocket.py 와 계약).
+// 1008 은 재연결 대상이 아니다 — 로그인 상태 갱신으로 전환한다 (AUTH-4/#134).
+export const WS_CLOSE_AUTH_EXPIRED = 1008;
 
 export class WSClient {
   private url: string;
   private socket: WebSocket | null = null;
   private messageHandlers = new Set<MessageHandler>();
   private statusHandlers = new Set<StatusHandler>();
+  private authExpiredHandlers = new Set<AuthExpiredHandler>();
   private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
   private backoffMs = INITIAL_BACKOFF_MS;
   private shouldReconnect = true;
@@ -36,8 +42,15 @@ export class WSClient {
       this.backoffMs = INITIAL_BACKOFF_MS;
       this.notifyStatus(true);
     };
-    this.socket.onclose = () => {
+    this.socket.onclose = (ev: CloseEvent) => {
       this.notifyStatus(false);
+      if (ev.code === WS_CLOSE_AUTH_EXPIRED) {
+        // 만료 세션이 초당 수 번 재연결을 시도하는 폭주를 막는다 —
+        // 인증 거부는 재시도로 해결되지 않는다.
+        this.shouldReconnect = false;
+        for (const h of this.authExpiredHandlers) h();
+        return;
+      }
       if (this.shouldReconnect) this.scheduleReconnect();
     };
     this.socket.onerror = () => {
@@ -79,6 +92,11 @@ export class WSClient {
   onStatusChange(handler: StatusHandler): () => void {
     this.statusHandlers.add(handler);
     return () => this.statusHandlers.delete(handler);
+  }
+
+  onAuthExpired(handler: AuthExpiredHandler): () => void {
+    this.authExpiredHandlers.add(handler);
+    return () => this.authExpiredHandlers.delete(handler);
   }
 
   private notifyStatus(connected: boolean): void {
