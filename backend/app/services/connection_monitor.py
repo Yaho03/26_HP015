@@ -23,6 +23,18 @@ TIMEOUT_SECONDS = 30
 CHECK_INTERVAL_SECONDS = 1
 
 _task: Optional[asyncio.Task] = None
+_callback_registered = False
+
+
+def init() -> None:
+    """ingest.set_connection_recovery_callback 등록 (이슈 #111) — 노드가
+    offline→online으로 복귀하면 connection_lost 경보를 해제한다."""
+    global _callback_registered
+    if _callback_registered:
+        return
+    from app.services import ingest
+    ingest.set_connection_recovery_callback(_emit_connection_recovered)
+    _callback_registered = True
 
 
 async def check_timeouts() -> int:
@@ -76,9 +88,32 @@ async def _emit_connection_lost(node_id: str) -> None:
             threshold=0.0,
             timestamp=datetime.now(timezone.utc),
         )
-        await alert_service._handle_transition(transition)
+        await alert_service.handle_transition(transition)
     except Exception:
         logger.exception("failed to emit connection_lost alert for %s", node_id)
+
+
+async def _emit_connection_recovered(node_id: str) -> None:
+    """connection_lost 경보 해제 (이슈 #111). 노드가 offline→online으로 복귀하면
+    ingest.py의 콜백을 통해 호출된다. _emit_connection_lost의 반대 방향 —
+    이게 없으면 노드가 복귀해도 경보가 active_alert_ids에 영구 잔류하고
+    alerts/state/{node}/connection_lost retain 메시지가 고착된다."""
+    try:
+        from datetime import datetime, timezone
+        from app.models.alert import AlertLevel, AlertTransition
+        from app.services import alert_service
+        transition = AlertTransition(
+            node_id=node_id,
+            metric="connection_lost",
+            from_level=AlertLevel.LEVEL3,
+            to_level=AlertLevel.NORMAL,
+            value=0.0,
+            threshold=0.0,
+            timestamp=datetime.now(timezone.utc),
+        )
+        await alert_service.handle_transition(transition)
+    except Exception:
+        logger.exception("failed to emit connection_recovered for %s", node_id)
 
 
 async def _loop() -> None:

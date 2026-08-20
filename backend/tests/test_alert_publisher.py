@@ -179,6 +179,58 @@ async def test_message_id_and_alert_id_are_ulid(monkeypatch):
 
 
 # ============================================================
+# 4-1. resolved-only 오발행 방지 (이슈 #111 P2 후속)
+# ============================================================
+
+@pytest.mark.asyncio
+async def test_resolved_only_transition_skipped_when_no_active_alert(monkeypatch):
+    """to_level=NORMAL인데 해당 (node_id, metric)이 active로 추적된 적 없으면
+    발행하지 않는다. connection_lost가 LWT/명시적 offline처럼 timeout 경보를
+    띄운 적 없는 상태에서 복귀해도 무조건 NORMAL transition이 만들어지므로,
+    publisher 단에서 "진짜 해제할 게 있었는지"로 최종 필터링해야 한다."""
+    from app.services import alert_publisher
+
+    publisher = alert_publisher.AlertEventPublisher(mqtt_client=None)
+    persist_calls: list[Any] = []
+    mqtt_calls: list[Any] = []
+
+    async def _fake_persist(event):
+        persist_calls.append(event)
+    monkeypatch.setattr(publisher, "_persist_event", _fake_persist)
+    monkeypatch.setattr(publisher, "_publish_mqtt", lambda *a, **kw: mqtt_calls.append(a))
+
+    transition = _transition(
+        from_level=AlertLevel.LEVEL3, to_level=AlertLevel.NORMAL, metric="connection_lost",
+    )
+    await publisher.publish_transition(transition)
+
+    assert persist_calls == [], "active 경보가 없었으면 DB에 아무것도 써선 안 됨"
+    assert mqtt_calls == [], "active 경보가 없었으면 MQTT도 발행하면 안 됨 (retain 오염 방지)"
+    assert publisher.last_event is None
+
+
+@pytest.mark.asyncio
+async def test_resolved_transition_published_when_active_alert_exists(monkeypatch):
+    """반대로, 진짜 active 경보가 있었으면(ENTER를 먼저 거쳤으면) 정상적으로
+    resolved 이벤트를 발행해야 한다 — 기존 계약(조건 유지) 회귀 방지."""
+    from app.services import alert_publisher
+
+    publisher = alert_publisher.AlertEventPublisher(mqtt_client=None)
+    monkeypatch.setattr(publisher, "_persist_event", _async_noop)
+    monkeypatch.setattr(publisher, "_publish_mqtt", lambda *a, **kw: None)
+
+    await publisher.publish_transition(
+        _transition(to_level=AlertLevel.LEVEL3, metric="connection_lost")
+    )
+    await publisher.publish_transition(
+        _transition(from_level=AlertLevel.LEVEL3, to_level=AlertLevel.NORMAL, metric="connection_lost")
+    )
+
+    assert publisher.last_event["status"] == "resolved"
+    assert publisher.last_event["alert_key"] == "connection_lost"
+
+
+# ============================================================
 # 5. MQTT 발행 — 두 토픽
 # ============================================================
 
