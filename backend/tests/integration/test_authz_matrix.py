@@ -131,7 +131,12 @@ async def test_login_is_public(anon):
 async def put_threshold(client: AsyncClient, value: float = 1001.0):
     return await client.put(
         "/api/thresholds/co2_ppm/level1_caution",
-        json={"enter_threshold": value, "exit_threshold": value - 50},
+        json={
+            "enter_threshold": value,
+            "exit_threshold": value - 50,
+            "enter_for_ms": 3000,
+            "exit_for_ms": 5000,
+        },
     )
 
 
