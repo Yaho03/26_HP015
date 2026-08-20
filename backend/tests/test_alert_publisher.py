@@ -19,7 +19,7 @@ from pathlib import Path
 from typing import Any
 
 import pytest
-from jsonschema import validate, ValidationError
+from jsonschema import validate, ValidationError, FormatChecker
 
 from app.models.alert import AlertLevel, AlertTransition
 
@@ -221,7 +221,7 @@ async def test_event_conforms_to_schema(monkeypatch):
     monkeypatch.setattr(publisher, "_publish_mqtt", lambda *a, **kw: None)
 
     await publisher.publish_transition(_transition(to_level=AlertLevel.LEVEL1))
-    validate(instance=publisher.last_event, schema=schema)
+    validate(instance=publisher.last_event, schema=schema, format_checker=FormatChecker())
 
 
 @pytest.mark.asyncio
@@ -237,7 +237,58 @@ async def test_resolved_event_conforms_to_schema(monkeypatch):
     await publisher.publish_transition(
         _transition(from_level=AlertLevel.LEVEL1, to_level=AlertLevel.NORMAL, threshold=900.0)
     )
-    validate(instance=publisher.last_event, schema=schema)
+    validate(instance=publisher.last_event, schema=schema, format_checker=FormatChecker())
+
+
+# ============================================================
+# 9. 이슈 #102 — TIMESTAMPTZ 회귀 방지
+# ============================================================
+
+@pytest.mark.asyncio
+async def test_mqtt_timestamps_round_trip_through_fromisoformat(monkeypatch):
+    """activated_at/resolved_at/published_at이 tz-aware datetime.fromisoformat()으로
+    예외 없이 왕복 파싱되는지 확인한다. 수정 전에는 tz-aware datetime에 '+00:00Z'
+    이중 오프셋이 붙어 fromisoformat()이 ValueError를 냈다 (이슈 #102)."""
+    from app.services import alert_publisher
+
+    publisher = alert_publisher.AlertEventPublisher(mqtt_client=None)
+    monkeypatch.setattr(publisher, "_persist_event", _async_noop)
+    monkeypatch.setattr(publisher, "_publish_mqtt", lambda *a, **kw: None)
+
+    await publisher.publish_transition(_transition(to_level=AlertLevel.LEVEL1))
+    active = publisher.last_event
+    datetime.fromisoformat(active["activated_at"].replace("Z", "+00:00"))
+    datetime.fromisoformat(active["published_at"].replace("Z", "+00:00"))
+    assert active["resolved_at"] is None
+
+    await publisher.publish_transition(
+        _transition(from_level=AlertLevel.LEVEL1, to_level=AlertLevel.NORMAL, threshold=900.0)
+    )
+    resolved = publisher.last_event
+    datetime.fromisoformat(resolved["resolved_at"].replace("Z", "+00:00"))
+
+
+@pytest.mark.asyncio
+async def test_persist_event_receives_datetime_not_str(monkeypatch):
+    """_persist_event()에 넘어가는 시각 필드가 str이 아니라 datetime 객체여야
+    asyncpg가 TIMESTAMPTZ 컬럼에 바인딩할 수 있다 (str을 넘기면 DataError)."""
+    from app.services import alert_publisher
+
+    publisher = alert_publisher.AlertEventPublisher(mqtt_client=None)
+    captured: list[dict] = []
+
+    async def _capture(event):
+        captured.append(event)
+
+    monkeypatch.setattr(publisher, "_persist_event", _capture)
+    monkeypatch.setattr(publisher, "_publish_mqtt", lambda *a, **kw: None)
+
+    await publisher.publish_transition(_transition(to_level=AlertLevel.LEVEL1))
+
+    persisted = captured[0]
+    assert isinstance(persisted["activated_at"], datetime)
+    assert isinstance(persisted["published_at"], datetime)
+    assert persisted["resolved_at"] is None
 
 
 # ============================================================
