@@ -6,13 +6,6 @@ export interface SensorSample {
   value: number;
 }
 
-export interface GridPoint {
-  x: number;
-  y: number;
-  value: number;
-  level: AlertLevel;
-}
-
 const POWER = 2;
 const EPSILON = 1e-6;
 
@@ -30,25 +23,6 @@ export function idw(samples: SensorSample[], x: number, y: number): number {
     den += w;
   }
   return den > 0 ? num / den : 0;
-}
-
-export function buildGrid(
-  samples: SensorSample[],
-  bounds: { minX: number; maxX: number; minY: number; maxY: number },
-  resolution: number,
-): GridPoint[] {
-  const { minX, maxX, minY, maxY } = bounds;
-  const stepX = (maxX - minX) / resolution;
-  const stepY = (maxY - minY) / resolution;
-  const grid: GridPoint[] = [];
-  for (let i = 0; i <= resolution; i++) {
-    for (let j = 0; j <= resolution; j++) {
-      const x = minX + stepX * i;
-      const y = minY + stepY * j;
-      grid.push({ x, y, value: idw(samples, x, y), level: "normal" });
-    }
-  }
-  return grid;
 }
 
 // 임계값은 alerts.ts 한 곳에서만 관리한다 (PRD FR-204, 이슈 #114).
