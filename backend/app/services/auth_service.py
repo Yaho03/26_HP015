@@ -107,7 +107,14 @@ async def validate_session(token: str) -> ValidSession:
 
     now = datetime.now(timezone.utc)
     if now - row["last_seen_at"] > timedelta(hours=settings.session_idle_ttl_hours):
-        raise SessionExpired()
+        # AUTH-7(이슈 #137): 활성 L2+ 경보 중에는 유휴 타이머를 자동 연장한다.
+        # 세션 만료로 벽걸이 화면이 로그인으로 전환되면 산소결핍 같은 L3 경보의
+        # 모달·배너가 사라진다 — 인증이 안전을 훼손해서는 안 된다 (FR-607).
+        # 절대 만료(12h)는 SQL 가드가 이미 걸렀으므로 여기는 유휴만 본다.
+        from app.repositories import alert_events_repository
+
+        if not await alert_events_repository.has_active_alerts_at_or_above("level2_warning"):
+            raise SessionExpired()
 
     user = UserRow(
         {
