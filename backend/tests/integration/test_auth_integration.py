@@ -67,15 +67,16 @@ async def clients(db_pool):
             await conn.execute(
                 """
                 INSERT INTO users (username, password_hash, display_name, role)
-                VALUES ($1, $2, $1, $1)
+                VALUES ($1, $2, $1, $3)
                 ON CONFLICT (username) DO UPDATE SET
                     password_hash = EXCLUDED.password_hash,
+                    role = EXCLUDED.role,
                     failed_login_attempts = 0,
                     locked_until = NULL,
                     is_active = true,
                     must_change_password = false
                 """,
-                f"matrix-{role}", auth_service.hash_password(PASSWORD),
+                f"matrix-{role}", auth_service.hash_password(PASSWORD), role,
             )
         admin_id = await conn.fetchval("SELECT id FROM users WHERE username = 'matrix-admin'")
         await conn.execute(
@@ -210,10 +211,10 @@ def test_reverting_auth_would_fail_these():
     AUTH-2/3/4 를 되돌리면(게이트 제거·WS 인증 제거) 위 테스트들이 실패한다.
     여기선 장치 자체의 존재를 확인해 우발적 제거를 잡는다.
     """
-    # 앱 게이트 존재
+    # 앱 게이트 존재 (FastAPI 는 router.dependencies 에 보관)
     assert any(
         getattr(d, "__name__", "") == "enforce_authentication"
-        for d in app.dependencies
+        for d in app.router.dependencies
     ), "앱 인증 게이트가 사라졌다 — AUTH-3 회귀"
     # WS 라우터 소스에 인증 호출 존재
     from app.routers import websocket as ws_router
