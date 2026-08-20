@@ -37,3 +37,32 @@ class SessionInfo(BaseModel):
 
     user: UserOut
     csrf_token: str
+
+
+# ── 사용자 관리 (AUTH-10, 이슈 #140) ────────────────────────────────────
+
+
+class UserAdminOut(UserOut):
+    """관리자용 사용자 응답 — 잠금 상태 포함. 해시는 여전히 없다."""
+
+    failed_login_attempts: int
+    locked_until: datetime | None
+
+
+class UserCreateRequest(BaseModel):
+    username: str = Field(..., min_length=3, max_length=64, pattern=r"^[a-zA-Z0-9_.-]+$")
+    password: str = Field(..., min_length=8, max_length=256)
+    role: str = Field("viewer", pattern="^(admin|supervisor|viewer)$")
+    display_name: str = Field("", max_length=64)
+
+
+class UserUpdateRequest(BaseModel):
+    role: str | None = Field(None, pattern="^(admin|supervisor|viewer)$")
+    is_active: bool | None = None
+
+
+class PasswordResetResult(BaseModel):
+    """비밀번호 초기화 — 임시 비밀번호는 이 응답으로 1회만 보여준다."""
+
+    user: UserAdminOut
+    temporary_password: str

@@ -13,6 +13,8 @@ double-submit 토큰이 존재하지 않는다. (Cross-Site 로그인 시도는 
 from __future__ import annotations
 
 import logging
+from collections import defaultdict, deque
+from datetime import datetime, timedelta, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 
@@ -31,9 +33,33 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/auth", tags=["auth"])
 
+# 로그인 IP rate limit (AUTH-10, 이슈 #140): 분당 10회. 초과하면 429.
+# 계정 잠금이 '계정 단위' 방어라면 이것은 '출발지 단위' 방어다 — 존재하지 않는
+# 여러 계정을 순회하는 스프레이 공격은 계정 잠금으로 못 막는다.
+# 데모 규모(단일 인스턴스)라 메모리 카운터로 충분하다.
+LOGIN_RATE_LIMIT_PER_MIN = 10
+_login_attempts: dict[str, deque] = defaultdict(deque)
+
+
+def _rate_limited(ip: str) -> bool:
+    now = datetime.now(timezone.utc)
+    window = _login_attempts[ip]
+    while window and now - window[0] > timedelta(minutes=1):
+        window.popleft()
+    if len(window) >= LOGIN_RATE_LIMIT_PER_MIN:
+        return True
+    window.append(now)
+    return False
+
 
 @router.post("/login", response_model=SessionInfo)
 async def login(payload: LoginRequest, response: Response, request: Request):
+    ip = request.client.host if request.client else "unknown"
+    if _rate_limited(ip):
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail="Too many login attempts",
+        )
     try:
         issued = await auth_service.login(payload.username, payload.password)
     except auth_service.InvalidCredentials:

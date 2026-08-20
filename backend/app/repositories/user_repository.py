@@ -22,10 +22,12 @@ class UserRow:
         self.id: int = record["id"]
         self.username: str = record["username"]
         self.password_hash: str = record["password_hash"]
-        self.display_name: str = record["display_name"]
+        self.display_name: str = record.get("display_name", "")
         self.role: str = record["role"]
         self.is_active: bool = record["is_active"]
-        self.must_change_password: bool = record["must_change_password"]
+        self.must_change_password: bool = record.get("must_change_password", False)
+        self.failed_login_attempts: int = record.get("failed_login_attempts", 0)
+        self.locked_until: datetime | None = record.get("locked_until")
 
     def to_out(self) -> UserOut:
         """응답 모델로 변환 — 여기서 해시가 영원히 떨어져 나간다."""
@@ -43,14 +45,100 @@ async def get_by_username(username: str) -> Optional[UserRow]:
     pool = get_pool()
     async with pool.acquire() as conn:
         row = await conn.fetchrow(
-            f"""
+            """
             SELECT id, username, password_hash, display_name, role, is_active,
-                   must_change_password
+                   must_change_password, failed_login_attempts, locked_until
             FROM users WHERE username = $1
             """,
             username,
         )
         return UserRow(dict(row)) if row else None
+
+
+async def record_login_failure(
+    user_id: int, attempts: int, locked_until: Optional[datetime]
+) -> None:
+    """실패 횟수 갱신 + 임계치 도달 시 잠금 (AUTH-10, 이슈 #140)."""
+    pool = get_pool()
+    async with pool.acquire() as conn:
+        await conn.execute(
+            """
+            UPDATE users
+            SET failed_login_attempts = $2, locked_until = $3, updated_at = now()
+            WHERE id = $1
+            """,
+            user_id, attempts, locked_until,
+        )
+
+
+async def reset_login_failures(user_id: int) -> None:
+    pool = get_pool()
+    async with pool.acquire() as conn:
+        await conn.execute(
+            """
+            UPDATE users
+            SET failed_login_attempts = 0, locked_until = NULL, updated_at = now()
+            WHERE id = $1
+            """,
+            user_id,
+        )
+
+
+async def list_all() -> list[UserRow]:
+    pool = get_pool()
+    async with pool.acquire() as conn:
+        rows = await conn.fetch(
+            """
+            SELECT id, username, password_hash, display_name, role, is_active,
+                   must_change_password, failed_login_attempts, locked_until
+            FROM users ORDER BY username
+            """
+        )
+        return [UserRow(dict(r)) for r in rows]
+
+
+async def get_by_id(user_id: int) -> Optional[UserRow]:
+    pool = get_pool()
+    async with pool.acquire() as conn:
+        row = await conn.fetchrow(
+            """
+            SELECT id, username, password_hash, display_name, role, is_active,
+                   must_change_password, failed_login_attempts, locked_until
+            FROM users WHERE id = $1
+            """,
+            user_id,
+        )
+        return UserRow(dict(row)) if row else None
+
+
+async def update_user(
+    user_id: int,
+    *,
+    role: Optional[str] = None,
+    is_active: Optional[bool] = None,
+) -> Optional[UserRow]:
+    """역할/활성 상태 변경. None 인 필드는 유지한다."""
+    pool = get_pool()
+    async with pool.acquire() as conn:
+        row = await conn.fetchrow(
+            """
+            UPDATE users
+            SET role = COALESCE($2, role),
+                is_active = COALESCE($3, is_active),
+                updated_at = now()
+            WHERE id = $1
+            RETURNING id, username, password_hash, display_name, role, is_active,
+                      must_change_password, failed_login_attempts, locked_until
+            """,
+            user_id, role, is_active,
+        )
+        return UserRow(dict(row)) if row else None
+
+
+async def delete_user(user_id: int) -> bool:
+    pool = get_pool()
+    async with pool.acquire() as conn:
+        return await conn.fetchval("DELETE FROM users WHERE id = $1 RETURNING id", user_id) is not None
 
 
 async def count_users() -> int:

@@ -235,3 +235,52 @@ export async function runDemoScenario(
 export async function stopDemoScenario(): Promise<DemoRunState> {
   return fetchApi<DemoRunState>("/api/demo/stop", { method: "POST", csrf: true });
 }
+
+// ── 사용자 관리 (AUTH-10, 이슈 #140) ────────────────────────────────
+
+export interface AdminUser {
+  id: number;
+  username: string;
+  display_name: string;
+  role: "admin" | "supervisor" | "viewer";
+  is_active: boolean;
+  must_change_password: boolean;
+  failed_login_attempts: number;
+  locked_until: string | null;
+}
+
+export async function fetchUsers(): Promise<AdminUser[]> {
+  return fetchApi<AdminUser[]>("/api/users");
+}
+
+export async function createUser(payload: {
+  username: string;
+  password: string;
+  role: AdminUser["role"];
+}): Promise<AdminUser> {
+  return fetchApi<AdminUser>("/api/users", {
+    method: "POST",
+    csrf: true,
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function updateUser(
+  userId: number,
+  patch: { role?: AdminUser["role"]; is_active?: boolean },
+): Promise<AdminUser> {
+  return fetchApi<AdminUser>(`/api/users/${userId}`, {
+    method: "PATCH",
+    csrf: true,
+    body: JSON.stringify(patch),
+  });
+}
+
+export async function resetUserPassword(
+  userId: number,
+): Promise<{ user: AdminUser; temporary_password: string }> {
+  return fetchApi<{ user: AdminUser; temporary_password: string }>(
+    `/api/users/${userId}/reset-password`,
+    { method: "POST", csrf: true },
+  );
+}

@@ -64,22 +64,35 @@ def hash_token(token: str) -> str:
     return hashlib.sha256(token.encode("utf-8")).hexdigest()
 
 
+LOCKOUT_THRESHOLD = 5
+LOCKOUT_MINUTES = 10
+
+
 async def login(username: str, password: str) -> IssuedSession:
     """자격 증명 검증 + 세션 발급.
 
     계정이 없어도 verify_password 를 1회 돌린다 — 로그인 실패 응답 시간으로
     "계정 존재 여부"를 추측하게 두지 않는다 (FR-609).
+    잠금 상태(locked_until)에서도 동일한 InvalidCredentials — 잠금 여부를
+    응답으로 알리면 공격자에게 남은 시도 횟수를 알려준다.
     """
     user = await user_repository.get_by_username(username)
     if user is None:
         verify_password(password, _DUMMY_HASH)
         raise InvalidCredentials()
+
+    if user.locked_until is not None and user.locked_until > datetime.now(timezone.utc):
+        verify_password(password, _DUMMY_HASH)  # 타이밍 마스킹 유지
+        raise InvalidCredentials()
+
     if not verify_password(password, user.password_hash):
+        await _register_failed_login(user)
         raise InvalidCredentials()
     if not user.is_active:
         # 비활성 계정도 동일 예외 — 응답으로 계정 존재를 알리지 않는다.
         raise InvalidCredentials()
 
+    await user_repository.reset_login_failures(user.id)
     token = secrets.token_urlsafe(32)
     csrf_token = secrets.token_urlsafe(32)
     expires_at = datetime.now(timezone.utc) + timedelta(
@@ -89,6 +102,17 @@ async def login(username: str, password: str) -> IssuedSession:
         user.id, hash_token(token), csrf_token, expires_at
     )
     return IssuedSession(token=token, csrf_token=csrf_token, user=user)
+
+
+async def _register_failed_login(user: UserRow) -> None:
+    """실패 횟수를 올리고 임계치(5회)를 넘으면 10분 잠긴다 (FR-609)."""
+    attempts = user.failed_login_attempts + 1
+    locked_until = (
+        datetime.now(timezone.utc) + timedelta(minutes=LOCKOUT_MINUTES)
+        if attempts >= LOCKOUT_THRESHOLD
+        else None
+    )
+    await user_repository.record_login_failure(user.id, attempts, locked_until)
 
 
 @dataclass
