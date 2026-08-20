@@ -11,6 +11,14 @@ export type MetricKey =
 
 export type AlertLevel = "normal" | "level1_caution" | "level2_warning" | "level3_critical";
 export type AlertStatus = "active" | "resolved";
+export type CoordinateSystem = "model-local" | "demo-local" | "ship-visual";
+export type VisualMapping = "none" | "demo-to-ship-scale";
+
+export interface Position3D {
+  x_m: number;
+  y_m: number;
+  z_m: number;
+}
 
 export interface SensorReading {
   metric: MetricKey;
@@ -26,6 +34,11 @@ export interface SensorNodeState {
   connection_status: "online" | "offline";
   last_seen_at: string | null;
   calibration_status?: Partial<Record<CalibrationKey, CalibrationState>>;
+  // Spec 10_UI_FLOW §3.2: per-node alert level. Optional — derived from
+  // readings when the backend has not pushed an explicit level yet.
+  alert_level?: AlertLevel;
+  // Data contract §2: distinguishes live vs injected simulation data.
+  source_mode?: "live" | "simulation";
 }
 
 export type CalibrationKey =
@@ -38,12 +51,22 @@ export type CalibrationState = "not_started" | "in_progress" | "done" | "error";
 export interface WearableState {
   node_id: NodeId;
   o2_pct: number | null;
-  position: { x_m: number; y_m: number; z_m: number } | null;
+  // 실측 좌표만 저장한다. 화면 표시 좌표는 뷰마다 매핑 프리셋이 다르므로
+  // (모니터링=FILL, 트윈 상세=TRUE SCALE) 저장하지 않고 utils/coordinates 로
+  // 렌더 시점에 파생한다. 둘을 같이 저장하면 어느 값이 실측인지 다시 모호해진다.
+  position_raw: Position3D | null;
+  // position_raw 가 측정된 좌표계. 'ship-visual' 이면 이미 표시 좌표이므로
+  // 비율 매핑을 적용하지 않는다 (중복 변환 방지).
+  source_coordinate_system?: CoordinateSystem;
+  source_mode?: "live" | "simulation";
   fall_detected: boolean;
   heart_rate: number | null;
   battery_pct: number | null;
   connection_status: "online" | "offline";
   last_seen_at?: string | null;
+  // Spec 10_UI_FLOW §3.3: UWB location quality. Optional — not wired until the
+  // UWB pipeline lands (#121); rendered as a "대기" (pending) state meanwhile.
+  location_quality?: { quality_score: number; anchor_count: number } | null;
 }
 
 export interface AlertState {

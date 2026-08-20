@@ -1,4 +1,4 @@
-import type { AlertLevel, MetricKey } from "../types";
+import type { AlertLevel } from "../types";
 
 export interface SensorSample {
   x: number;
@@ -51,33 +51,10 @@ export function buildGrid(
   return grid;
 }
 
-const LEVEL_THRESHOLDS: { metric: MetricKey; min: number; level: AlertLevel }[] = [
-  { metric: "co2_ppm", min: 5000, level: "level3_critical" },
-  { metric: "co2_ppm", min: 2000, level: "level2_warning" },
-  { metric: "co2_ppm", min: 1000, level: "level1_caution" },
-];
-
-export function classifyValue(metric: MetricKey, value: number): AlertLevel {
-  for (const { metric: m, min, level } of LEVEL_THRESHOLDS) {
-    if (m === metric && value >= min) return level;
-  }
-  if (metric === "co2_ppm") {
-    if (value >= 5000) return "level3_critical";
-    if (value >= 2000) return "level2_warning";
-    if (value >= 1000) return "level1_caution";
-  }
-  if (metric === "co_ppm") {
-    if (value >= 200) return "level3_critical";
-    if (value >= 50) return "level2_warning";
-    if (value >= 25) return "level1_caution";
-  }
-  if (metric === "h2s_ppm") {
-    if (value >= 10) return "level3_critical";
-    if (value >= 5) return "level2_warning";
-    if (value >= 1) return "level1_caution";
-  }
-  return "normal";
-}
+// 임계값은 alerts.ts 한 곳에서만 관리한다 (PRD FR-204, 이슈 #114).
+// 예전에는 여기에도 같은 숫자가 복사돼 있어서, 히트맵 색과 카드 색이 서로
+// 다른 기준으로 칠해질 수 있었다.
+export { classifyMetric as classifyValue } from "./alerts";
 
 export const LEVEL_RGB: Record<AlertLevel, [number, number, number]> = {
   normal: [0.06, 0.45, 0.27],

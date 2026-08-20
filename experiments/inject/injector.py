@@ -27,13 +27,13 @@ class ScenarioRunner:
         return list(SCENARIOS.keys())
 
     async def run_scenario(
-        self, name: str, *, node_id: str, run_id: str = "demo"
+        self, name: str, *, node_id: str, run_id: str = "demo", **scenario_kwargs
     ) -> None:
         if name not in SCENARIOS:
             raise KeyError(f"unknown scenario: {name}")
         gen = SCENARIOS[name]
         start = datetime.now(timezone.utc)
-        messages = gen(start=start, node_id=node_id, run_id=run_id)
+        messages = gen(start=start, node_id=node_id, run_id=run_id, **scenario_kwargs)
         self._stopped = False
         logger.info(
             "scenario %s started (node=%s, run_id=%s, %d messages)",

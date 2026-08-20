@@ -36,6 +36,7 @@ function handleMessage(msg: WSMessage): void {
     const key = deriveAlertKey(msg.metric, msg.node_id);
     if (msg.to_level === "normal") {
       store.resolveAlert(key);
+      if (toastStore.modal?.alert_key === key) toastStore.closeModal();
     } else {
       store.addAlert({
         alert_key: key,
@@ -50,7 +51,7 @@ function handleMessage(msg: WSMessage): void {
       const title = ALERT_TITLES[msg.metric] ?? msg.metric;
       const body = `${msg.node_id} · ${msg.value.toFixed(1)} / 임계값 ${msg.threshold}`;
       if (msg.to_level === "level3_critical") {
-        toastStore.openModal({ level: "level3_critical", title, body });
+        toastStore.openModal({ alert_key: key, level: "level3_critical", title, body });
       } else {
         toastStore.push({ level: msg.to_level as AlertLevel, title, body });
       }
@@ -58,13 +59,15 @@ function handleMessage(msg: WSMessage): void {
     return;
   }
   if (msg.type === "location") {
-    store.setWearablePosition(msg.node_id, msg.x, msg.y, msg.z, msg.timestamp);
+    store.setWearablePosition(msg.node_id, msg.x, msg.y, msg.z, msg.timestamp, {
+      position_raw: msg.position_raw,
+      source_coordinate_system: msg.source_coordinate_system,
+      source_mode: msg.source_mode,
+    });
     return;
   }
   if (msg.type === "sensor_reading") {
-    // 웨어러블(o2_pct)은 센서 노드 목록이 아니라 별도 wearable 상태로 가야 한다
-    // (코드리뷰 반영) — UI_FLOW상 웨어러블은 SENSOR NODES 카드가 아니라 별도
-    // WEARABLE 카드로 표시되므로, node_id가 wearable- 접두면 분기한다.
+    // 웨어러블 O₂ 는 센서 노드 카드가 아니라 웨어러블 카드 소관이다 (10_UI_FLOW 3.3).
     if (msg.node_id.startsWith("wearable-") && msg.metric === "o2_pct") {
       store.setWearableO2Reading(msg.node_id, msg.value, msg.timestamp);
       return;

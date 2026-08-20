@@ -11,7 +11,18 @@
 
 ## 1. 디지털 트윈 정의
 
-본 프로젝트의 디지털 트윈은 축소 밀폐공간 모형, 고정 센서 노드, 작업자 웨어러블을 3D 공간 객체로 표현하고, 각 객체의 위치, 센서 상태, 경보 상태를 실시간 데이터와 동기화하는 **모니터링용 디지털 트윈**이다.
+본 프로젝트의 디지털 트윈은 실제 화물창/밸러스트 탱크를 연상시키는 선박 밀폐공간
+형상, 고정 센서 노드, 작업자 웨어러블을 3D 공간 객체로 표현하고, 각 객체의 위치,
+센서 상태, 경보 상태를 실시간 데이터와 동기화하는 **모니터링용 디지털 트윈**이다.
+
+데모 하드웨어는 약 2.5m x 2.0m x 1.5m 수준의 축소 밀폐공간에서 검증할 수 있다.
+이 공간은 하드웨어 실험과 안전한 데이터 주입을 위한 `demo-local` 공간이다.
+
+대시보드의 선박형 3D 트윈은 실제 화물창/밸러스트 탱크의 공간감을 표현하기 위해
+별도의 `ship-visual` 공간을 사용한다. 현재 표시 기준 크기는 **길이 60m x 폭 20m x
+높이 14m**이며, 이는 축소 데모 공간이 실제 선박 크기로 측정되었다는 뜻이 아니라
+관제 시각화를 위한 모델 공간 기준이다. 원본 UWB 좌표와 화면 표시 좌표는 반드시
+서로 구분하고, 두 공간 사이의 비율 매핑 정보를 함께 보존한다.
 
 가스 확산 분포는 실제 측정값이 아닌 공간 보간 추정 결과이며, 안전 판단의 단독 근거로 사용하지 않는다.
 
@@ -44,6 +55,8 @@
 - 3D 객체 ID는 접두사 `tw.`를 사용한다
 - 백엔드 WebSocket 메시지에 physical_id와 object_id를 모두 포함한다
 - 시뮬레이션 데이터(`source_mode: "simulation"`)는 동일한 물리 노드 ID를 사용하며, 대시보드에서 `source_mode`로 구분 표시한다
+- 좌표 비율 매핑이 적용된 경우 대시보드는 `source_coordinate_system`,
+  `position_coordinate_system`, `visual_mapping` 상태를 함께 표시한다
 
 ---
 
@@ -53,15 +66,116 @@
 
 | 항목 | 정의 |
 |------|------|
-| 원점 | 모형 왼쪽 전면 바닥 |
-| X축 | 모형 가로 방향 (폭) |
-| Y축 | 모형 세로 방향 (깊이) |
+| 원점 | 측정 대상 공간의 왼쪽 전면 바닥 |
+| X축 | 공간 가로/길이 방향 |
+| Y축 | 공간 깊이/폭 방향 |
 | Z축 | 높이 방향 (**Z-up**) |
 | 단위 | meter |
 | 3D 모델 단위 | 1 Three.js unit = 1 meter |
 | 좌표계 식별자 | `model-local` |
 
 센서 데이터(`04_DATA_CONTRACT.md`의 `x_m`, `y_m`)와 백엔드에서 처리하는 모든 좌표는 이 물리 좌표계(Z-up)를 기준으로 한다.
+
+### 3.1.1 데모 좌표와 트윈 표시 좌표
+
+MVP 데모에서는 실제 하드웨어가 축소 공간에서 동작할 수 있으므로, 좌표를 다음 두 층으로
+분리한다.
+
+| 좌표계 | 식별자 | 의미 | 사용처 |
+|--------|--------|------|--------|
+| 원본 데모 좌표 | `demo-local` | 축소 데모 공간에서 UWB가 산출한 실제 측정 좌표 | 검증, 로그, 위치 품질 판단 |
+| 트윈 표시 좌표 | `ship-visual` | 선박형 3D 모델 안에 표시하기 위해 비율 매핑한 좌표 | 대시보드 3D 렌더링, 시연 화면 |
+| 1:1 모델 좌표 | `model-local` | 원본 좌표를 별도 스케일링 없이 사용하는 좌표 | 실험 모형 1:1 렌더링 또는 백엔드 내부 기준 |
+
+`source_mode`는 데이터가 실제 센서인지 소프트웨어 주입인지 구분한다. 좌표 비율 매핑 여부는
+`source_mode`와 별개이며, `visual_mapping`으로 표시한다.
+
+| 필드 | 예 | 설명 |
+|------|----|------|
+| `source_coordinate_system` | `demo-local` | 원본 위치가 측정된 좌표계 |
+| `position_coordinate_system` | `ship-visual` | `position` 필드가 사용하는 표시 좌표계 |
+| `visual_mapping` | `demo-to-ship-scale` | 축소 데모 좌표를 선박형 트윈 좌표로 비율 매핑했음을 표시 |
+| `position_raw` | `{ "x_m": 1.2, "y_m": 0.8, "z_m": 0.0 }` | UWB/데모 공간 원본 좌표 |
+| `position` | `{ "x_m": 28.8, "y_m": 0.7, "z_m": 0.0 }` | 3D 트윈 표시용 좌표 |
+
+> **실시간 location WebSocket 프레임은 `position_raw` 와 `source_coordinate_system`
+> 만 보낸다.** 표시 좌표(`position`)는 보내지 않는다 — 화면마다 매핑 프리셋이 다르므로
+> (§3.1.4) 백엔드가 어느 하나를 고를 수 없다. 변환은 프론트엔드가 렌더 시점에 한다.
+> 위 표의 `position` / `position_coordinate_system` 은 Snapshot(§4.2) 계약에만 남는다.
+>
+> `source_coordinate_system` 이 `ship-visual` 이면 이미 표시 좌표이므로 비율 매핑을
+> 적용하지 않는다. 실제 선박 좌표를 직접 수신하는 경우가 여기 해당하며, 이 규칙이
+> 좌표가 두 번 확대되는 것을 막는다.
+
+비율 매핑 예시:
+
+```text
+source_x_ratio = raw_x / source_width_m
+source_y_ratio = raw_y / source_depth_m
+
+visual_x_m = target_min_x_m + source_x_ratio * target_width_m
+visual_y_m = target_min_y_m + source_y_ratio * target_depth_m
+visual_z_m = raw_z
+```
+
+예: 2.5m x 2.0m 데모 공간을 `FILL` 프리셋(60m x 13m 바닥 평면, §3.1.4)에 매핑할 경우
+`raw_x=1.2`, `raw_y=0.8`은 `visual_x=28.8`, `visual_y=-1.3`으로 표시된다
+(`target_y` 범위 -6.5m~+6.5m, 폭 방향 중심 0).
+
+### 3.1.2 선박형 트윈 공간 기준
+
+현재 프론트엔드 선박형 트윈의 공식 표시 공간은 다음과 같다.
+
+| 축 | 범위 | 크기 | 의미 |
+|----|------|------|------|
+| X | 0m ~ 60m | 60m | 선박 화물창 길이 |
+| Y | -10m ~ +10m | 20m | 폭 방향(물리 좌표계에서는 Y축) |
+| Z | 0m ~ 14m | 14m | 높이 |
+
+프론트엔드 센서 표시 위치는 이 `ship-visual` 공간에서 다음과 같이 관리한다.
+
+| 노드 | X | Y | 용도 |
+|------|---:|---:|------|
+| sensor-01 | 10m | -5m | 전방 port 측 |
+| sensor-02 | 50m | -5m | 후방 port 측 |
+| sensor-03 | 10m | +5m | 전방 starboard 측 |
+| sensor-04 | 50m | +5m | 후방 starboard 측 |
+
+실제 데모 측정값은 이 고정 표시 위치와 직접 혼합하지 않는다. 데모 좌표를 사용하는
+경우 `demo-local -> ship-visual` 변환을 적용한 표시 좌표를 별도로 생성한다.
+
+#### 3.1.3 매핑 대상은 선체 폭이 아니라 바닥 평면 폭이다
+
+위 표의 `Y -10m ~ +10m` 는 **선체 공간의 크기**다. 매핑 대상 공간이 아니다.
+
+선체 단면은 상자가 아니라 높이에 따라 폭이 변한다. 반폭 10m 는 높이 5.5~9.0m 의
+수직 측벽에서만 나오고, **바닥 평면의 반폭은 6.5m** 다. 작업자는 바닥을 걷고
+히트맵도 바닥 격자이므로, 둘 다 바닥 평면 안에 있어야 화면이 실제 공간을 왜곡 없이
+전달한다. 따라서 `demo-local -> ship-visual` 매핑의 **target 폭은 13m** 로 잡는다.
+
+| 값 | 크기 | 의미 |
+|----|------|------|
+| `space.dimensions.depth_m` | 20m | 선체 공간 폭 (측벽 기준) |
+| 매핑 target 폭 | 13m | 바닥 평면 폭 (`-6.5m ~ +6.5m`) |
+
+두 값이 다른 이유는 선체 테이퍼다. 구현 상수는 `frontend/src/utils/coordinates.ts`
+(`SHIP_SPACE`, `SHIP_FLOOR_WIDTH_M`)가 단일 소스다.
+
+#### 3.1.4 매핑 프리셋 — 표시 화면마다 다르다
+
+`demo-local` 공간은 2.5 × 2.0m (형상비 1.25:1)이고 바닥 평면은 60 × 13m
+(형상비 4.6:1)다. **형상비를 보존하면서 화물창을 꽉 채우는 것은 불가능하다.**
+그래서 화면 목적에 따라 프리셋을 나눈다.
+
+| 프리셋 | 대상 사각형 | 배율 | 쓰는 화면 | 성질 |
+|--------|-------------|------|-----------|------|
+| `FILL` | 60 × 13m | x 24배 / y 6.5배 | 모니터링(Screen 1) 축소 트윈 | 바닥을 다 쓰지만 형상이 4.6:1 로 늘어남 |
+| `TRUE SCALE` | 16.25 × 13m (중앙) | 균일 6.5배 | 3D 트윈(Screen 2) | 정사각 보행이 정사각으로 보임. 길이의 27% 사용 |
+
+균일 배율은 `min(60/2.5, 13/2.0) = 6.5` 로 결정된다 (폭이 먼저 찬다).
+
+**프리셋은 데이터 속성이 아니라 뷰 파라미터다.** 백엔드는 표시 좌표를 보내지 않고,
+어느 프리셋을 적용했는지는 화면의 좌표 스트립에 표시한다.
 
 ### 3.2 Three.js 렌더링 좌표계 (Y-up) 변환
 
@@ -100,9 +214,14 @@ UWB 측위 결과는 2D (x, y)이다. 물리 좌표계에서 z축은 고정값�
   z_m = 0.0  (바닥 높이, 렌더링용 고정값)
 ```
 
+데모 환경에서 `visual_mapping: "demo-to-ship-scale"`을 사용하는 경우, 위 좌표는
+`position_raw`로 보존하고, 대시보드 표시용 `position`은 섹션 3.1.1의 비율 매핑을
+적용한 `ship-visual` 좌표로 생성한다.
+
 ### 3.4 센서 노드 위치
 
-각 센서 노드의 3D 위치는 고정값이며, 설정 파일에서 관리한다. 아래 좌표는 물리 좌표계(Z-up) 기준이다.
+각 센서 노드의 3D 위치는 고정값이며, 설정 파일에서 관리한다. 아래 좌표는 축소 데모
+공간(`demo-local` 또는 1:1 `model-local`) 기준 예시이다.
 
 ```json
 {
@@ -113,7 +232,9 @@ UWB 측위 결과는 2D (x, y)이다. 물리 좌표계에서 z축은 고정값�
 }
 ```
 
-> 센서 노드의 (x, y) 위치는 UWB 앵커 위치와 일치해야 한다. z_m은 설치 높이이다. 프론트엔드에서 Three.js 좌표로 변환하여 렌더링한다.
+> 센서 노드의 원본 (x, y) 위치는 UWB 앵커 위치와 일치해야 한다. z_m은 설치 높이이다.
+> 선박형 3D 트윈을 사용하는 경우, 원본 앵커 좌표는 비율 매핑을 거친 `ship-visual`
+> 좌표로 렌더링한다.
 
 ---
 
@@ -158,15 +279,28 @@ UWB 측위 결과는 2D (x, y)이다. 물리 좌표계에서 z축은 고정값�
   "revision": 2,
   "timestamp": "2026-07-13T01:20:31.120Z",
   "space": {
-    "dimensions": { "width_m": 2.5, "depth_m": 2.0, "height_m": 1.5 },
+    "dimensions": { "width_m": 60.0, "depth_m": 20.0, "height_m": 14.0 },
+    "visual_model": "ship-tank",
+    "source_coordinate_system": "demo-local",
+    "position_coordinate_system": "ship-visual",
+    "visual_mapping": "demo-to-ship-scale",
+    "mapping_scale": {
+      "source_width_m": 2.5,
+      "source_depth_m": 2.0,
+      "target_width_m": 60.0,
+      "target_depth_m": 13.0
+    },
     "overall_risk_level": "normal"
   },
   "sensor_nodes": [
     {
       "object_id": "tw.sensor-01",
       "physical_id": "sensor-01",
-      "position": { "x_m": 0.5, "y_m": 0.3, "z_m": 0.8 },
-      "position_coordinate_system": "model-local",
+      "position_raw": { "x_m": 10.0, "y_m": -5.0, "z_m": 0.8 },
+      "source_coordinate_system": "ship-visual",
+      "position": { "x_m": 10.0, "y_m": -5.0, "z_m": 0.8 },
+      "position_coordinate_system": "ship-visual",
+      "visual_mapping": "none",
       "latest_values": { "co2_ppm": 612 },
       "alert_level": "normal",
       "connection_status": "online",
@@ -176,8 +310,11 @@ UWB 측위 결과는 2D (x, y)이다. 물리 좌표계에서 z축은 고정값�
   "wearable": {
     "object_id": "tw.wearable-01",
     "physical_id": "wearable-01",
-    "position": { "x_m": 1.2, "y_m": 0.8, "z_m": 0.0 },
-    "position_coordinate_system": "model-local",
+    "position_raw": { "x_m": 1.2, "y_m": 0.8, "z_m": 0.0 },
+    "source_coordinate_system": "demo-local",
+    "position": { "x_m": 28.8, "y_m": -1.3, "z_m": 0.0 },
+    "position_coordinate_system": "ship-visual",
+    "visual_mapping": "demo-to-ship-scale",
     "location_quality": {
       "quality_score": 0.87,
       "anchor_count": 4,
@@ -197,11 +334,18 @@ UWB 측위 결과는 2D (x, y)이다. 물리 좌표계에서 z축은 고정값�
 | 필드 | 설명 |
 |------|------|
 | `revision` | Snapshot의 리비전 번호. 이후 Delta는 revision + 1부터 시작 |
-| `position` | 물리 좌표계(Z-up) 기준 위치. 프론트엔드에서 Three.js 좌표로 변환 |
-| `position_coordinate_system` | 위치 좌표계 식별자 (`model-local`) |
+| `position_raw` | UWB/데모 공간에서 산출된 원본 위치. 원본 검증과 로그에 사용 |
+| `source_coordinate_system` | 원본 위치 좌표계 식별자 (`demo-local` 또는 `model-local`) |
+| `position` | 3D 트윈에 표시할 위치. `visual_mapping` 적용 후 좌표일 수 있음 |
+| `position_coordinate_system` | 표시 위치 좌표계 식별자 (`ship-visual` 또는 `model-local`) |
+| `visual_mapping` | 좌표 비율 매핑 상태 (`none` 또는 `demo-to-ship-scale`) |
+| `mapping_scale` | 축소 데모 공간과 선박형 표시 공간의 매핑 크기 |
 | `location_quality` | 웨어러블 위치 품질 정보 (quality_score, anchor_count, is_filtered) |
 
-> Snapshot의 `position` 필드는 물리 좌표계(Z-up)를 사용한다. `position_coordinate_system: "model-local"`로 명시한다. Three.js 렌더링 시 섹션 3.2의 변환 규칙을 적용한다.
+> Snapshot의 `position` 필드는 `position_coordinate_system`에 명시된 좌표계를 사용한다.
+> `position_coordinate_system: "ship-visual"`인 경우 이미 선박형 모델의 표시 좌표로
+> 비율 매핑된 값이다. Three.js 렌더링 시에는 섹션 3.2의 Z-up → Y-up 축 변환을 추가로
+> 적용한다.
 
 ### 4.3 WebSocket 재연결 복구
 
@@ -246,7 +390,10 @@ HazardZone은 Level 2 이상 경보가 발령된 센서 노드 주변의 위험 
 
 ### 5.2 반경 기본값
 
-모형 크기가 2.5m x 2.0m이므로 과도하게 큰 반경은 모형 전체를 덮는다. 기본 반경은 **0.5m**로 설정하며, 설정 파일에서 변경 가능하다.
+기본 반경은 **0.5m**이며, 이는 축소 데모 공간(`demo-local`) 기준 기본값이다.
+선박형 표시 좌표(`ship-visual`)에 HazardZone을 렌더링할 때는 중심 좌표와 반경 모두
+동일한 비율 매핑을 적용한다. 설정 파일에서 데모 기준 반경과 표시 기준 반경을 분리해
+관리할 수 있다.
 
 ### 5.3 진입 감지
 

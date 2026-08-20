@@ -23,6 +23,30 @@ class Settings(BaseSettings):
     # 프론트엔드 오리진으로 교체한다.
     cors_origins: str = "http://localhost:5173"
 
+    # Wearable/UWB location filtering (#110)
+    location_filter_alpha: float = 0.3
+    location_filter_max_speed_mps: float = 2.0
+    location_filter_reject_limit: int = 5
+
+    # 위치가 측정된 좌표계 (05_DIGITAL_TWIN_SPEC 3.1).
+    # 축소 실험 장비는 demo-local, 실제 선박 좌표를 직접 받으면 ship-visual 로 둔다.
+    # ship-visual 이면 프론트가 비율 매핑을 건너뛰므로 좌표가 두 번 확대되지 않는다.
+    location_source_coordinate_system: str = "demo-local"
+
+    # UWB 앵커 배치 (이슈 #121, ADR-006). "id:x,y;id:x,y" 형식.
+    # 앵커 좌표는 설치 정보라 텔레메트리에 싣지 않고 서버가 안다.
+    # 기본값은 축소 데모 공간(2.5 x 2.0m) 네 모서리.
+    uwb_anchors: str = "A1:0,0;A2:2.5,0;A3:2.5,2.0;A4:0,2.0"
+
+    # 데모 시나리오 제어 API (09_DEMO_SCENARIOS 4절).
+    # 시뮬레이션 데이터를 원격으로 주입하는 기능이라 기본은 꺼둔다. 인증이 붙기 전
+    # (#116) 이 열려 있으면 누구나 안전 시스템에 가짜 값을 밀어넣을 수 있고,
+    # 실제 위험 상황에 정상값을 주입해 경보를 덮는 것도 가능하다.
+    # 시연·개발 환경에서만 DEMO_CONTROL_ENABLED=true 로 켠다.
+    demo_control_enabled: bool = False
+    # 주입 도구 위치 (저장소 루트 기준). 컨테이너 배포본에는 없을 수 있다.
+    demo_inject_cwd: str = ""
+
     @property
     def cors_origins_list(self) -> list[str]:
         return [o.strip() for o in self.cors_origins.split(",") if o.strip()]
