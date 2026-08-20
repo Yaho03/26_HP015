@@ -3,10 +3,12 @@ import { Html, OrbitControls } from "@react-three/drei";
 import { useEffect, useMemo, useRef, useState } from "react";
 import * as THREE from "three";
 import type { OrbitControls as OrbitControlsImpl } from "three-stdlib";
-import type { AlertLevel, MetricKey, Position3D } from "../types";
+import type { AlertLevel, MetricKey } from "../types";
 import type { Group } from "three";
 import { Heatmap } from "./Heatmap";
 import type { SensorSample } from "../utils/idw";
+import type { RouteOverlay } from "../types/evacuation";
+import type { RouteStatus, RouteWaypoint } from "../types/ws";
 import { PLAN_CAM, toThreeGroundPosition, toThreePosition } from "../utils/coordinates";
 
 // ── Types ─────────────────────────────────────────────────────
@@ -21,11 +23,17 @@ interface TwinSceneProps {
   /** 시점 조작 허용. plan 크롭은 조작을 막아야 위치 판독이 깨지지 않는다. */
   interactive?: boolean;
   /**
-   * 위험 상황 시 작업자 탈출 경로. **아직 구현하지 않는다** — 후속 기능이라
-   * 자리만 잡아둔 것이고, null 이면 아무것도 렌더하지 않는다. 경로 계산(그래프
-   * 탐색, 가스 코스트 함수)은 이 컴포넌트의 책임이 아니다.
+   * 위험 상황 시 작업자 탈출 경로 (FR-804).
+   *
+   * 좌표는 **ship-visual (TRUE SCALE 균일 배율)** 이고 이 컴포넌트는 Z-up → Y-up
+   * 축 변환만 적용한다. FILL 프리셋으로 그리는 칸(모니터링 화면 ①)에는 넘기지
+   * 않는다 — 축마다 배율이 달라 경로 형상이 왜곡된다 (ADR-010, §2.4).
+   *
+   * 경로 계산(그래프 탐색, 위험 가중 비용)은 백엔드 책임이다. 여기서는 그리기만
+   * 한다. 계산을 프론트로 내리면 백엔드의 no_safe_route 경보와 화면의 경로가
+   * 서로 다른 그래프에서 나오게 된다 (§2.4).
    */
-  escapeRoute?: { path: Position3D[]; exit_id: string } | null;
+  escapeRoute?: RouteOverlay | null;
 }
 
 const LEVEL_COLOR: Record<AlertLevel, string> = {
@@ -691,15 +699,161 @@ function WearableMarker({ x, y, z, fall_detected }: { x: number; y: number; z: n
   );
 }
 
+// ── Escape route (FR-804) ──────────────────────────────────────
+/**
+ * route_status 색. styles/evacuation.css 의 --evac-* 와 같은 의미를 갖는다 —
+ * Three.js 머티리얼은 CSS 변수를 읽지 못해 값을 한 번 더 적는다. 둘 중 하나만
+ * 바꾸면 2D 평면도와 3D 트윈의 경로 색이 갈라진다.
+ */
+const ROUTE_COLOR: Record<RouteStatus, string> = {
+  safe: "#3fd08a", degraded: "#ff8b33",
+  no_safe_route: "#ff4550", unavailable: "#93a1b0",
+};
+
+/** 바닥면과 겹쳐 z-fighting 이 생기지 않을 만큼만 띄운다. */
+const ROUTE_LIFT = 0.25;
+const ROUTE_RADIUS = 0.16;
+const UP = new THREE.Vector3(0, 1, 0);
+
+function routePoints(waypoints: RouteWaypoint[]): THREE.Vector3[] {
+  return waypoints.map(wp => {
+    const [x, y, z] = toThreePosition({ x_m: wp.x_m, y_m: wp.y_m, z_m: wp.z_m });
+    return new THREE.Vector3(x, y + ROUTE_LIFT, z);
+  });
+}
+
+/** 한 구간을 원기둥으로 세운다. 사다리 구간은 z 만 변하므로 저절로 수직이 된다. */
+function RouteSegment({ a, b, color, radius = ROUTE_RADIUS }: {
+  a: THREE.Vector3; b: THREE.Vector3; color: string; radius?: number;
+}) {
+  const placed = useMemo(() => {
+    const dir = new THREE.Vector3().subVectors(b, a);
+    const length = dir.length();
+    const quaternion = new THREE.Quaternion();
+    if (length > 1e-6) quaternion.setFromUnitVectors(UP, dir.clone().normalize());
+    const position = new THREE.Vector3().addVectors(a, b).multiplyScalar(0.5);
+    return { position, quaternion, length };
+  }, [a, b]);
+
+  if (placed.length < 1e-4) return null;
+  return (
+    <mesh position={placed.position} quaternion={placed.quaternion}>
+      <cylinderGeometry args={[radius, radius, placed.length, 10]} />
+      <meshStandardMaterial color={color} emissive={color} emissiveIntensity={0.65} />
+    </mesh>
+  );
+}
+
+/**
+ * no_safe_route 를 점선으로 끊는다.
+ *
+ * 2D 평면도가 같은 상태를 stroke-dasharray 로 그린다. 3D 에서만 실선으로 두면
+ * "최소 위험 경로"가 정상 경로와 같은 무게로 읽힌다.
+ */
+function dashChunks(a: THREE.Vector3, b: THREE.Vector3, dash = 1.1, gap = 0.8) {
+  const total = a.distanceTo(b);
+  const chunks: [THREE.Vector3, THREE.Vector3][] = [];
+  for (let s = 0; s < total; s += dash + gap) {
+    const e = Math.min(s + dash, total);
+    chunks.push([
+      a.clone().lerp(b, s / total),
+      a.clone().lerp(b, e / total),
+    ]);
+  }
+  return chunks;
+}
+
+/** 경로를 따라 흐르는 진행 방향 화살표. 어느 쪽으로 가라는 것인지가 색으로는 안 나온다. */
+function RouteArrows({ curve, color, count = 5 }: {
+  curve: THREE.CurvePath<THREE.Vector3>; color: string; count?: number;
+}) {
+  const refs = useRef<(Group | null)[]>([]);
+  useFrame(s => {
+    // 실제 이동 속도가 아니라 방향을 읽히게 하는 속도다. 빠르면 시선을 뺏는다.
+    const base = (s.clock.getElapsedTime() * 0.07) % 1;
+    for (let i = 0; i < count; i++) {
+      const g = refs.current[i];
+      if (!g) continue;
+      const t = (base + i / count) % 1;
+      g.position.copy(curve.getPointAt(t));
+      g.quaternion.setFromUnitVectors(UP, curve.getTangentAt(t).normalize());
+    }
+  });
+  return (
+    <>
+      {Array.from({ length: count }, (_, i) => (
+        <group key={i} ref={el => { refs.current[i] = el; }}>
+          <mesh>
+            <coneGeometry args={[0.32, 0.8, 8]} />
+            <meshStandardMaterial color={color} emissive={color} emissiveIntensity={0.9} />
+          </mesh>
+        </group>
+      ))}
+    </>
+  );
+}
+
+function EscapeRoute({ route }: { route: RouteOverlay }) {
+  const points = useMemo(() => routePoints(route.waypoints), [route.waypoints]);
+
+  // 구간이 없으면 곡선을 만들 수 없다. unavailable 이 정확히 이 상태다 —
+  // 경로를 산출하지 못한 것이지 "경로가 비어 있다"가 아니므로 아무것도 안 그린다.
+  const curve = useMemo(() => {
+    if (points.length < 2) return null;
+    const path = new THREE.CurvePath<THREE.Vector3>();
+    for (let i = 0; i < points.length - 1; i++) {
+      if (points[i].distanceTo(points[i + 1]) < 1e-4) continue;
+      path.add(new THREE.LineCurve3(points[i], points[i + 1]));
+    }
+    return path.curves.length > 0 ? path : null;
+  }, [points]);
+
+  if (!curve || route.route_status === "unavailable") return null;
+
+  const color = ROUTE_COLOR[route.route_status];
+  const dashed = route.route_status === "no_safe_route";
+  const exitPoint = points[points.length - 1];
+  const exitLabel = route.waypoints[route.waypoints.length - 1]?.label;
+
+  return (
+    <group>
+      {points.slice(0, -1).map((a, i) => {
+        const b = points[i + 1];
+        if (!dashed) return <RouteSegment key={i} a={a} b={b} color={color} />;
+        return dashChunks(a, b).map(([p, q], j) => (
+          <RouteSegment key={`${i}-${j}`} a={p} b={q} color={color} />
+        ));
+      })}
+
+      <RouteArrows curve={curve} color={color} />
+
+      {/* 출구. 사다리 상단이라 바닥에서 14m 위에 뜬다 — 그게 실제 위치다. */}
+      <group position={exitPoint}>
+        <mesh rotation={[Math.PI / 2, 0, 0]}>
+          <torusGeometry args={[0.9, 0.12, 8, 24]} />
+          <meshStandardMaterial color={color} emissive={color} emissiveIntensity={0.9} />
+        </mesh>
+        <pointLight color={color} intensity={6} distance={12} />
+        <Html position={[0, 1.4, 0]} center distanceFactor={30}>
+          <div className="twin-node-label twin-wearable">
+            <span className="twin-node-id">{exitLabel ?? "EXIT"}</span>
+          </div>
+        </Html>
+      </group>
+    </group>
+  );
+}
+
 // ── Scene content ──────────────────────────────────────────────
 function SceneContent({
-  nodes, wearable, heatmap, mode, interactive,
+  nodes, wearable, heatmap, mode, interactive, escapeRoute,
 }: {
   nodes: NonNullable<TwinSceneProps["nodes"]>;
   wearable: TwinSceneProps["wearable"];
   heatmap: TwinSceneProps["heatmap"];
   mode: CamMode;
   interactive: boolean;
+  escapeRoute: RouteOverlay | null;
 }) {
   // 카메라 쪽 측벽을 잘라내야 바닥이 보인다. 내부 시점일 때만 벽을 세운다 —
   // 벽 안에서 보는 시점이므로 절개하면 화물창 밖이 뚫려 보인다.
@@ -750,6 +904,7 @@ function SceneContent({
         <WearableMarker x={wearable.x} y={wearable.y} z={wearable.z}
           fall_detected={!!wearable.fall_detected} />
       )}
+      {escapeRoute && <EscapeRoute route={escapeRoute} />}
       {/* 고정 크롭에서는 조작을 막는다. 관제사가 실수로 시점을 돌려놓으면
           노드의 화면 위치가 ⑤ 2×2 격자와 어긋나 위치 판독이 깨진다.
           컨트롤 자체는 유지해야 CameraController 가 타깃을 잡을 수 있다. */}
@@ -804,11 +959,6 @@ export function TwinScene({
   // 제어 prop 이 오면 그것이 우선이다. Screen 1 ① 은 plan 고정으로 쓴다.
   const mode = modeProp ?? internalMode;
 
-  // 탈출 경로는 아직 구현 대상이 아니다 (§3). prop 만 받아 두고 아무것도
-  // 그리지 않는다 — 값이 들어와도 조용히 무시하는 편이, 반쯤 그린 경로를
-  // 관제사가 실제 지시로 오해하는 것보다 안전하다.
-  void escapeRoute;
-
   return (
     <div className="twin-canvas" style={{ position: "relative" }}>
       {showModeToggle && !modeProp && (
@@ -834,7 +984,8 @@ export function TwinScene({
       >
         <color attach="background" args={["#07090e"]} />
         <SceneContent nodes={nodes} wearable={wearable}
-          heatmap={heatmap} mode={mode} interactive={interactive} />
+          heatmap={heatmap} mode={mode} interactive={interactive}
+          escapeRoute={escapeRoute} />
       </Canvas>
     </div>
   );
