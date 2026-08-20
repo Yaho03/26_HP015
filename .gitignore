@@ -31,3 +31,6 @@ tools/extract_pyinstaller.py
 
 # 하드웨어 검증 tap 기록 (scripts/hw_verify.py) — 실행 산출물
 .hw_verify_tap.jsonl
+
+# 에이전트 세션 아티플랙트 — 코드가 참조하지 않는다 (이슈 #129)
+.omo/

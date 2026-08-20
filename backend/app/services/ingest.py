@@ -223,7 +223,13 @@ async def ingest_telemetry(payload: bytes) -> None:
                             "reading broadcast failed (node=%s metric=%s value=%s)",
                             node_id, metric, value,
                         )
-                metrics.increment("messages_processed")
+
+            # 메시지 1건은 1 로 센다. 예전에는 이 증가가 metric 루프 안에 있어
+            # 지표 4개짜리 가스 메시지가 4건으로 집계됐다 (이슈 #117).
+            # 지표 단위 집계가 필요하면 metrics_written 을 본다.
+            metrics.increment("messages_processed")
+            if extracted:
+                metrics.increment("metrics_written", len(extracted))
 
     if _location_callback is not None and isinstance(data, dict):
         if "x_m" in data and "y_m" in data and "z_m" in data:

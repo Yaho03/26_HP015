@@ -40,7 +40,6 @@ async def lifespan(app: FastAPI):
         await mqtt_subscriber.start()
         started_mqtt = True
         alert_publisher.init_publisher(mqtt_subscriber.get_client())
-        alert_service._publisher = alert_publisher._publisher
         await retention.start()
         started_retention = True
         await connection_monitor.start()

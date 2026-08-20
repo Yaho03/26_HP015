@@ -16,6 +16,13 @@ cp .env.example .env
 
 ## 2. Mosquitto 인증 파일 생성
 
+> **`scripts/deploy.sh up` 을 쓰면 이 단계는 자동이다** (이슈 #115). `docker/.env` 에
+> MQTT_USERNAME / MQTT_PASSWORD 만 채워두면 passwordfile 이 없을 때 스크립트가
+> 같은 값으로 만들어 준다. 아래는 직접 만들거나 값을 바꿔 다시 만들 때 쓴다.
+>
+> `.env` 의 비밀번호를 바꿨다면 passwordfile 을 지우고 다시 실행해야 한다.
+> 기존 파일이 있으면 스크립트는 건드리지 않는다.
+
 Mosquitto는 해시된 `passwordfile` 로 인증한다. **`docker/.env` 의 `MQTT_USERNAME` / `MQTT_PASSWORD` 와 동일한 값**으로 생성한다:
 
 ```bash

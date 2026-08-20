@@ -39,7 +39,9 @@ def setup_logging(level: str = "INFO") -> None:
 
 class _Metrics:
     def __init__(self) -> None:
+        # 메시지 단위. 지표 단위는 metrics_written 을 본다 (이슈 #117).
         self.messages_processed: int = 0
+        self.metrics_written: int = 0
         self.messages_dropped_invalid: int = 0
         self.messages_dropped_duplicate: int = 0
         self.alerts_published: int = 0
@@ -55,6 +57,7 @@ class _Metrics:
     def snapshot(self) -> dict[str, int]:
         return {
             "messages_processed": self.messages_processed,
+            "metrics_written": self.metrics_written,
             "messages_dropped_invalid": self.messages_dropped_invalid,
             "messages_dropped_duplicate": self.messages_dropped_duplicate,
             "alerts_published": self.alerts_published,

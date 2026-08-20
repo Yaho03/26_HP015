@@ -36,6 +36,9 @@ _overflow_dropped_count = 0
 _invalid_dropped_count = 0
 
 _client: Optional[mqtt.Client] = None
+# 구독까지 성공했는지. 클라이언트 객체는 인증이 거부돼도 남으므로 객체 존재만으로는
+# 정상 여부를 알 수 없다 (이슈 #119, #115 연쇄).
+_subscribed: bool = False
 _loop: Optional[asyncio.AbstractEventLoop] = None
 _retry_task: Optional[asyncio.Task] = None
 
@@ -119,13 +122,37 @@ async def _retry_loop() -> None:
 
 
 def _on_connect(client: mqtt.Client, userdata, flags, reason_code, properties=None):
+    global _subscribed
     if reason_code.is_failure:
+        # 인증 거부가 여기로 온다. 예전에는 로그만 남기고 끝나서 /health 가 계속
+        # ok 를 반환했고, 백엔드는 아무것도 구독하지 않은 채 정상인 척했다.
+        _subscribed = False
         logger.error("MQTT connect failed: %s", reason_code)
         return
     for pattern in _TOPIC_HANDLERS:
         qos = _QOS.get(pattern, 1)
         client.subscribe(pattern, qos=qos)
+    _subscribed = True
     logger.info("MQTT connected, subscribed to %d topic patterns", len(_TOPIC_HANDLERS))
+
+
+def _on_disconnect(client, userdata, flags=None, reason_code=None, properties=None):
+    """끊기면 구독 상태를 내리고 재연결 횟수를 센다.
+
+    paho 가 자동 재연결하면 _on_connect 가 다시 불려 _subscribed 가 복구된다.
+    """
+    global _subscribed
+    _subscribed = False
+    metrics.increment("mqtt_reconnects")
+    logger.warning("MQTT disconnected: %s", reason_code)
+
+
+def is_healthy() -> bool:
+    """실제로 메시지를 받을 수 있는 상태인가.
+
+    소켓이 붙어 있고(is_connected) 토픽 구독까지 끝났을 때만 True.
+    """
+    return _client is not None and _client.is_connected() and _subscribed
 
 
 def _on_message(client: mqtt.Client, userdata, msg: mqtt.MQTTMessage):
@@ -144,6 +171,7 @@ async def start() -> None:
     if settings.mqtt_username:
         _client.username_pw_set(settings.mqtt_username, settings.mqtt_password)
     _client.on_connect = _on_connect
+    _client.on_disconnect = _on_disconnect
     _client.on_message = _on_message
     _client.connect(settings.mqtt_host, settings.mqtt_port)
     _client.loop_start()
@@ -164,3 +192,4 @@ async def stop() -> None:
         _client.loop_stop()
         _client.disconnect()
         _client = None
+    globals()["_subscribed"] = False

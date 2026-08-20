@@ -5,6 +5,7 @@
 """
 from __future__ import annotations
 
+import asyncio
 import logging
 from typing import Set
 
@@ -12,20 +13,36 @@ from fastapi import WebSocket
 
 logger = logging.getLogger(__name__)
 
+# 브로드캐스트는 인제스트 경로에서 await 된다. 죽었거나 느린 클라이언트 하나가
+# 전체를 붙잡으면 센서 수신까지 멈춘다. 로컬 대시보드는 밀리초 단위로 받으므로
+# 이 시간을 못 지키면 사실상 죽은 것으로 본다 (이슈 #122).
+BROADCAST_TIMEOUT_S = 2.0
+
 
 class ConnectionManager:
     def __init__(self) -> None:
         self._clients: Set[WebSocket] = set()
 
     async def connect(self, ws: WebSocket) -> None:
+        """수락 → snapshot 전송 → 등록 순서로 진행한다.
+
+        등록을 마지막에 하는 이유는, snapshot 전송이 실패한 소켓이 목록에 남으면
+        이후 모든 브로드캐스트가 그 소켓에 대해 실패하기 때문이다.
+        """
         await ws.accept()
-        self._clients.add(ws)
         await self._send_snapshot(ws)
+        self._clients.add(ws)
         logger.info("ws client connected (total=%d)", len(self._clients))
 
     def disconnect(self, ws: WebSocket) -> None:
+        """여러 번 불려도 안전하다. 라우터가 finally 에서 호출한다."""
+        if ws not in self._clients:
+            return
         self._clients.discard(ws)
         logger.info("ws client disconnected (total=%d)", len(self._clients))
+
+    def client_count(self) -> int:
+        return len(self._clients)
 
     async def _send_snapshot(self, ws: WebSocket) -> None:
         """새로 연결된 클라이언트에게 현재 상태를 즉시 전송 — 경보 발생 전까지
@@ -99,14 +116,31 @@ class ConnectionManager:
         await ws.send_json({"type": "snapshot", "nodes": nodes, "alerts": alerts})
 
     async def broadcast(self, message: dict) -> None:
-        dead: list[WebSocket] = []
-        for ws in list(self._clients):
+        """모든 클라이언트에 동시에 보낸다.
+
+        예전에는 순차 await 라 앞의 클라이언트가 느리면 뒤가 그만큼 밀렸고,
+        타임아웃이 없어 응답하지 않는 소켓 하나가 무한정 붙잡을 수 있었다.
+        """
+        clients = list(self._clients)
+        if not clients:
+            return
+
+        async def send(ws: WebSocket) -> bool:
             try:
-                await ws.send_json(message)
+                await asyncio.wait_for(ws.send_json(message), BROADCAST_TIMEOUT_S)
+                return True
+            except asyncio.TimeoutError:
+                logger.warning("ws send timed out after %.1fs, dropping client", BROADCAST_TIMEOUT_S)
+                return False
             except Exception:
-                dead.append(ws)
-        for ws in dead:
-            self._clients.discard(ws)
+                return False
+
+        results = await asyncio.gather(
+            *(send(ws) for ws in clients), return_exceptions=True
+        )
+        for ws, ok in zip(clients, results):
+            if ok is not True:
+                self._clients.discard(ws)
 
 
 manager = ConnectionManager()
