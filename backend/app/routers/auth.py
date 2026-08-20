@@ -24,6 +24,7 @@ from app.dependencies.auth import (
     verify_csrf,
 )
 from app.models.user import LoginRequest, PasswordChangeRequest, SessionInfo
+from app.repositories import audit_repository
 from app.services import auth_service
 
 logger = logging.getLogger(__name__)
@@ -32,15 +33,27 @@ router = APIRouter(prefix="/api/auth", tags=["auth"])
 
 
 @router.post("/login", response_model=SessionInfo)
-async def login(payload: LoginRequest, response: Response):
+async def login(payload: LoginRequest, response: Response, request: Request):
     try:
         issued = await auth_service.login(payload.username, payload.password)
     except auth_service.InvalidCredentials:
         # 계정 존재 여부·비활성 여부를 응답으로 구분하지 않는다 (FR-609).
+        await audit_repository.record(
+            actor_id=None,
+            actor_name=payload.username,
+            action="login.failure",
+            detail={"ip": request.client.host if request.client else None},
+        )
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid username or password",
         )
+    await audit_repository.record(
+        actor_id=issued.user.id,
+        actor_name=issued.user.username,
+        action="login.success",
+        detail={"role": issued.user.role},
+    )
 
     response.set_cookie(SESSION_COOKIE, issued.token, **auth_service.session_cookie_attributes())
     # CSRF 토큰은 JS 가 읽을 수 있어야 한다 (헤더로 되돌려 보내야 하므로).
@@ -57,13 +70,16 @@ async def login(payload: LoginRequest, response: Response):
 
 
 @router.post("/logout", status_code=204)
-async def logout(request: Request, response: Response, _: CurrentUser):
+async def logout(request: Request, response: Response, user: CurrentUser):
     token = request.cookies.get(SESSION_COOKIE)
     if token:
         await auth_service.logout(token)
     response.delete_cookie(SESSION_COOKIE, path="/")
     response.delete_cookie(CSRF_COOKIE, path="/")
-    logger.info("logout")
+    await audit_repository.record(
+        actor_id=user.id, actor_name=user.username, action="logout"
+    )
+    logger.info("logout (user=%s)", user.username)
 
 
 @router.get("/me")
@@ -89,4 +105,7 @@ async def change_password(
     # 변경 성공 → 모든 세션 폐기. 현재 쿠키도 지운다 (재로그인 유도).
     response.delete_cookie(SESSION_COOKIE, path="/")
     response.delete_cookie(CSRF_COOKIE, path="/")
+    await audit_repository.record(
+        actor_id=user.id, actor_name=user.username, action="user.password_change"
+    )
     logger.info("password changed (user=%s)", user.username)
