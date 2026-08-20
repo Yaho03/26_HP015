@@ -80,9 +80,9 @@ async def _handle_message(topic: str, payload: bytes) -> None:
         return
     try:
         await handler(payload)
-    except ingest.DuplicateMessage:
-        logger.debug("duplicate message skipped (topic=%s)", topic)
-        metrics.increment("messages_dropped_duplicate")
+    except ingest.DuplicateMessage as e:
+        logger.debug("duplicate message skipped (topic=%s node=%s)", topic, e.node_id)
+        metrics.record_duplicate_drop(e.node_id)
     except ingest.InvalidMessage as e:
         _invalid_dropped_count += 1
         metrics.increment("messages_dropped_invalid")
@@ -110,8 +110,11 @@ async def _retry_loop() -> None:
                 continue
             try:
                 await handler(payload)
-            except ingest.DuplicateMessage:
-                pass
+            except ingest.DuplicateMessage as e:
+                # 재시도 중복도 유실이다 — 카운터에서 빠지면 합계가 실제보다 낮게
+                # 보여 결함 노드를 놓친다 (이슈 #104).
+                logger.debug("duplicate message skipped in retry (node=%s)", e.node_id)
+                metrics.record_duplicate_drop(e.node_id)
             except ingest.InvalidMessage as e:
                 _invalid_dropped_count += 1
                 logger.error(

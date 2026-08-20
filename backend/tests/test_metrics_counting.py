@@ -65,8 +65,8 @@ def gas_payload(message_id: str = "01J6X3R8K7VQ2NTP5Z9MA4HWBC") -> bytes:
 @pytest.fixture
 def counters(monkeypatch):
     """카운터를 0 으로 두고 DB 를 가짜로 바꾼다."""
-    for name in metrics.snapshot():
-        setattr(metrics, name, 0)
+    for name, value in metrics.snapshot().items():
+        setattr(metrics, name, type(value)())
     monkeypatch.setattr(ingest, "_alert_callback", None)
     monkeypatch.setattr(ingest, "_reading_callback", None)
     monkeypatch.setattr(ingest, "_location_callback", None)
@@ -108,6 +108,36 @@ async def test_duplicate_is_not_counted_as_processed(counters, monkeypatch):
     snap = counters.snapshot()
     assert snap["messages_processed"] == 0
     assert snap["metrics_written"] == 0
+
+
+def test_duplicate_drop_records_node_id():
+    """이슈 #104 완료 조건 — 중복 드롭이 node_id별로 분해 조회된다.
+
+    재부팅 후 message_id 재사용은 특정 노드의 결함이다. 전역 합계만 있으면
+    "어느 노드가 데이터를 잃고 있는지"를 알 수 없어 하드웨어 교체 판단을
+    못 한다.
+    """
+    from app.services import mqtt_subscriber
+
+    metrics.record_duplicate_drop("sensor-01")
+    metrics.record_duplicate_drop("sensor-01")
+    metrics.record_duplicate_drop("sensor-03")
+
+    snap = metrics.snapshot()
+    assert snap["messages_dropped_duplicate"] == 3
+    assert snap["messages_dropped_duplicate_by_node"] == {
+        "sensor-01": 2,
+        "sensor-03": 1,
+    }
+
+
+@pytest.mark.asyncio
+async def test_duplicate_exception_carries_node_id(counters, monkeypatch):
+    """DuplicateMessage가 node_id를 싣고 있어야 구독 루프에서 분해 집계가 가능하다."""
+    monkeypatch.setattr(ingest, "get_pool", lambda: FakePool(FakeConn(is_new=False)))
+    with pytest.raises(ingest.DuplicateMessage) as exc_info:
+        await ingest.ingest_telemetry(gas_payload())
+    assert exc_info.value.node_id == "sensor-01"
 
 
 @pytest.mark.asyncio
