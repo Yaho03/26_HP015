@@ -11,10 +11,10 @@ export interface ToastItem {
 
 interface ToastStore {
   toasts: ToastItem[];
-  modal: { level: AlertLevel; title: string; body?: string } | null;
+  modal: { alert_key: string; level: AlertLevel; title: string; body?: string } | null;
   push: (toast: Omit<ToastItem, "id" | "created_at">) => void;
   dismiss: (id: string) => void;
-  openModal: (modal: { level: AlertLevel; title: string; body?: string }) => void;
+  openModal: (modal: { alert_key: string; level: AlertLevel; title: string; body?: string }) => void;
   closeModal: () => void;
 }
 

@@ -10,13 +10,18 @@ import logging
 from datetime import datetime
 from typing import Optional
 
+from app.config import settings
 from app.services import ingest
 from app.services.location_filter import FilteredPosition, LocationFilter
 from app.services.ws_manager import manager
 
 logger = logging.getLogger(__name__)
 
-_filter = LocationFilter(alpha=0.3, max_jump_m=1.0)
+_filter = LocationFilter(
+    alpha=settings.location_filter_alpha,
+    max_speed_mps=settings.location_filter_max_speed_mps,
+    reject_limit=settings.location_filter_reject_limit,
+)
 _callback_registered = False
 
 
@@ -42,6 +47,14 @@ async def _on_location_ingested(
 
 
 async def _broadcast(pos: FilteredPosition) -> None:
+    """필터링된 위치를 브로드캐스트한다.
+
+    실측 좌표(position_raw)와 그 좌표계만 보낸다. 화면 표시 좌표는 보내지 않는다 —
+    뷰마다 매핑 프리셋이 다르므로(모니터링=FILL, 트윈 상세=TRUE SCALE) 백엔드가
+    어느 하나를 고를 수 없다. 변환은 프론트 utils/coordinates 가 담당한다.
+
+    x/y/z 는 구버전 클라이언트 호환용으로 유지한다.
+    """
     try:
         import asyncio
         await manager.broadcast({
@@ -50,6 +63,8 @@ async def _broadcast(pos: FilteredPosition) -> None:
             "x": pos.x,
             "y": pos.y,
             "z": pos.z,
+            "position_raw": {"x_m": pos.x, "y_m": pos.y, "z_m": pos.z},
+            "source_coordinate_system": settings.location_source_coordinate_system,
             "timestamp": pos.timestamp.isoformat(),
         })
     except Exception:

@@ -68,6 +68,39 @@ def test_filter_outlier_does_not_corrupt_state():
     assert normal is not None
 
 
+def test_normal_walking_1_4mps_rejection_rate_under_one_percent():
+    """#110: 1.4m/s 정상 보행은 1Hz 샘플에서도 이상치로 거부되면 안 됨."""
+    f = LocationFilter(alpha=0.3, max_speed_mps=2.0)
+    accepted = 0
+    rejected = 0
+
+    for i in range(101):
+        result = f.update("wearable-01", 1.4 * i, 0.0, 0.0, _ts(i))
+        if result is None:
+            rejected += 1
+        else:
+            accepted += 1
+
+    assert accepted == 101
+    assert rejected / 101 < 0.01
+
+
+def test_filter_rebases_after_five_consecutive_rejections():
+    """#110: 연속 거부가 reject_limit에 도달하면 새 위치를 기준점으로 수용한다."""
+    f = LocationFilter(alpha=1.0, max_speed_mps=1.0, reject_limit=5)
+    f.update("wearable-01", 0.0, 0.0, 0.0, _ts(0))
+
+    for i in range(1, 5):
+        assert f.update("wearable-01", 100.0 + i, 0.0, 0.0, _ts(i)) is None
+
+    rebased = f.update("wearable-01", 105.0, 0.0, 0.0, _ts(5))
+    assert rebased is not None
+    assert rebased.x == 105.0
+
+    normal_after_rebase = f.update("wearable-01", 106.0, 0.0, 0.0, _ts(6))
+    assert normal_after_rebase is not None
+
+
 def test_filtered_position_dataclass():
     f = LocationFilter()
     result = f.update("wearable-01", 0.5, 0.5, 0.0, _ts(0))

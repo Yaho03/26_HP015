@@ -156,6 +156,18 @@ graph TD
 | 좌표계 식별자 | `model-local` |
 
 > UWB 측위 결과는 2D (x, y)이며, z는 항상 0.0이다. 물리 좌표계는 Z-up이며, Three.js 렌더링 시 Y-up으로 변환한다 (three_x=physical_x, three_y=physical_z, three_z=-physical_y).
+>
+> 데모 환경에서는 축소 공간 좌표(`demo-local`)를 실제 화물창/밸러스트 탱크형 3D 표시
+> 좌표(`ship-visual`)로 비율 매핑할 수 있다. 이 매핑은 대시보드 시각화용이며, 원본
+> UWB 좌표는 별도 보존한다. 상세 규칙은 `05_DIGITAL_TWIN_SPEC.md` 섹션 3.1.1을 따른다.
+
+선박형 표시 공간의 기준 크기는 길이 60m x 폭 20m x 높이 14m이다. 축소 데모 공간의
+크기(약 2.5m x 2.0m x 1.5m)는 하드웨어 검증 공간이며, 선박형 표시 공간의 크기와
+동일한 값으로 취급하지 않는다.
+
+> 폭 20m는 선체 공간 크기이고, `demo-local -> ship-visual` **매핑 대상은 바닥 평면
+> 폭 13m**다. 선체가 높이에 따라 좁아지기 때문이며, 상세는 `05_DIGITAL_TWIN_SPEC.md`
+> 섹션 3.1.3을 따른다.
 
 ---
 

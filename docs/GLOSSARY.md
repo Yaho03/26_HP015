@@ -222,3 +222,9 @@ ESP32 GPIO가 HIGH일 때 트랜지스터가 도통하여 모터에 전류가 �
 
 ### source_mode
 메시지가 실제 센서에서 온 것인지 시뮬레이션 데이터인지 구분하는 필드. 값은 `"live"` 또는 `"simulation"`. 실제 물리 노드의 node_id를 그대로 사용하되 이 필드로 구분한다 (`sim-NN` prefix 사용 금지).
+
+### visual_mapping
+원본 위치 좌표를 3D 트윈 표시 좌표로 변환했는지 나타내는 필드. 예를 들어
+`demo-to-ship-scale`은 축소 데모 공간 좌표(`demo-local`)를 선박형 3D 트윈 표시 좌표
+(`ship-visual`)로 비율 매핑했다는 뜻이다. `source_mode`와 별개이며, 실제 UWB 데이터도
+시연 화면에서는 비율 매핑될 수 있다.

@@ -21,6 +21,7 @@ _SKIP_FIELDS = {
 
 _alert_callback = None
 _location_callback = None
+_ranging_callback = None
 _reading_callback = None
 _status_callback = None
 _connection_recovery_callback = None
@@ -47,6 +48,12 @@ def set_status_callback(callback) -> None:
     global _status_callback
     _status_callback = callback
 
+
+def set_ranging_callback(callback) -> None:
+    """UWB 거리 콜백 주입. ingest_ranging 이 호출한다 (#121).
+    uwb_service.init() 에서 등록한다."""
+    global _ranging_callback
+    _ranging_callback = callback
 
 def set_location_callback(callback) -> None:
     """위치 필터링 콜백 주입. ingest_telemetry 가 location metric(x_m/y_m/z_m) 을
@@ -389,3 +396,30 @@ async def ingest_connection(payload: bytes) -> None:
             await _connection_recovery_callback(node_id)
         except Exception:
             logger.exception("connection recovery callback failed (node=%s)", node_id)
+
+
+async def ingest_ranging(payload: bytes) -> None:
+    """wearable/*/ranging (UWB 앵커 거리) 처리 — 이슈 #121.
+
+    거리 자체는 최종 관측값이 아니라 좌표를 얻기 위한 중간 데이터라 DB 에 넣지
+    않는다. 저장되는 것은 삼변측량으로 나온 위치다 (기존 location 경로와 동일).
+    """
+    envelope = _parse_envelope(payload)
+    node_id, sampled_at_raw = _require(envelope, "node_id", "sampled_at")
+    node_id = _expect_str(node_id, "node_id")
+    sampled_at = _parse_ts(sampled_at_raw)
+
+    data = envelope.get("data")
+    if not isinstance(data, dict):
+        raise InvalidMessage("ranging payload requires object 'data'")
+    ranges = data.get("ranges")
+    if not isinstance(ranges, list):
+        raise InvalidMessage("ranging data requires list 'ranges'")
+
+    metrics.increment("messages_processed")
+    if _ranging_callback is None:
+        return
+    try:
+        await _ranging_callback(node_id, ranges, sampled_at)
+    except Exception:
+        logger.exception("ranging callback failed (node=%s)", node_id)

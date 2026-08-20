@@ -5,7 +5,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app import db, migration_runner, observability
 from app.config import settings
-from app.routers import alert_events, health, sensor_data, thresholds, websocket
+from app.routers import alert_events, demo, health, sensor_data, thresholds, websocket
 from app.services import (
     alert_publisher,
     alert_service,
@@ -14,6 +14,7 @@ from app.services import (
     mqtt_subscriber,
     retention,
     sensor_broadcast,
+    uwb_service,
 )
 
 
@@ -33,6 +34,7 @@ async def lifespan(app: FastAPI):
         # 예외를 그대로 전파시켜 기동 자체를 실패시킨다 (컨테이너 재시작 루프로 즉시 드러남).
         await alert_service.init()
         location_service.init()
+        uwb_service.init()
         sensor_broadcast.init()
         connection_monitor.init()
         await mqtt_subscriber.start()
@@ -74,3 +76,5 @@ app.include_router(thresholds.router)
 app.include_router(sensor_data.router)
 app.include_router(alert_events.router)
 app.include_router(websocket.router)
+# 기본 비활성. settings.demo_control_enabled 가 false 면 모든 경로가 404 다.
+app.include_router(demo.router)

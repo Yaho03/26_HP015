@@ -75,6 +75,16 @@ async def test_runner_stop_interrupts_long_scenario(monkeypatch):
     assert len(fake.published) < 19  # co2_warning 은 19개 메시지
 
 
+@pytest.mark.asyncio
+async def test_runner_forwards_scenario_kwargs():
+    """normal_steady 의 duration_seconds 같은 시나리오 전용 인자가 전달되어야 한다."""
+    short = ScenarioRunner(mqtt_client=FakeMQTT(), delay_seconds=0)
+    long = ScenarioRunner(mqtt_client=FakeMQTT(), delay_seconds=0)
+    await short.run_scenario("normal_steady", node_id="sensor-01", duration_seconds=5)
+    await long.run_scenario("normal_steady", node_id="sensor-01", duration_seconds=30)
+    assert len(long._mqtt.published) > len(short._mqtt.published)
+
+
 def test_runner_list_scenarios():
     fake = FakeMQTT()
     runner = ScenarioRunner(mqtt_client=fake, delay_seconds=0)
