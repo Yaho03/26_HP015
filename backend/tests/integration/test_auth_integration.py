@@ -46,7 +46,7 @@ MATRIX: list[dict] = [
     {"m": "GET", "p": "/api/workers/nodes/wearable-01/history", "exp": (200, 200, 200)},
     {"m": "GET", "p": "/api/users", "exp": (403, 403, 200)},
     {"m": "GET", "p": "/api/demo/scenarios", "exp": (403, 403, 404)},
-    {"m": "POST", "p": "/api/thresholds/co2_ppm/level1_caution", "body": {"direction": "above", "enter_threshold": 1005.0, "exit_threshold": 950.0, "enter_for_ms": 3000, "exit_for_ms": 5000}, "exp": (403, 403, 200)},
+    {"m": "PUT", "p": "/api/thresholds/co2_ppm/level1_caution", "body": {"direction": "above", "enter_threshold": 1005.0, "exit_threshold": 950.0, "enter_for_ms": 3000, "exit_for_ms": 5000}, "exp": (403, 403, 200)},
     {"m": "POST", "p": "/api/workers", "body": {"employee_no": "MATRIX-V", "name": "뷰어"}, "exp": (403, 201, 409)},
     {"m": "GET", "p": "/api/users/{admin_user_id}", "exp": (404, 404, 404)},  # users엔 GET 단일 없음
 ]
@@ -211,9 +211,9 @@ def test_reverting_auth_would_fail_these():
     AUTH-2/3/4 를 되돌리면(게이트 제거·WS 인증 제거) 위 테스트들이 실패한다.
     여기선 장치 자체의 존재를 확인해 우발적 제거를 잡는다.
     """
-    # 앱 게이트 존재 (FastAPI 는 router.dependencies 에 보관)
+    # 앱 게이트 존재 — router.dependencies 는 Depends(params) 래퍼 리스트다
     assert any(
-        getattr(d, "__name__", "") == "enforce_authentication"
+        getattr(getattr(d, "dependency", None), "__name__", "") == "enforce_authentication"
         for d in app.router.dependencies
     ), "앱 인증 게이트가 사라졌다 — AUTH-3 회귀"
     # WS 라우터 소스에 인증 호출 존재
