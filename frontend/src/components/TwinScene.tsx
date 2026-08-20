@@ -3,17 +3,29 @@ import { Html, OrbitControls } from "@react-three/drei";
 import { useEffect, useMemo, useRef, useState } from "react";
 import * as THREE from "three";
 import type { OrbitControls as OrbitControlsImpl } from "three-stdlib";
-import type { AlertLevel, MetricKey } from "../types";
+import type { AlertLevel, MetricKey, Position3D } from "../types";
 import type { Group } from "three";
 import { Heatmap } from "./Heatmap";
 import type { SensorSample } from "../utils/idw";
-import { toThreeGroundPosition, toThreePosition } from "../utils/coordinates";
+import { PLAN_CAM, toThreeGroundPosition, toThreePosition } from "../utils/coordinates";
 
 // ── Types ─────────────────────────────────────────────────────
 interface TwinSceneProps {
   nodes?: { id: string; x: number; y: number; level: AlertLevel }[];
   wearable?: { x: number; y: number; z: number; fall_detected?: boolean } | null;
   heatmap?: { samples: SensorSample[]; metric: MetricKey } | null;
+  /** 제어 모드. 주면 내부 상태 대신 이 값을 쓰고 토글이 사라진다. */
+  mode?: CamMode;
+  /** 전체 뷰 / 내부 시점 토글 표시. 고정 크롭으로 쓰는 칸에서는 끈다. */
+  showModeToggle?: boolean;
+  /** 시점 조작 허용. plan 크롭은 조작을 막아야 위치 판독이 깨지지 않는다. */
+  interactive?: boolean;
+  /**
+   * 위험 상황 시 작업자 탈출 경로. **아직 구현하지 않는다** — 후속 기능이라
+   * 자리만 잡아둔 것이고, null 이면 아무것도 렌더하지 않는다. 경로 계산(그래프
+   * 탐색, 가스 코스트 함수)은 이 컴포넌트의 책임이 아니다.
+   */
+  escapeRoute?: { path: Position3D[]; exit_id: string } | null;
 }
 
 const LEVEL_COLOR: Record<AlertLevel, string> = {
@@ -42,23 +54,39 @@ const DOT_Y     = 11.6; // marker dots, up on the topside slope
 const BRACKET_Y = 7.8;  // wall fittings, on the vertical side shell
 const LABEL_Y   = 8.1;  // stencilled markings
 
-type CamMode = "overview" | "inside";
+export type CamMode = "overview" | "inside" | "plan";
 const CAMS: Record<CamMode, { pos: [number,number,number]; tgt: [number,number,number] }> = {
   // Frame the hold interior so floor data, heatmap, and worker markers share
   // the first viewport instead of appearing as a distant ship silhouette.
   overview: { pos: [TL*0.5, 17, -40], tgt: [TL*0.5, TH*0.3, 0] },
   inside:   { pos: [2,    TH*0.6, 0.2     ], tgt: [TL*0.85, TH*0.42, 0] },
+  // Screen 1 ① 의 고정 크롭. 타깃이 바닥 중앙(y=0)이라 화물창 바닥이 화면을
+  // 채운다. 시점을 돌릴 수 없으므로 노드 화면 위치가 항상 같고, ⑤ 2×2 격자와의
+  // 대응(SENSOR_SCREEN_ORDER)이 유지된다.
+  plan:     { pos: [TL*0.5, 30, -21], tgt: [TL*0.5, 0, 0] },
 };
+
+/** 60m 길이를 뷰포트 폭에 맞추는 거리. 좁은 화면일수록 멀리 물러난다. */
+function fitDistanceFor(aspect: number): number {
+  const verticalFov = (60 * Math.PI) / 180;
+  const horizontalFov = 2 * Math.atan(Math.tan(verticalFov / 2) * Math.max(aspect, 0.5));
+  return TL / (2 * Math.tan(horizontalFov / 2));
+}
 
 function cameraPosition(mode: CamMode, aspect: number): [number, number, number] {
   if (mode === "inside") return CAMS.inside.pos;
 
-  // Fit the 60 m ship length to the viewport. Narrow screens need more
-  // distance; wide screens can move in close enough to read the overlays.
-  const verticalFov = (60 * Math.PI) / 180;
-  const horizontalFov = 2 * Math.atan(Math.tan(verticalFov / 2) * Math.max(aspect, 0.5));
-  const fitDistance = TL / (2 * Math.tan(horizontalFov / 2));
-  const distance = Math.max(36, fitDistance * 1.12);
+  const fit = fitDistanceFor(aspect);
+
+  if (mode === "plan") {
+    // 수평 대비 atan(0.82 / 0.58) ≈ 54.7° 의 사선 탑뷰. 비율은
+    // utils/coordinates 의 PLAN_CAM 이 단일 소스다 — 화면 사분면 계산이 같은
+    // 값을 보고 있어서, 여기서만 바꾸면 ⑤ 격자 대응이 조용히 깨진다.
+    const d = Math.max(30, fit);
+    return [TL * 0.5, d * PLAN_CAM.heightRatio, -d * PLAN_CAM.depthRatio];
+  }
+
+  const distance = Math.max(36, fit * 1.12);
   const targetY = CAMS.overview.tgt[1];
   return [TL * 0.5, targetY + distance * 0.45, -distance];
 }
@@ -665,14 +693,17 @@ function WearableMarker({ x, y, z, fall_detected }: { x: number; y: number; z: n
 
 // ── Scene content ──────────────────────────────────────────────
 function SceneContent({
-  nodes, wearable, heatmap, mode,
+  nodes, wearable, heatmap, mode, interactive,
 }: {
   nodes: NonNullable<TwinSceneProps["nodes"]>;
   wearable: TwinSceneProps["wearable"];
   heatmap: TwinSceneProps["heatmap"];
   mode: CamMode;
+  interactive: boolean;
 }) {
-  const cutaway = mode === "overview";
+  // 카메라 쪽 측벽을 잘라내야 바닥이 보인다. 내부 시점일 때만 벽을 세운다 —
+  // 벽 안에서 보는 시점이므로 절개하면 화물창 밖이 뚫려 보인다.
+  const cutaway = mode !== "inside";
   const controlsRef = useRef<OrbitControlsImpl>(null);
   return (
     <>
@@ -719,9 +750,13 @@ function SceneContent({
         <WearableMarker x={wearable.x} y={wearable.y} z={wearable.z}
           fall_detected={!!wearable.fall_detected} />
       )}
+      {/* 고정 크롭에서는 조작을 막는다. 관제사가 실수로 시점을 돌려놓으면
+          노드의 화면 위치가 ⑤ 2×2 격자와 어긋나 위치 판독이 깨진다.
+          컨트롤 자체는 유지해야 CameraController 가 타깃을 잡을 수 있다. */}
       <OrbitControls
         ref={controlsRef}
         makeDefault
+        enabled={interactive}
         target={CAMS[mode].tgt}
         minDistance={2}
         maxDistance={160}
@@ -756,38 +791,50 @@ function ReleaseContextOnUnmount() {
 }
 
 // ── TwinScene (exported) ───────────────────────────────────────
-export function TwinScene({ nodes = [], wearable = null, heatmap = null }: TwinSceneProps) {
-  const [mode, setMode] = useState<CamMode>("overview");
+export function TwinScene({
+  nodes = [],
+  wearable = null,
+  heatmap = null,
+  mode: modeProp,
+  showModeToggle = true,
+  interactive = true,
+  escapeRoute = null,
+}: TwinSceneProps) {
+  const [internalMode, setInternalMode] = useState<CamMode>("overview");
+  // 제어 prop 이 오면 그것이 우선이다. Screen 1 ① 은 plan 고정으로 쓴다.
+  const mode = modeProp ?? internalMode;
+
+  // 탈출 경로는 아직 구현 대상이 아니다 (§3). prop 만 받아 두고 아무것도
+  // 그리지 않는다 — 값이 들어와도 조용히 무시하는 편이, 반쯤 그린 경로를
+  // 관제사가 실제 지시로 오해하는 것보다 안전하다.
+  void escapeRoute;
+
   return (
     <div className="twin-canvas" style={{ position: "relative" }}>
-      {/* Camera mode toggle */}
-      <div style={{
-        position: "absolute", top: 8, right: 10, zIndex: 10,
-        display: "flex", gap: 6,
-      }}>
-        {(["overview", "inside"] as CamMode[]).map(m => (
-          <button
-            key={m}
-            onClick={() => setMode(m)}
-            style={{
-              padding: "3px 10px", fontSize: 11, borderRadius: 4, cursor: "pointer",
-              background: mode === m ? "#3b82f6" : "#1e2436",
-              color: "#fff", border: "1px solid " + (mode === m ? "#3b82f6" : "#374151"),
-            }}
-          >
-            {m === "overview" ? "전체 뷰" : "내부 시점"}
-          </button>
-        ))}
-      </div>
+      {showModeToggle && !modeProp && (
+        <div className="twin-cam-toggle">
+          {(["overview", "inside"] as CamMode[]).map(m => (
+            <button
+              key={m}
+              type="button"
+              className={"twin-cam-btn" + (mode === m ? " twin-cam-btn--active" : "")}
+              aria-pressed={mode === m}
+              onClick={() => setInternalMode(m)}
+            >
+              {m === "overview" ? "전체 뷰" : "내부 시점"}
+            </button>
+          ))}
+        </div>
+      )}
 
       <Canvas
-        camera={{ position: CAMS.overview.pos, fov: 60 }}
+        camera={{ position: CAMS[mode].pos, fov: 60 }}
         frameloop="always"
         gl={{ antialias: true }}
       >
         <color attach="background" args={["#07090e"]} />
         <SceneContent nodes={nodes} wearable={wearable}
-          heatmap={heatmap} mode={mode} />
+          heatmap={heatmap} mode={mode} interactive={interactive} />
       </Canvas>
     </div>
   );

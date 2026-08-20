@@ -11,19 +11,40 @@ import type {
   WearableState,
 } from "../types";
 
-/** One point of a node's CO₂ trend buffer (10_UI_FLOW §3.2 미니 차트). */
+/** One point of a node's trend buffer (10_UI_FLOW §3.2 미니 차트). */
 export interface TrendPoint {
   t: number;
   v: number;
 }
 
-/** Trend window kept per node. Older points are dropped on write so the buffer
- *  cannot grow without bound during a long watch. */
-export const CO2_TREND_WINDOW_MS = 60 * 60 * 1000;
+/**
+ * 트렌드를 쌓는 지표. O₂ 는 센서 노드가 아니라 웨어러블 값이라 제외한다
+ * (10_UI_FLOW §3.3).
+ */
+export type TrendMetric = Exclude<MetricKey, "o2_pct">;
+
+/** Trend window kept per node/metric. Older points are dropped on write so the
+ *  buffer cannot grow without bound during a long watch. */
+export const SENSOR_TREND_WINDOW_MS = 60 * 60 * 1000;
+
+/**
+ * 버퍼당 최대 점 수. 노드 5 × 지표 6 = 최대 30개 버퍼가 동시에 자라므로
+ * 시간 창만으로는 부족하다. 샘플 주기가 빨라지면 창 안에서도 수천 점이 쌓인다.
+ */
+export const SENSOR_TREND_MAX_POINTS = 360;
+
+/** ⑤ 스파크라인이 그리는 구간. 버퍼는 더 길게 갖고 표시만 잘라 쓴다. */
+export const SPARKLINE_WINDOW_MS = 5 * 60 * 1000;
 
 interface DashboardStore {
   sensor_nodes: Record<NodeId, SensorNodeState>;
-  co2_trend: Record<NodeId, TrendPoint[]>;
+  /**
+   * 노드 × 지표별 링 버퍼. CO₂ 전용이던 것을 6종으로 일반화했다 —
+   * ⑤ 노드별 센서 데이터가 지표마다 스파크라인을 그리기 때문이다.
+   * 노드 단위로 객체를 새로 만들어, 한 노드의 갱신이 다른 노드를 구독하는
+   * 셀렉터를 건드리지 않게 한다 (10_UI_FLOW §10.3).
+   */
+  sensor_trend: Record<NodeId, Partial<Record<TrendMetric, TrendPoint[]>>>;
   wearable: WearableState | null;
   active_alerts: Record<AlertKey, AlertState>;
   connection_status: ConnectionStatus;
@@ -64,7 +85,7 @@ const initial_connection_status: ConnectionStatus = {
 
 export const useDashboardStore = create<DashboardStore>((set) => ({
   sensor_nodes: {},
-  co2_trend: {},
+  sensor_trend: {},
   wearable: null,
   active_alerts: {},
   connection_status: initial_connection_status,
@@ -93,15 +114,26 @@ export const useDashboardStore = create<DashboardStore>((set) => ({
           },
         },
       };
-      if (metric !== "co2_ppm") return nodes;
+      // O₂ 는 웨어러블 소관이라 센서 노드 트렌드에 쌓지 않는다.
+      if (metric === "o2_pct") return nodes;
 
       const t = Date.parse(timestamp);
       if (Number.isNaN(t)) return nodes;
-      const cutoff = t - CO2_TREND_WINDOW_MS;
-      const kept = (state.co2_trend[node_id] ?? []).filter((p) => p.t > cutoff);
+      const cutoff = t - SENSOR_TREND_WINDOW_MS;
+      const nodeBuffers = state.sensor_trend[node_id] ?? {};
+      const kept = (nodeBuffers[metric] ?? []).filter((p) => p.t > cutoff);
+      const next = [...kept, { t, v: value }];
       return {
         ...nodes,
-        co2_trend: { ...state.co2_trend, [node_id]: [...kept, { t, v: value }] },
+        sensor_trend: {
+          ...state.sensor_trend,
+          [node_id]: {
+            ...nodeBuffers,
+            [metric]: next.length > SENSOR_TREND_MAX_POINTS
+              ? next.slice(next.length - SENSOR_TREND_MAX_POINTS)
+              : next,
+          },
+        },
       };
     }),
 
