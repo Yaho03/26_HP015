@@ -155,11 +155,13 @@ export function EvacuationPlan({
         })}
 
         {topology.nav_nodes
-          .filter((n) => n.kind !== "exit")
+          // 사다리 하단은 출구와 같은 x/y에 놓인다. 이름까지 함께 그리면
+          // 출구 라벨·차단 X와 포개져 정작 대피 지점 이름을 읽을 수 없다.
+          .filter((n) => n.kind !== "exit" && n.kind !== "ladder_bottom")
           .map((n) => (
             <g key={n.nav_node_id}>
               <circle className="evac-plan__node" cx={n.x_m} cy={sy(n.y_m)} r={0.32} />
-              <text className="evac-plan__node-label" x={n.x_m} y={sy(n.y_m) - 0.85} textAnchor="middle">
+              <text className="evac-plan__node-label" x={n.x_m} y={sy(n.y_m) - 1.65} textAnchor="middle">
                 {n.label}
               </text>
             </g>
@@ -196,6 +198,9 @@ export function EvacuationPlan({
                 : "evac-plan__exit--open");
           const cx = exit.x_m;
           const cy = sy(exit.y_m);
+          // 긴 출구명이 도면 밖으로 잘리지 않도록 선수/선미 쪽으로 붙인다.
+          const labelOnLeft = cx < SHIP_SPACE.length_m / 2;
+          const labelX = labelOnLeft ? Math.max(0, cx - 1.15) : Math.min(SHIP_SPACE.length_m, cx + 1.15);
           return (
             <g key={exit.exit_id}>
               <circle className={cls} cx={cx} cy={cy} r={1.15} />
@@ -206,7 +211,12 @@ export function EvacuationPlan({
                   <line className="evac-plan__exit-cross" x1={cx + 1.0} y1={cy - 1.0} x2={cx - 1.0} y2={cy + 1.0} />
                 </>
               )}
-              <text className="evac-plan__exit-label" x={cx} y={cy + 3.1} textAnchor="middle">
+              <text
+                className="evac-plan__exit-label"
+                x={labelX}
+                y={cy + 3.1}
+                textAnchor={labelOnLeft ? "start" : "end"}
+              >
                 {exit.label}
               </text>
             </g>
