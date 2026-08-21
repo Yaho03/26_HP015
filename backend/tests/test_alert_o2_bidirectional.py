@@ -211,7 +211,7 @@ MIGRATIONS_DIR = Path(__file__).resolve().parent.parent / "migrations"
 
 def test_migration_005_includes_o2_low_and_high():
     """005 시드에 o2_low, o2_high threshold 가 포함되어야 한다."""
-    sql = (MIGRATIONS_DIR / "005_thresholds.sql").read_text()
+    sql = (MIGRATIONS_DIR / "005_thresholds.sql").read_text(encoding="utf-8")
     assert "o2_low" in sql
     assert "o2_high" in sql
     # direction=below for o2_low
@@ -225,7 +225,7 @@ def test_migration_005_includes_o2_low_and_high():
 def test_migration_005_o2_thresholds_match_prd():
     """PRD FR-201 + 06_ALERT_RULES 4.2 의 O₂ 임계값과 시드가 일치해야 한다.
     whitespace 는 정규식 \s* 로 관대하게 매칭."""
-    sql = (MIGRATIONS_DIR / "005_thresholds.sql").read_text()
+    sql = (MIGRATIONS_DIR / "005_thresholds.sql").read_text(encoding="utf-8")
     import re
 
     def _has(pattern: str) -> bool:
