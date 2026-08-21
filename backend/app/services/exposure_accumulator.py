@@ -53,6 +53,12 @@ class DoseState:
     o2_severe_s: float = 0.0
     o2_enriched_s: float = 0.0
     o2_min_pct: Optional[float] = None
+    #: STEL 비교용 최근 샘플 (epoch 초, 값). 15분 창 밖은 버린다.
+    #:
+    #: dose 처럼 하나의 누적값으로 접을 수 없다 — 15분 **이동** 평균이라 창을 벗어난
+    #: 샘플을 빼야 하고, 그러려면 원본을 들고 있어야 한다. 창이 15분이고 샘플이
+    #: 1초 주기여도 900개라 메모리는 문제가 되지 않는다.
+    recent: tuple = ()
 
 
 def integrate(
@@ -121,8 +127,54 @@ def integrate(
         data_gap_s=state.data_gap_s + gap_s,
         last_value=value,
         last_sample_at=sampled_at,
+        recent=_trim_recent(state.recent, value, sampled_at),
     )
     return _with_peak(nxt, value, sampled_at)
+
+
+#: STEL 창 (§2.1 twa_15min_ppm).
+STEL_WINDOW_S = 15 * 60
+
+
+def _trim_recent(recent: tuple, value: float, sampled_at: datetime) -> tuple:
+    now_s = sampled_at.timestamp()
+    cutoff = now_s - STEL_WINDOW_S
+    kept = [p for p in recent if p[0] >= cutoff]
+    kept.append((now_s, value))
+    return tuple(kept)
+
+
+def twa_15min_ppm(state: DoseState) -> Optional[float]:
+    """최근 15분 이동 시간가중평균 (§2.1). STEL 비교용.
+
+    8시간 TWA 와 달리 **창을 벗어난 샘플이 빠져야** 하므로 누적값으로 접을 수 없다.
+    같은 사다리꼴을 창 안에서만 다시 적분한다.
+
+    창을 채울 만큼 샘플이 없으면 None 이다 — 3분치로 계산한 값을 15분 평균이라고
+    부르면 짧은 고농도 구간이 실제보다 훨씬 크게 나와 STEL 오탐이 된다.
+    """
+    if len(state.recent) < 2:
+        return None
+    span_s = state.recent[-1][0] - state.recent[0][0]
+    if span_s <= 0:
+        return None
+
+    area = 0.0
+    for (t0, v0), (t1, v1) in zip(state.recent, state.recent[1:]):
+        area += (v0 + v1) / 2.0 * (t1 - t0)
+    return area / span_s
+
+
+def stel_exceeded(state: DoseState, stel_limit_ppm: Optional[float]) -> bool:
+    """15분 이동 평균이 STEL 을 넘겼는가 (§2.1).
+
+    기준값이 없으면 판정하지 않는다 — 없는 기준으로 "초과 아님"이라 말하면 그건
+    측정하지 않은 것을 안전하다고 보고하는 것이다.
+    """
+    if stel_limit_ppm is None or stel_limit_ppm <= 0:
+        return False
+    twa = twa_15min_ppm(state)
+    return twa is not None and twa > stel_limit_ppm
 
 
 def _with_peak(state: DoseState, value: float, sampled_at: datetime) -> DoseState:

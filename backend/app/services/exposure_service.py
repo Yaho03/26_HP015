@@ -30,6 +30,7 @@ from datetime import datetime, timezone
 from typing import Dict, Optional, Tuple
 
 from app.config import settings
+from app.models.alert import AlertLevel, AlertTransition
 from app.models.exposure import ExposureShiftLogRow, ExposureStateRow
 from app.repositories import exposure_repository as repo
 from app.repositories import worker_repository
@@ -44,6 +45,7 @@ from app.services.exposure_accumulator import (
     nearest_node,
     o2_alert_level,
     sensor_nodes_from_anchors,
+    stel_exceeded,
     trust_level,
     twa_8h_ppm,
 )
@@ -58,6 +60,23 @@ WEARABLE_PREFIX = "wearable"
 GAS_METRICS = ("co2_ppm", "co_ppm", "h2s_ppm")
 O2_METRIC = "o2_pct"
 
+#: metric → alert_key (§5.3). metric 과 **다른 문자열**이어야 한다 — 특히 O2 는
+#: 순간값 경보(o2_low/o2_high)와 metric 이 같아서, 키를 나누지 않으면 시간 누적
+#: 경보와 순간값 경보가 서로를 덮어쓴다 (§5.4 가 금지).
+ALERT_KEYS = {
+    "co2_ppm": "exposure_co2",
+    "co_ppm": "exposure_co",
+    "h2s_ppm": "exposure_h2s",
+    "o2_pct": "o2_deficiency_time",
+}
+
+#: O2 시간 누적 등급별 경계 초 (§5.4). 경보 메시지의 threshold 로 실린다.
+_O2_THRESHOLD_S = {
+    "level1_caution": 300.0,
+    "level2_warning": 900.0,
+    "level3_critical": 60.0,   # severe 기준
+}
+
 RECONCILE_INTERVAL_S = 15.0
 
 _WindowKey = Tuple[str, str]  # (wearable node_id, metric)
@@ -71,7 +90,8 @@ class _Window:
     """
 
     __slots__ = ("row", "state", "worker_name", "source", "source_node_id",
-                 "source_distance_m", "unavailable_s", "max_level", "dirty")
+                 "source_distance_m", "unavailable_s", "max_level",
+                 "emitted_level", "dirty")
 
     def __init__(self, row: ExposureStateRow, worker_name: str) -> None:
         self.row = row
@@ -94,6 +114,11 @@ class _Window:
         self.source_distance_m: Optional[float] = None
         self.unavailable_s: float = 0.0
         self.max_level: str = "normal"
+        #: 지금까지 **발행한** 등급. 여기서 내려가는 일은 없다 (§5.2).
+        #: 재시작 후에는 normal 로 시작하는데, 이미 임계를 넘긴 윈도우면 다음 평가에서
+        #: 곧바로 같은 등급을 다시 올린다. MQTT state 토픽이 retain 이라 구독자가 보는
+        #: 최종 상태는 같다.
+        self.emitted_level: str = "normal"
         self.dirty = False
 
     def elapsed_s(self, now: datetime) -> float:
@@ -280,6 +305,9 @@ async def _close(key: _WindowKey) -> None:
         trust_level=_trust_of(window, now),
         max_alert_level=max_alert_level(window.max_level, level),
     )
+    # 해제는 여기서만 일어난다 (§5.2). 농도가 정상으로 돌아왔다는 이유로는 절대
+    # 내려가지 않는다.
+    await _resolve_alert(window)
     await repo.close_window(row, final)
     logger.info("노출량 윈도우 확정 (%s %s, dose=%.1f ppm·min, gap=%ds)",
                 key[0], key[1], window.state.dose_ppm_min, final.data_gap_s)
@@ -319,6 +347,7 @@ async def on_reading(node_id: str, metric: str, value: float, sampled_at: dateti
             window.state, value, sampled_at, gap_max_s=settings.exposure_gap_max_s
         )
         window.dirty = True
+        await _maybe_alert(window)
         return
 
     if metric not in GAS_METRICS:
@@ -344,6 +373,80 @@ async def on_reading(node_id: str, metric: str, value: float, sampled_at: dateti
             window.state, value, sampled_at, gap_max_s=settings.exposure_gap_max_s
         )
         window.dirty = True
+        await _maybe_alert(window)
+
+
+async def _maybe_alert(window: "_Window") -> None:
+    """등급이 올라갔으면 경보를 올린다 (§5.1, §5.4).
+
+    **내리지 않는다.** 누적값은 단조 증가하므로 노출량 경보에는 Hysteresis 도
+    exit_threshold 도 없다 (§5.2). 해제는 윈도우 종료로만 이루어진다. 이 함수가
+    한 방향으로만 움직이는 것이 그 규칙의 구현이다.
+    """
+    metric = window.row.metric
+    if metric == O2_METRIC:
+        level = o2_alert_level(
+            o2_deficient_s=window.state.o2_deficient_s,
+            o2_severe_s=window.state.o2_severe_s,
+        )
+        trigger = (window.state.o2_severe_s if level == "level3_critical"
+                   else window.state.o2_deficient_s)
+        threshold = _O2_THRESHOLD_S.get(level, 0.0)
+    else:
+        limit = _limits.get(metric)
+        fraction = dose_fraction(
+            window.state.dose_ppm_min, limit.dose_limit_ppm_min if limit else None
+        )
+        if fraction is None:
+            # 기준값이 없으면 판정 자체가 불가능하다. 여기서 normal 을 만들어
+            # 내보내면 "확인했고 정상"이라는 거짓 신호가 된다 (§3.2, §6.4).
+            return
+        exceeded = stel_exceeded(window.state, getattr(limit, "stel_limit_ppm", None))
+        level = alert_level_for_fraction(fraction, stel_exceeded=exceeded)
+        trigger = window.state.dose_ppm_min
+        threshold = limit.dose_limit_ppm_min if limit else 0.0
+
+    if max_alert_level(window.emitted_level, level) == window.emitted_level:
+        return  # 같거나 낮다 — 내리지 않는다
+
+    from app.services import alert_service
+    await alert_service.handle_transition(AlertTransition(
+        node_id=window.row.node_id,          # 웨어러블이다. 가스를 잰 센서가 아니다 (§5.3)
+        metric=metric,
+        alert_key=ALERT_KEYS[metric],
+        from_level=AlertLevel(window.emitted_level),
+        to_level=AlertLevel(level),
+        value=float(trigger),
+        threshold=float(threshold or 0.0),
+        timestamp=datetime.now(timezone.utc),
+    ))
+    window.emitted_level = level
+    window.max_level = max_alert_level(window.max_level, level)
+    logger.info("노출량 경보 %s %s → %s (worker=%s)",
+                window.row.node_id, ALERT_KEYS[metric], level, window.worker_name)
+
+
+async def _resolve_alert(window: "_Window") -> None:
+    """윈도우 종료로만 이루어지는 해제 (§5.2).
+
+    농도가 정상으로 돌아왔다는 이유로는 절대 여기 오지 않는다. 작업자가 공간에서
+    나왔거나(배정 해제) 관리자가 수동 리셋한 경우뿐이다.
+    """
+    if window.emitted_level == "normal":
+        return
+    from app.services import alert_service
+    metric = window.row.metric
+    await alert_service.handle_transition(AlertTransition(
+        node_id=window.row.node_id,
+        metric=metric,
+        alert_key=ALERT_KEYS[metric],
+        from_level=AlertLevel(window.emitted_level),
+        to_level=AlertLevel.NORMAL,
+        value=float(window.state.dose_ppm_min),
+        threshold=0.0,
+        timestamp=datetime.now(timezone.utc),
+    ))
+    window.emitted_level = "normal"
 
 
 def _source_for(wearable_id: str) -> Tuple[Optional[str], Optional[float]]:

@@ -101,10 +101,21 @@ def env(monkeypatch):
     svc._limits = {}
     svc._sensor_nodes = dict(NODES)
 
+    transitions: list = []
+
+    async def _capture(t):
+        transitions.append(t)
+
+    from app.services import alert_service
+    monkeypatch.setattr(alert_service, "handle_transition", _capture)
+
     monkeypatch.setattr(svc, "repo", fake_repo)
     monkeypatch.setattr(svc.worker_repository, "list_active", lambda: _aio(assignments))
     monkeypatch.setattr(svc.location_service, "get_filter", lambda: _Filter(positions))
-    yield {"repo": fake_repo, "assignments": assignments, "positions": positions}
+    yield {
+        "repo": fake_repo, "assignments": assignments,
+        "positions": positions, "transitions": transitions,
+    }
 
     svc._windows.clear()
     svc._limits = {}
@@ -288,6 +299,129 @@ async def test_flush_snapshot_carries_accumulated_values(env):
     row = env["repo"].flushed[0][0]
     assert row.dose_ppm_min == pytest.approx(1200.0)
     assert row.last_value == 1200.0
+
+
+# ============================================================
+# §5 경보 연동
+# ============================================================
+
+async def _push_dose(fraction: float, *, metric="co2_ppm", node="sensor-01"):
+    """소진율이 fraction 이 되도록 농도를 밀어 넣는다 (기준 2,400,000 ppm·min).
+
+    **60초 간격으로 여러 번** 넣어야 한다. 한 번에 긴 간격을 주면 gap_max_s 가
+    구간을 60초로 자르고 나머지는 data_gap_s 로 가버려서 dose 가 안 쌓인다 (§4.2).
+    적산기가 의도대로 동작하는 것이고, 그걸 모르고 짠 첫 버전이 틀렸었다.
+    """
+    ppm = 50_000.0
+    steps = int(round(2_400_000.0 * fraction / ppm))
+    for i in range(steps + 1):
+        await svc.on_reading(node, metric, ppm, T0 + timedelta(seconds=60 * i))
+
+
+@pytest.mark.asyncio
+async def test_alert_uses_exposure_alert_key_not_metric(env):
+    """§5.3 — alert_key 는 exposure_co2, metric 은 co2_ppm 으로 서로 달라야 한다."""
+    svc._limits = await env["repo"].load_limits()
+    await svc._reconcile()
+    await _push_dose(0.6)
+    t = env["transitions"][-1]
+    assert t.alert_key == "exposure_co2"
+    assert t.metric == "co2_ppm"
+
+
+@pytest.mark.asyncio
+async def test_alert_source_node_is_the_wearable_not_the_sensor(env):
+    """§5.3 MUST — 노출은 사람에게 귀속된다. 센서 노드로 넣으면 대시보드에서
+    센서 카드가 빨갛게 뜬다."""
+    svc._limits = await env["repo"].load_limits()
+    await svc._reconcile()
+    await _push_dose(0.6)
+    assert env["transitions"][-1].node_id == "wearable-01"
+
+
+@pytest.mark.asyncio
+async def test_alert_ladder_follows_fraction(env):
+    svc._limits = await env["repo"].load_limits()
+    await svc._reconcile()
+    await _push_dose(0.6)
+    assert env["transitions"][-1].to_level.value == "level1_caution"
+
+
+@pytest.mark.asyncio
+async def test_alert_never_goes_down_while_window_is_open(env):
+    """§5.2 — 누적값은 줄지 않으므로 해제도 없다. 농도가 0 이 되어도 유지된다."""
+    svc._limits = await env["repo"].load_limits()
+    await svc._reconcile()
+    await _push_dose(0.9)
+    before = len(env["transitions"])
+    assert env["transitions"][-1].to_level.value == "level2_warning"
+
+    # 농도가 정상으로 돌아와도 새 전환(특히 하향)이 없어야 한다.
+    for i in range(5):
+        await svc.on_reading("sensor-01", "co2_ppm", 0.0,
+                             T0 + timedelta(hours=2, minutes=i))
+    assert len(env["transitions"]) == before, "노출량 경보가 저절로 내려갔다"
+    assert svc._windows[("wearable-01", "co2_ppm")].emitted_level == "level2_warning"
+
+
+@pytest.mark.asyncio
+async def test_alert_is_emitted_once_per_level(env):
+    """같은 등급을 반복 발행하면 대시보드가 계속 깜빡인다."""
+    svc._limits = await env["repo"].load_limits()
+    await svc._reconcile()
+    await _push_dose(0.6)
+    count = len([t for t in env["transitions"] if t.alert_key == "exposure_co2"])
+    await svc.on_reading("sensor-01", "co2_ppm", 100.0, T0 + timedelta(hours=3))
+    assert len([t for t in env["transitions"] if t.alert_key == "exposure_co2"]) == count
+
+
+@pytest.mark.asyncio
+async def test_no_alert_at_all_when_limit_unseeded(env):
+    """§3.2 — 판정이 불가능하면 normal 조차 내보내지 않는다.
+
+    normal 을 내보내면 "확인했고 정상"이라는 거짓 신호가 된다.
+    """
+    svc._limits = {}
+    await svc._reconcile()
+    await _push_dose(5.0)
+    assert [t for t in env["transitions"] if t.metric == "co2_ppm"] == []
+
+
+@pytest.mark.asyncio
+async def test_o2_time_alert_uses_its_own_key(env):
+    """§5.4 — 시간 누적 O2 경보는 순간값 o2_low 와 독립이다. 키가 달라야 한다."""
+    await svc._reconcile()
+    # 60초 간격으로 8번 = 결핍 420초 (L1 경계 300초 초과). 한 번에 400초를 주면
+    # gap_max_s 가 60초로 자른다.
+    for i in range(8):
+        await svc.on_reading("wearable-01", "o2_pct", 18.0, T0 + timedelta(seconds=60 * i))
+    o2 = [t for t in env["transitions"] if t.metric == "o2_pct"]
+    assert o2, "O2 시간 누적 경보가 발령되지 않았다"
+    assert o2[-1].alert_key == "o2_deficiency_time"
+    assert o2[-1].to_level.value == "level1_caution"
+
+
+@pytest.mark.asyncio
+async def test_window_close_resolves_the_alert(env):
+    """§5.2 — 해제는 윈도우 종료로만."""
+    svc._limits = await env["repo"].load_limits()
+    await svc._reconcile()
+    await _push_dose(0.6)
+    env["assignments"].clear()
+    await svc._reconcile()
+    resolved = [t for t in env["transitions"]
+                if t.alert_key == "exposure_co2" and t.to_level.value == "normal"]
+    assert len(resolved) == 1
+
+
+@pytest.mark.asyncio
+async def test_close_does_not_resolve_what_never_fired(env):
+    """경보가 없던 윈도우를 닫으면서 해제 이벤트를 만들면 로그가 지저분해진다."""
+    svc._limits = await env["repo"].load_limits()
+    await svc._reconcile()
+    env["assignments"].clear()
+    await svc._reconcile()
+    assert env["transitions"] == []
 
 
 @pytest.mark.asyncio

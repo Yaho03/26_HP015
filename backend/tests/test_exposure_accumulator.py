@@ -12,6 +12,8 @@ import sys
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
+import pytest
+
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from app.services.exposure_accumulator import (  # noqa: E402
@@ -24,8 +26,10 @@ from app.services.exposure_accumulator import (  # noqa: E402
     nearest_node,
     o2_alert_level,
     sensor_nodes_from_anchors,
+    stel_exceeded,
     trust_level,
     twa_8h_ppm,
+    twa_15min_ppm,
 )
 
 T0 = datetime(2026, 8, 21, 1, 0, 0, tzinfo=timezone.utc)
@@ -348,3 +352,47 @@ def test_max_alert_level_picks_higher():
     assert max_alert_level("normal", "level2_warning") == "level2_warning"
     assert max_alert_level("level3_critical", "level1_caution") == "level3_critical"
     assert max_alert_level("normal", "normal") == "normal"
+
+
+# ============================================================
+# §2.1 STEL — 15분 이동 평균
+# ============================================================
+
+def test_twa_15min_is_none_before_two_samples():
+    assert twa_15min_ppm(DoseState()) is None
+    assert twa_15min_ppm(_feed([(100.0, 0)])) is None
+
+
+def test_twa_15min_averages_the_window():
+    state = _feed([(1000.0, i * 30) for i in range(0, 31)])  # 15분간 1000ppm
+    assert twa_15min_ppm(state) == pytest.approx(1000.0)
+
+
+def test_twa_15min_drops_samples_outside_the_window():
+    """창을 벗어난 고농도 구간이 계속 평균을 끌어올리면 STEL 이 영영 안 내려간다."""
+    early_spike = [(9000.0, i * 30) for i in range(0, 4)]      # 0~90초 고농도
+    later_calm = [(100.0, 120 + i * 30) for i in range(0, 60)]  # 이후 30분간 저농도
+    state = _feed(early_spike + later_calm)
+    twa = twa_15min_ppm(state)
+    assert twa == pytest.approx(100.0), f"창 밖 샘플이 남아 있다: {twa}"
+
+
+def test_stel_not_exceeded_without_a_limit():
+    """기준값이 없으면 판정하지 않는다 — 없는 기준으로 '초과 아님'이라 말하지 않는다."""
+    state = _feed([(50_000.0, i * 30) for i in range(0, 31)])
+    assert stel_exceeded(state, None) is False
+    assert stel_exceeded(state, 0.0) is False
+
+
+def test_stel_exceeded_when_moving_average_passes_limit():
+    state = _feed([(40_000.0, i * 30) for i in range(0, 31)])
+    assert stel_exceeded(state, 30_000.0) is True
+    assert stel_exceeded(state, 50_000.0) is False
+
+
+def test_o2_integration_does_not_feed_stel_window():
+    """O2 는 ppm 이 아니라 시간을 센다. STEL 창에 섞이면 안 된다."""
+    state = DoseState()
+    for pct, offset in [(18.0, 0), (18.0, 60)]:
+        state = integrate_o2(state, pct, T0 + timedelta(seconds=offset), gap_max_s=GAP_MAX)
+    assert state.recent == ()
