@@ -8,8 +8,18 @@ import type { Group } from "three";
 import { Heatmap } from "./Heatmap";
 import type { SensorSample } from "../utils/idw";
 import type { RouteOverlay } from "../types/evacuation";
-import type { RouteStatus, RouteWaypoint } from "../types/ws";
 import { PLAN_CAM, toThreeGroundPosition, toThreePosition } from "../utils/coordinates";
+import { useRampColor } from "../hooks/useRampColor";
+import {
+  dashChunks,
+  ROUTE_COLOR_FALLBACK,
+  ROUTE_COLOR_VAR,
+  ROUTE_RADIUS,
+  ROUTE_UP,
+  routeCurve,
+  routePoints,
+  segmentPlacement,
+} from "../utils/routeGeometry";
 
 // ── Types ─────────────────────────────────────────────────────
 interface TwinSceneProps {
@@ -700,40 +710,14 @@ function WearableMarker({ x, y, z, fall_detected }: { x: number; y: number; z: n
 }
 
 // ── Escape route (FR-804) ──────────────────────────────────────
-/**
- * route_status 색. styles/evacuation.css 의 --evac-* 와 같은 의미를 갖는다 —
- * Three.js 머티리얼은 CSS 변수를 읽지 못해 값을 한 번 더 적는다. 둘 중 하나만
- * 바꾸면 2D 평면도와 3D 트윈의 경로 색이 갈라진다.
- */
-const ROUTE_COLOR: Record<RouteStatus, string> = {
-  safe: "#3fd08a", degraded: "#ff8b33",
-  no_safe_route: "#ff4550", unavailable: "#93a1b0",
-};
-
-/** 바닥면과 겹쳐 z-fighting 이 생기지 않을 만큼만 띄운다. */
-const ROUTE_LIFT = 0.25;
-const ROUTE_RADIUS = 0.16;
-const UP = new THREE.Vector3(0, 1, 0);
-
-function routePoints(waypoints: RouteWaypoint[]): THREE.Vector3[] {
-  return waypoints.map(wp => {
-    const [x, y, z] = toThreePosition({ x_m: wp.x_m, y_m: wp.y_m, z_m: wp.z_m });
-    return new THREE.Vector3(x, y + ROUTE_LIFT, z);
-  });
-}
+// 형상 계산은 utils/routeGeometry 로 옮겼다. 렌더링과 섞여 있으면 WebGL 없이
+// 검증할 수 없어서 실제로 미검증으로 남아 있었다.
 
 /** 한 구간을 원기둥으로 세운다. 사다리 구간은 z 만 변하므로 저절로 수직이 된다. */
 function RouteSegment({ a, b, color, radius = ROUTE_RADIUS }: {
   a: THREE.Vector3; b: THREE.Vector3; color: string; radius?: number;
 }) {
-  const placed = useMemo(() => {
-    const dir = new THREE.Vector3().subVectors(b, a);
-    const length = dir.length();
-    const quaternion = new THREE.Quaternion();
-    if (length > 1e-6) quaternion.setFromUnitVectors(UP, dir.clone().normalize());
-    const position = new THREE.Vector3().addVectors(a, b).multiplyScalar(0.5);
-    return { position, quaternion, length };
-  }, [a, b]);
+  const placed = useMemo(() => segmentPlacement(a, b), [a, b]);
 
   if (placed.length < 1e-4) return null;
   return (
@@ -742,25 +726,6 @@ function RouteSegment({ a, b, color, radius = ROUTE_RADIUS }: {
       <meshStandardMaterial color={color} emissive={color} emissiveIntensity={0.65} />
     </mesh>
   );
-}
-
-/**
- * no_safe_route 를 점선으로 끊는다.
- *
- * 2D 평면도가 같은 상태를 stroke-dasharray 로 그린다. 3D 에서만 실선으로 두면
- * "최소 위험 경로"가 정상 경로와 같은 무게로 읽힌다.
- */
-function dashChunks(a: THREE.Vector3, b: THREE.Vector3, dash = 1.1, gap = 0.8) {
-  const total = a.distanceTo(b);
-  const chunks: [THREE.Vector3, THREE.Vector3][] = [];
-  for (let s = 0; s < total; s += dash + gap) {
-    const e = Math.min(s + dash, total);
-    chunks.push([
-      a.clone().lerp(b, s / total),
-      a.clone().lerp(b, e / total),
-    ]);
-  }
-  return chunks;
 }
 
 /** 경로를 따라 흐르는 진행 방향 화살표. 어느 쪽으로 가라는 것인지가 색으로는 안 나온다. */
@@ -776,7 +741,7 @@ function RouteArrows({ curve, color, count = 5 }: {
       if (!g) continue;
       const t = (base + i / count) % 1;
       g.position.copy(curve.getPointAt(t));
-      g.quaternion.setFromUnitVectors(UP, curve.getTangentAt(t).normalize());
+      g.quaternion.setFromUnitVectors(ROUTE_UP, curve.getTangentAt(t).normalize());
     }
   });
   return (
@@ -798,19 +763,17 @@ function EscapeRoute({ route }: { route: RouteOverlay }) {
 
   // 구간이 없으면 곡선을 만들 수 없다. unavailable 이 정확히 이 상태다 —
   // 경로를 산출하지 못한 것이지 "경로가 비어 있다"가 아니므로 아무것도 안 그린다.
-  const curve = useMemo(() => {
-    if (points.length < 2) return null;
-    const path = new THREE.CurvePath<THREE.Vector3>();
-    for (let i = 0; i < points.length - 1; i++) {
-      if (points[i].distanceTo(points[i + 1]) < 1e-4) continue;
-      path.add(new THREE.LineCurve3(points[i], points[i + 1]));
-    }
-    return path.curves.length > 0 ? path : null;
-  }, [points]);
+  const curve = useMemo(() => routeCurve(points), [points]);
+
+  // 훅은 조기 반환보다 위에 있어야 한다 — 상태가 바뀌며 unavailable 을 오가면
+  // 훅 호출 수가 달라져서 React 가 터진다.
+  const color = useRampColor(
+    ROUTE_COLOR_VAR[route.route_status],
+    ROUTE_COLOR_FALLBACK[route.route_status],
+  );
 
   if (!curve || route.route_status === "unavailable") return null;
 
-  const color = ROUTE_COLOR[route.route_status];
   const dashed = route.route_status === "no_safe_route";
   const exitPoint = points[points.length - 1];
   const exitLabel = route.waypoints[route.waypoints.length - 1]?.label;
