@@ -62,6 +62,10 @@ async def lifespan(app: FastAPI):
         await mqtt_subscriber.start()
         started_mqtt = True
         alert_publisher.init_publisher(mqtt_subscriber.get_client())
+        # 활성 경보 추적 상태를 DB 에서 복구한다 (이슈 #194). 이게 없으면 재시작
+        # 직후의 NORMAL 전이가 publish_transition 의 #111 가드에 걸려 통째로
+        # 버려지고, 재시작 전에 뜬 경보가 영구히 해제되지 않는다.
+        await alert_publisher.restore_active_alerts()
         await retention.start()
         started_retention = True
         await connection_monitor.start()
