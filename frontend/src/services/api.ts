@@ -2,7 +2,7 @@ import type { MetricKey } from "../types";
 
 // 상대 경로 기본값 — nginx(배포)와 vite dev proxy(개발) 둘 다 /api를 백엔드로
 // 프록시하므로 프론트엔드가 :8000을 직접 호출할 필요가 없다 (이슈 #105).
-const API_BASE = (import.meta.env.VITE_API_BASE as string | undefined) ?? "";
+export const API_BASE = (import.meta.env.VITE_API_BASE as string | undefined) ?? "";
 
 export interface SensorDataPoint {
   time: string;

@@ -1,6 +1,8 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { EvacuationPanel } from "../components/EvacuationPanel";
 import { TwinScene } from "../components/TwinScene";
+import { useEvacuationTopology } from "../hooks/useEvacuationTopology";
+import { fetchRoute } from "../services/evacuationApi";
 import { useDashboardStore } from "../store/dashboardStore";
 import { MOCK_ROUTE_LABELS, MOCK_ROUTES, MOCK_TOPOLOGY, type MockRouteKey } from "../mocks/evacuation";
 import type { MetricKey } from "../types";
@@ -174,19 +176,41 @@ function MockRouteToggle({
   );
 }
 
+/** MVP 는 작업자 1명이다 (§7 한계 #5). 여러 명으로 늘면 선택 UI 가 필요해진다. */
+const PRIMARY_WEARABLE = "wearable-01";
+
 export function TwinScreen() {
   const routes = useDashboardStore((s) => s.evacuation_route);
+  const setEvacuationRoute = useDashboardStore((s) => s.setEvacuationRoute);
+  const { topology: liveTopology, reload: reloadTopology } = useEvacuationTopology();
 
-  // 개발 빌드는 목을 기본값으로 켠다. 백엔드가 아직 경로를 보내지 않는 단계라
-  // 라이브가 기본이면 화면이 늘 비어 UI 를 확인할 수 없다.
-  const [mockKey, setMockKey] = useState<MockRouteKey | null>(
-    import.meta.env.DEV ? "safe" : null,
-  );
+  // 기본은 **라이브**다. 목은 백엔드 없이 화면을 확인하거나 시연 리허설을 돌릴 때
+  // 개발 빌드에서만 켠다.
+  const [mockKey, setMockKey] = useState<MockRouteKey | null>(null);
 
-  // MVP 는 작업자 1명이다 (§7 한계 #5). 여러 명으로 늘어나면 여기서 선택 UI 가
-  // 필요해진다 — 지금 임의로 고르는 것을 감추지 않으려고 주석을 남긴다.
-  const liveRoute = Object.values(routes)[0] ?? null;
+  // 초기 1회는 REST 로 받는다. WebSocket 은 그 이후 갱신만 담당하므로, 이게 없으면
+  // 작업자가 움직이기 전까지 화면이 비어 있다.
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      try {
+        const initial = await fetchRoute(PRIMARY_WEARABLE);
+        if (!cancelled && initial) setEvacuationRoute(initial);
+      } catch {
+        // 백엔드가 없는 개발 환경이 정상 경로다. 목 토글로 확인한다.
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [setEvacuationRoute]);
+
+  const liveRoute = routes[PRIMARY_WEARABLE] ?? Object.values(routes)[0] ?? null;
   const route = mockKey ? MOCK_ROUTES[mockKey] : liveRoute;
+
+  // 통행 구조를 못 받았으면 목으로 그린다. 평면도가 통째로 비면 경로가 어디를
+  // 지나는지 읽을 수 없다 — 기능이 꺼진 사실은 배너가 따로 말한다.
+  const topology = liveTopology ?? MOCK_TOPOLOGY;
 
   const overlay: RouteOverlay | null = route
     ? {
@@ -201,8 +225,20 @@ export function TwinScreen() {
       {/* 상세 화면은 형상비를 보존한다. 정사각 보행이 정사각으로 보여야 한다.
           경로도 이 프리셋에서만 그린다 (§2.4). */}
       <TwinPanel preset={UNIFORM_PRESET} escapeRoute={overlay} />
-      <EvacuationPanel route={route} topology={MOCK_TOPOLOGY} mock={mockKey !== null}>
-        {import.meta.env.DEV && <MockRouteToggle value={mockKey} onChange={setMockKey} />}
+      <EvacuationPanel
+        route={route}
+        topology={topology}
+        mock={mockKey !== null || liveTopology === null}
+      >
+        {import.meta.env.DEV && (
+          <MockRouteToggle
+            value={mockKey}
+            onChange={(next) => {
+              setMockKey(next);
+              if (next === null) reloadTopology();
+            }}
+          />
+        )}
       </EvacuationPanel>
     </div>
   );

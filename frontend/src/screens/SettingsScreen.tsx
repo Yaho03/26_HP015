@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { DemoControlPanel } from "../components/DemoControlPanel";
+import { EvacuationTopologyPanel } from "../components/EvacuationTopologyPanel";
 import { WorkerRoster } from "../components/WorkerRoster";
 import { useThresholds } from "../hooks/useThresholds";
 import {
@@ -13,7 +14,7 @@ import {
   type ThresholdLevel,
 } from "../services/api";
 
-type SettingsTab = "thresholds" | "workers" | "hazards" | "system" | "demo";
+type SettingsTab = "thresholds" | "workers" | "hazards" | "topology" | "system" | "demo";
 type RowStatus = { key: string; tone: "success" | "error"; message: string } | null;
 
 interface MetricMeta {
@@ -50,6 +51,7 @@ const TAB_ITEMS: { key: SettingsTab; label: string; hint: string }[] = [
   { key: "thresholds", label: "임계값", hint: "ALERT RULES" },
   { key: "workers", label: "작업자", hint: "WORKER REGISTRY" },
   { key: "hazards", label: "위험 구역", hint: "ZONE PROFILE" },
+  { key: "topology", label: "통행 구조", hint: "EGRESS TOPOLOGY" },
   { key: "system", label: "시스템", hint: "HEALTH & METRICS" },
   { key: "demo", label: "데모 제어", hint: "SCENARIO INJECTION" },
 ];
@@ -217,6 +219,8 @@ export function SettingsScreen() {
           </button>
         ))}
       </div>
+
+      {tab === "topology" && <EvacuationTopologyPanel />}
 
       {tab === "thresholds" && (
         <section className="settings-section" aria-labelledby="thresholds-title">

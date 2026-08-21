@@ -264,3 +264,40 @@
   background: var(--select-bg);
   color: var(--ink-1);
 }
+
+/* 설정 — 통행 구조 탭 --------------------------------------------------- */
+
+.evac__reason { display: flex; flex-direction: column; gap: var(--s1); }
+
+.evac__reason span {
+  font-size: 10px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+}
+
+.evac__reason input {
+  padding: 6px 10px;
+  border: 1px solid var(--rule-strong);
+  background: var(--raise);
+  color: var(--ink-1);
+  font-family: inherit;
+  font-size: 13px;
+}
+
+.evac__exits { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: var(--s2); }
+
+.evac__exit-row {
+  display: flex;
+  align-items: center;
+  gap: var(--s3);
+  padding: var(--s2) var(--s3);
+  border: 1px solid var(--rule);
+  background: var(--raise);
+}
+
+.evac__exit-name { display: flex; flex-direction: column; gap: 2px; flex: 1; min-width: 0; }
+.evac__exit-name strong { font-size: 13px; color: var(--ink-1); }
+.evac__exit-name small { font-family: var(--font-mono); font-size: 10px; color: var(--ink-3); }
+
+.evac__mock-btn:disabled { opacity: 0.55; cursor: progress; }
