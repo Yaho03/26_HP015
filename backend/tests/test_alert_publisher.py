@@ -267,7 +267,7 @@ async def test_mqtt_publishes_events_and_state_topics(monkeypatch):
 async def test_event_conforms_to_schema(monkeypatch):
     from app.services import alert_publisher
 
-    schema = json.loads(SCHEMA_PATH.read_text())
+    schema = json.loads(SCHEMA_PATH.read_text(encoding="utf-8"))
     publisher = alert_publisher.AlertEventPublisher(mqtt_client=None)
     monkeypatch.setattr(publisher, "_persist_event", _async_noop)
     monkeypatch.setattr(publisher, "_publish_mqtt", lambda *a, **kw: None)
@@ -280,7 +280,7 @@ async def test_event_conforms_to_schema(monkeypatch):
 async def test_resolved_event_conforms_to_schema(monkeypatch):
     from app.services import alert_publisher
 
-    schema = json.loads(SCHEMA_PATH.read_text())
+    schema = json.loads(SCHEMA_PATH.read_text(encoding="utf-8"))
     publisher = alert_publisher.AlertEventPublisher(mqtt_client=None)
     monkeypatch.setattr(publisher, "_persist_event", _async_noop)
     monkeypatch.setattr(publisher, "_publish_mqtt", lambda *a, **kw: None)
