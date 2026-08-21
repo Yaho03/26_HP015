@@ -229,6 +229,32 @@ class AlertEventPublisher:
             event["message_id"],
         )
 
+    @staticmethod
+    async def _load_latest_alert_rows() -> list:
+        """키별 최신 경보 행을 한 번만 읽는다 (#194, #196)."""
+        pool = get_pool()
+        async with pool.acquire() as conn:
+            return await conn.fetch(
+                """
+                SELECT DISTINCT ON (source_node_id, alert_key)
+                       source_node_id, alert_key, alert_id, activated_at, status, level
+                  FROM alert_events
+                 ORDER BY source_node_id, alert_key, published_at DESC
+                """
+            )
+
+    def restore_active_alert_rows(self, rows: list) -> int:
+        """조회된 최신 행으로 발행 측 추적 상태를 복구한다."""
+        restored = 0
+        for row in rows:
+            if row["status"] != "active":
+                continue
+            key = (row["source_node_id"], row["alert_key"])
+            self._active_alert_ids[key] = (row["alert_id"], row["activated_at"])
+            restored += 1
+        logger.info("restored %d publisher alert state(s) from alert_events", restored)
+        return restored
+
     async def restore_active_alerts(self) -> int:
         """DB 에서 활성 경보를 읽어 _active_alert_ids 를 복구한다 (이슈 #194).
 
@@ -248,25 +274,8 @@ class AlertEventPublisher:
         published_at DESC 로 최신 행을 고른 뒤 status 를 본다 — 옛 행이 active 로
         남아 있어도 최신이 resolved 면 복구하지 않는다.
         """
-        pool = get_pool()
-        async with pool.acquire() as conn:
-            rows = await conn.fetch(
-                """
-                SELECT DISTINCT ON (source_node_id, alert_key)
-                       source_node_id, alert_key, alert_id, activated_at, status
-                  FROM alert_events
-                 ORDER BY source_node_id, alert_key, published_at DESC
-                """
-            )
-        restored = 0
-        for row in rows:
-            if row["status"] != "active":
-                continue
-            key = (row["source_node_id"], row["alert_key"])
-            self._active_alert_ids[key] = (row["alert_id"], row["activated_at"])
-            restored += 1
-        logger.info("restored %d active alert(s) from alert_events", restored)
-        return restored
+        rows = await self._load_latest_alert_rows()
+        return self.restore_active_alert_rows(rows)
 
     def _publish_mqtt(self, topic: str, payload: dict, retain: bool) -> None:
         if self._mqtt is None:
@@ -309,3 +318,30 @@ async def restore_active_alerts() -> int:
             "active alert restore failed — 재시작 전 경보가 해제되지 않을 수 있다 (이슈 #194)"
         )
         return 0
+
+
+async def restore_runtime_alert_state() -> tuple[int, int]:
+    """DB 한 번 조회로 발행 측과 판정 측 상태를 함께 복구한다 (#194, #196).
+
+    실패해도 서버 기동을 막지 않는다. 복구 실패보다 신규 경보 수집 전체가
+    멈추는 것이 더 위험하므로 로그를 남기고 빈 결과로 진행한다 (#154).
+    """
+    if _publisher is None:
+        logger.warning("publisher not initialized, skipping runtime alert restore")
+        return (0, 0)
+    try:
+        rows = await _publisher._load_latest_alert_rows()
+        publisher_count = _publisher.restore_active_alert_rows(rows)
+
+        # alert_service가 이 모듈을 import하므로 모듈 상단에서 역으로 import하면
+        # 순환 초기화가 생긴다. 기동 시점의 지역 import는 두 모듈 로드가 끝난 뒤다.
+        from app.services import alert_service
+
+        evaluator_count = alert_service.restore_active_alert_rows(rows)
+        return (publisher_count, evaluator_count)
+    except Exception:
+        logger.exception(
+            "runtime alert restore failed — 재시작 전 경보가 재발화하거나 "
+            "해제되지 않을 수 있다 (이슈 #194, #196)"
+        )
+        return (0, 0)
