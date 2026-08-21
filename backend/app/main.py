@@ -65,7 +65,11 @@ async def lifespan(app: FastAPI):
         # 활성 경보 추적 상태를 DB 에서 복구한다 (이슈 #194). 이게 없으면 재시작
         # 직후의 NORMAL 전이가 publish_transition 의 #111 가드에 걸려 통째로
         # 버려지고, 재시작 전에 뜬 경보가 영구히 해제되지 않는다.
-        await alert_publisher.restore_active_alerts()
+        # 같은 DB snapshot으로 발행 측(#194)과 판정 측(#196)을 함께 복구한다.
+        # 판정 상태가 normal로 초기화되면 이미 active인 L3가 재발화해 경보 피로와
+        # activated_at 단절을 만든다. MQTT retained 대신 영속 이력 DB를 단일
+        # 복구 원천으로 사용한다 (04_DATA_CONTRACT §3.5).
+        await alert_publisher.restore_runtime_alert_state()
         await retention.start()
         started_retention = True
         await connection_monitor.start()

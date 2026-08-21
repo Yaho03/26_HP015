@@ -218,3 +218,77 @@ async def test_restore_ignores_already_resolved_alerts(db_pool):
             )
         finally:
             await _cleanup(conn, node)
+
+
+@pytest.mark.asyncio
+async def test_runtime_restore_preserves_level_and_activation_without_refire(
+    db_pool, monkeypatch
+):
+    """★ #196 — DB 복구 뒤 같은 위험값이 새 경보를 발화하면 안 된다.
+
+    발행 측 alert_id/activated_at과 판정 측 current_level이 같은 DB snapshot에서
+    함께 복구돼야 한다. 둘 중 하나만 복구하면 해제가 사라지거나 재발화한다.
+    """
+    from app.models.threshold import Threshold, ThresholdDirection
+    from app.services import alert_publisher, alert_service
+    from app.services.alert_engine import AlertEvaluator
+
+    node = "sensor-cycle-06"
+    before = AlertEventPublisher(mqtt_client=FakeMqttClient())
+    await before.publish_transition(_t(AlertLevel.NORMAL, AlertLevel.LEVEL2, node_id=node))
+
+    async with db_pool.acquire() as conn:
+        first = await conn.fetchrow(
+            """
+            SELECT alert_id, activated_at FROM alert_events
+             WHERE source_node_id = $1 AND status = 'active'
+            """,
+            node,
+        )
+
+    evaluator = AlertEvaluator({
+        "co2_ppm": [
+            Threshold(
+                metric="co2_ppm", level="level1_caution",
+                direction=ThresholdDirection.ABOVE, enter_threshold=1000,
+                exit_threshold=900, enter_for_ms=3000, exit_for_ms=5000,
+            ),
+            Threshold(
+                metric="co2_ppm", level="level2_warning",
+                direction=ThresholdDirection.ABOVE, enter_threshold=2000,
+                exit_threshold=1900, enter_for_ms=3000, exit_for_ms=5000,
+            ),
+            Threshold(
+                metric="co2_ppm", level="level3_critical",
+                direction=ThresholdDirection.ABOVE, enter_threshold=5000,
+                exit_threshold=4500, enter_for_ms=0, exit_for_ms=5000,
+            ),
+        ]
+    })
+    after = AlertEventPublisher(mqtt_client=FakeMqttClient())
+    monkeypatch.setattr(alert_publisher, "_publisher", after)
+    monkeypatch.setattr(alert_service, "_evaluator", evaluator)
+
+    try:
+        assert await alert_publisher.restore_runtime_alert_state() == (1, 1)
+        alert_id, activated_at = after._active_alert_ids[(node, "co2_ppm")]
+        assert alert_id == first["alert_id"]
+        assert activated_at == first["activated_at"], "최초 활성 시각이 바뀌었다"
+
+        state = evaluator.get_state(node, "co2_ppm")
+        assert state.current_level == AlertLevel.LEVEL2
+        assert state.enter_started_at is None, "active 경보의 enter timer가 재시작됐다"
+
+        transition = await evaluator.evaluate(
+            node, "co2_ppm", 2100.0, datetime.now(timezone.utc)
+        )
+        assert transition is None, "재시작 뒤 같은 L2가 새 경보로 재발화했다"
+
+        async with db_pool.acquire() as conn:
+            total = await conn.fetchval(
+                "SELECT count(*) FROM alert_events WHERE source_node_id = $1", node
+            )
+            assert total == 1, "복구만 했는데 경보 이력이 새로 생겼다"
+    finally:
+        async with db_pool.acquire() as conn:
+            await _cleanup(conn, node)
