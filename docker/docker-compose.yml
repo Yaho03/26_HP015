@@ -56,6 +56,10 @@ services:
       # 시스템에 가짜 값을 주입하거나 실제 경보를 덮을 수 있다.
       # 시연·개발 환경에서만 docker/.env 에 DEMO_CONTROL_ENABLED=true 로 켠다.
       DEMO_CONTROL_ENABLED: ${DEMO_CONTROL_ENABLED:-false}
+    volumes:
+      # 경로 토폴로지는 마이그레이션이 아니라 운영 중 교체 가능한 설정 파일이다.
+      # 컨테이너의 기본 경로(/config/space_topology.yaml)에 읽기 전용으로 제공한다.
+      - ../config:/config:ro
     # 호스트에 포트를 노출하지 않는다 (이슈 #105 수정안, 코드리뷰 반영) — 프론트엔드는
     # nginx(frontend 컨테이너)가 /api, /ws를 backend:8000으로 내부 프록시하므로 필요 없고,
     # 호스트에 열어두면 CORS 우회 경로가 하나 더 생기는 셈이라 배포 스택에선 막는 게 맞다.
