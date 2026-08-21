@@ -9,6 +9,7 @@
 from __future__ import annotations
 
 import hashlib
+import logging
 import secrets
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
@@ -19,6 +20,8 @@ from argon2.exceptions import VerifyMismatchError
 from app.config import settings
 from app.repositories import user_repository
 from app.repositories.user_repository import UserRow
+
+logger = logging.getLogger(__name__)
 
 _hasher = PasswordHasher()  # 기본 매개변수가 Argon2id 다.
 
@@ -61,22 +64,35 @@ def hash_token(token: str) -> str:
     return hashlib.sha256(token.encode("utf-8")).hexdigest()
 
 
+LOCKOUT_THRESHOLD = 5
+LOCKOUT_MINUTES = 10
+
+
 async def login(username: str, password: str) -> IssuedSession:
     """자격 증명 검증 + 세션 발급.
 
     계정이 없어도 verify_password 를 1회 돌린다 — 로그인 실패 응답 시간으로
     "계정 존재 여부"를 추측하게 두지 않는다 (FR-609).
+    잠금 상태(locked_until)에서도 동일한 InvalidCredentials — 잠금 여부를
+    응답으로 알리면 공격자에게 남은 시도 횟수를 알려준다.
     """
     user = await user_repository.get_by_username(username)
     if user is None:
         verify_password(password, _DUMMY_HASH)
         raise InvalidCredentials()
+
+    if user.locked_until is not None and user.locked_until > datetime.now(timezone.utc):
+        verify_password(password, _DUMMY_HASH)  # 타이밍 마스킹 유지
+        raise InvalidCredentials()
+
     if not verify_password(password, user.password_hash):
+        await _register_failed_login(user)
         raise InvalidCredentials()
     if not user.is_active:
         # 비활성 계정도 동일 예외 — 응답으로 계정 존재를 알리지 않는다.
         raise InvalidCredentials()
 
+    await user_repository.reset_login_failures(user.id)
     token = secrets.token_urlsafe(32)
     csrf_token = secrets.token_urlsafe(32)
     expires_at = datetime.now(timezone.utc) + timedelta(
@@ -86,6 +102,17 @@ async def login(username: str, password: str) -> IssuedSession:
         user.id, hash_token(token), csrf_token, expires_at
     )
     return IssuedSession(token=token, csrf_token=csrf_token, user=user)
+
+
+async def _register_failed_login(user: UserRow) -> None:
+    """실패 횟수를 올리고 임계치(5회)를 넘으면 10분 잠긴다 (FR-609)."""
+    attempts = user.failed_login_attempts + 1
+    locked_until = (
+        datetime.now(timezone.utc) + timedelta(minutes=LOCKOUT_MINUTES)
+        if attempts >= LOCKOUT_THRESHOLD
+        else None
+    )
+    await user_repository.record_login_failure(user.id, attempts, locked_until)
 
 
 @dataclass
@@ -107,7 +134,14 @@ async def validate_session(token: str) -> ValidSession:
 
     now = datetime.now(timezone.utc)
     if now - row["last_seen_at"] > timedelta(hours=settings.session_idle_ttl_hours):
-        raise SessionExpired()
+        # AUTH-7(이슈 #137): 활성 L2+ 경보 중에는 유휴 타이머를 자동 연장한다.
+        # 세션 만료로 벽걸이 화면이 로그인으로 전환되면 산소결핍 같은 L3 경보의
+        # 모달·배너가 사라진다 — 인증이 안전을 훼손해서는 안 된다 (FR-607).
+        # 절대 만료(12h)는 SQL 가드가 이미 걸렀으므로 여기는 유휴만 본다.
+        from app.repositories import alert_events_repository
+
+        if not await alert_events_repository.has_active_alerts_at_or_above("level2_warning"):
+            raise SessionExpired()
 
     user = UserRow(
         {
@@ -139,6 +173,31 @@ async def change_password(user: UserRow, current_password: str, new_password: st
         raise InvalidCredentials()
     await user_repository.update_password(user.id, hash_password(new_password))
     await user_repository.revoke_all_for_user(user.id)
+
+
+async def bootstrap_admin() -> bool:
+    """최초 관리자 부트스트랩 (AUTH-9, FR-610). 생성했으면 True.
+
+    사용자 테이블이 비어 있을 때만 동작한다 — 기존 계정이 하나라도 있으면
+    환경 변수 값을 무시한다. 이미 운영 중인 시스템의 비밀번호가 .env 유출로
+    교체되는 사고를 막기 위해서다. 생성된 계정은 must_change_password=true —
+    첫 로그인 후 즉시 교체된다.
+    """
+    if not settings.bootstrap_admin_username or not settings.bootstrap_admin_password:
+        return False
+    if await user_repository.count_users() > 0:
+        return False
+    await user_repository.create_user(
+        settings.bootstrap_admin_username,
+        hash_password(settings.bootstrap_admin_password),
+        role="admin",
+        must_change_password=True,
+    )
+    logger.info(
+        "bootstrap admin created (user=%s) — 첫 로그인 후 비밀번호 변경 필요",
+        settings.bootstrap_admin_username,
+    )
+    return True
 
 
 def session_cookie_attributes() -> dict[str, object]:

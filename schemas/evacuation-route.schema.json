@@ -1,0 +1,140 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://hp015.local/schemas/evacuation-route.schema.json",
+  "title": "Evacuation Route Message",
+  "description": "WebSocket message carrying a hazard-weighted evacuation route for one worker. Coordinates are in the physical coordinate system (model-local, Z-up); display-coordinate mapping is done by the frontend at render time. See docs/12_EVACUATION_ROUTE_SPEC.md and ADR-009.",
+  "type": "object",
+  "required": [
+    "type",
+    "route_id",
+    "node_id",
+    "computed_at",
+    "route_status",
+    "coordinate_system",
+    "assumed_level_id",
+    "waypoints"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "type": { "type": "string", "const": "evacuation_route" },
+    "route_id": {
+      "type": "string",
+      "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$",
+      "description": "ULID. A new id is issued only when the route is actually replaced (see spec 3.4)."
+    },
+    "node_id": { "type": "string", "pattern": "^wearable-\\d{2}$" },
+    "worker_id": { "type": ["integer", "null"] },
+    "worker_name": { "type": "string" },
+    "computed_at": { "type": "string", "format": "date-time" },
+    "route_status": {
+      "type": "string",
+      "enum": ["safe", "degraded", "no_safe_route", "unavailable"],
+      "description": "safe: no hazard crossing. degraded: crosses level1/level2. no_safe_route: only a minimum-risk path through a level3 zone exists — the path is still returned, never hidden. unavailable: cannot compute."
+    },
+    "unavailable_reason": {
+      "type": "string",
+      "enum": [
+        "stale_position",
+        "no_position",
+        "off_graph",
+        "topology_invalid",
+        "no_reachable_exit"
+      ],
+      "description": "Required when route_status is unavailable."
+    },
+    "coordinate_system": {
+      "type": "string",
+      "const": "ship-visual",
+      "description": "Ship-scale coordinate system (Z-up), 60m x 20m x 14m, mapped with the uniform TRUE SCALE preset. The FILL preset must never be used for route geometry because its non-uniform scaling distorts distance and would pick the wrong nearest exit. The frontend applies only the Z-up to Y-up axis swap, no further ratio mapping. See docs/12_EVACUATION_ROUTE_SPEC.md section 2.4 and ADR-010."
+    },
+    "assumed_level_id": {
+      "type": "string",
+      "description": "Scaffold level the worker is ASSUMED to be on. UWB positioning is 2D, so this is an assumption, not a measurement. The dashboard must surface it."
+    },
+    "target_exit_id": { "type": ["string", "null"] },
+    "entry_nav_node_id": {
+      "type": ["string", "null"],
+      "description": "Graph node the worker position was snapped to."
+    },
+    "snap_distance_m": { "type": ["number", "null"], "minimum": 0 },
+    "total_length_m": { "type": ["number", "null"], "minimum": 0 },
+    "total_cost": {
+      "type": ["number", "null"],
+      "minimum": 0,
+      "description": "Sum of length_m * traverse_factor * hazard_multiplier over the route."
+    },
+    "estimated_seconds": { "type": ["integer", "null"], "minimum": 0 },
+    "hazard_multiplier_max": {
+      "type": ["number", "null"],
+      "minimum": 1,
+      "description": "Worst hazard multiplier on the chosen route. 1.0 means hazard-free."
+    },
+    "switch_reason": {
+      "type": ["string", "null"],
+      "enum": [
+        "initial",
+        "position_moved",
+        "hazard_changed",
+        "topology_changed",
+        "route_blocked",
+        null
+      ]
+    },
+    "waypoints": {
+      "type": "array",
+      "minItems": 0,
+      "description": "Ordered path. seq 0 is the worker's actual measured position, not a graph node.",
+      "items": {
+        "type": "object",
+        "required": ["seq", "x_m", "y_m", "z_m", "level_id"],
+        "additionalProperties": false,
+        "properties": {
+          "seq": { "type": "integer", "minimum": 0 },
+          "nav_node_id": {
+            "type": ["string", "null"],
+            "description": "null for seq 0 (the worker's raw position)."
+          },
+          "x_m": { "type": "number" },
+          "y_m": { "type": "number" },
+          "z_m": { "type": "number" },
+          "level_id": { "type": "string" },
+          "edge_kind_to_next": {
+            "type": ["string", "null"],
+            "enum": ["walk", "scaffold_plank", "ladder", "hatch", null],
+            "description": "null on the final waypoint."
+          },
+          "label": { "type": "string" }
+        }
+      }
+    },
+    "blocked_exits": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["exit_id", "reason"],
+        "additionalProperties": false,
+        "properties": {
+          "exit_id": { "type": "string" },
+          "reason": {
+            "type": "string",
+            "enum": ["hazard_level3", "disabled", "unreachable"]
+          }
+        }
+      }
+    },
+    "warnings": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "enum": [
+          "passes_hazard_level1",
+          "passes_hazard_level2",
+          "passes_hazard_level3",
+          "hazard_data_missing",
+          "low_position_quality",
+          "long_snap_distance"
+        ]
+      }
+    }
+  }
+}

@@ -1,4 +1,4 @@
-"""processed_messages retention (이슈 #97).
+"""processed_messages retention (이슈 #97) + 만료 세션 정리 (AUTH-11, 이슈 #141).
 
 raw sensor_data 의 TimescaleDB retention(30일)와 동일 기간으로 processed_messages
 dedup 테이블을 정리한다. FR-101 SHOULD 노드 버퍼링(최대 100건, 짧은 시간 내 재전송)
@@ -6,6 +6,11 @@ dedup 테이블을 정리한다. FR-101 SHOULD 노드 버퍼링(최대 100건, �
 
 raw sensor_data 가 이미 30일 후 삭제되므로, 30일 이상된 message_id 로 들어온 메시지는
 raw 데이터도 없어 어차피 의미 있는 처리가 불가능 → 안전하게 삭제.
+
+sessions 정리(FR-611): 폐기(revoked)됐거나 절대 만료된 세션은 어떤 검증에서도
+곧바로 걸리지 않는 쓰레기 행이다 — 30일 후 삭제해 sessions 테이블이 무한
+증가하지 않게 한다. 30일을 남겨두는 이유: 감사·디버깅으로 마지막 로그인
+시점을 되짚을 수 있게.
 
 정리 방식: hypertable retention policy 대신 1시간 간격 백그라운드 DELETE.
 이유: processed_messages.PK(message_id) 가 partition key(time)를 포함하지 않아
@@ -52,13 +57,45 @@ async def cleanup_processed_messages() -> int:
         return deleted
 
 
+SESSION_RETENTION_DAYS = 30
+
+
+async def cleanup_expired_sessions() -> int:
+    """폐기·절대 만료 후 30일이 지난 세션 행을 삭제한다 (FR-611).
+
+    유휴 만료만 지난 세션은 삭제하지 않는다 — 절대 만료(expires_at)는 곧오고,
+    활성 세션을 실수로 지우는 위험을 원천 차단하는 편이 안전하다.
+    """
+    pool = get_pool()
+    async with pool.acquire() as conn:
+        status = await conn.execute(
+            """
+            DELETE FROM sessions
+            WHERE (revoked_at IS NOT NULL AND revoked_at < now() - make_interval(days => $1))
+               OR expires_at < now() - make_interval(days => $1)
+            """,
+            SESSION_RETENTION_DAYS,
+        )
+        try:
+            deleted = int(status.split()[1])
+        except (IndexError, ValueError):
+            deleted = 0
+        if deleted > 0:
+            logger.info(
+                "expired sessions cleanup: deleted %d rows older than %d days",
+                deleted, SESSION_RETENTION_DAYS,
+            )
+        return deleted
+
+
 async def _loop() -> None:
     """CLEANUP_INTERVAL_SECONDS 마다 cleanup 실행. 시작 시 즉시 1회 실행."""
     while True:
         try:
             await cleanup_processed_messages()
+            await cleanup_expired_sessions()
         except Exception:
-            logger.exception("processed_messages cleanup failed (will retry next tick)")
+            logger.exception("retention cleanup failed (will retry next tick)")
         await asyncio.sleep(CLEANUP_INTERVAL_SECONDS)
 
 

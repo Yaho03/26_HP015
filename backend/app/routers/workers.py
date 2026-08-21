@@ -16,7 +16,7 @@ from __future__ import annotations
 
 import logging
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 
 from app.dependencies.auth import require_role, verify_csrf
 from app.models.worker import (
@@ -27,12 +27,24 @@ from app.models.worker import (
     WorkerCreate,
     WorkerUpdate,
 )
-from app.repositories import worker_repository
+from app.repositories import audit_repository, worker_repository
 from app.repositories.worker_repository import DuplicateEmployeeNo, NodeAlreadyAssigned
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/workers", tags=["workers"])
+
+
+async def _audit(request: Request, action: str, target: str, detail: dict | None = None) -> None:
+    """요청 사용자(앱 게이트가 state.user 에 심어둔 UserRow)로 감사 기록."""
+    actor = getattr(request.state, "user", None)
+    await audit_repository.record(
+        actor_id=actor.id if actor else None,
+        actor_name=actor.username if actor else "unknown",
+        action=action,
+        target=target,
+        detail=detail,
+    )
 
 
 # 고정 경로를 /{worker_id} 보다 먼저 선언한다. 순서가 뒤바뀌면 "assignments" 가
@@ -50,19 +62,23 @@ async def list_workers():
 @router.post("", response_model=Worker, status_code=201)
 async def create_worker(
     payload: WorkerCreate,
+    request: Request,
     _supervisor=Depends(require_role("admin", "supervisor")),
     _csrf: None = Depends(verify_csrf),
 ):
     try:
-        return await worker_repository.create(payload)
+        worker = await worker_repository.create(payload)
     except DuplicateEmployeeNo:
         raise HTTPException(status_code=409, detail=f"이미 등록된 사번입니다: {payload.employee_no}")
+    await _audit(request, "worker.create", payload.employee_no, {"name": payload.name})
+    return worker
 
 
 @router.patch("/{worker_id}", response_model=Worker)
 async def update_worker(
     worker_id: int,
     payload: WorkerUpdate,
+    request: Request,
     _supervisor=Depends(require_role("admin", "supervisor")),
     _csrf: None = Depends(verify_csrf),
 ):
@@ -72,23 +88,28 @@ async def update_worker(
         raise HTTPException(status_code=409, detail=f"이미 등록된 사번입니다: {payload.employee_no}")
     if worker is None:
         raise HTTPException(status_code=404, detail="작업자를 찾을 수 없습니다")
+    await _audit(request, "worker.update", worker.employee_no, {"fields": payload.model_dump(exclude_none=True)})
     return worker
 
 
 @router.delete("/{worker_id}", status_code=204)
 async def delete_worker(
     worker_id: int,
+    request: Request,
     _supervisor=Depends(require_role("admin", "supervisor")),
     _csrf: None = Depends(verify_csrf),
 ):
-    if not await worker_repository.delete(worker_id):
+    deleted = await worker_repository.delete(worker_id)
+    if not deleted:
         raise HTTPException(status_code=404, detail="작업자를 찾을 수 없습니다")
+    await _audit(request, "worker.delete", str(worker_id))
 
 
 @router.post("/{worker_id}/assign", response_model=Assignment, status_code=201)
 async def assign_node(
     worker_id: int,
     payload: AssignmentCreate,
+    request: Request,
     _supervisor=Depends(require_role("admin", "supervisor")),
     _csrf: None = Depends(verify_csrf),
 ):
@@ -101,6 +122,7 @@ async def assign_node(
             status_code=409,
             detail=f"{payload.node_id} 에 이미 배정된 작업자가 있습니다. 먼저 배정을 해제하세요.",
         )
+    await _audit(request, "worker.assign", payload.node_id, {"worker_id": worker_id})
     logger.info("worker %d assigned to %s", worker_id, payload.node_id)
     return assignment
 
@@ -108,12 +130,14 @@ async def assign_node(
 @router.post("/nodes/{node_id}/release", response_model=Assignment)
 async def release_node(
     node_id: str,
+    request: Request,
     _supervisor=Depends(require_role("admin", "supervisor")),
     _csrf: None = Depends(verify_csrf),
 ):
     assignment = await worker_repository.release(node_id)
     if assignment is None:
         raise HTTPException(status_code=404, detail=f"{node_id} 에 배정된 작업자가 없습니다")
+    await _audit(request, "worker.release", node_id)
     logger.info("assignment released for %s", node_id)
     return assignment
 

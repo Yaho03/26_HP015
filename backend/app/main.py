@@ -1,3 +1,4 @@
+import logging
 from contextlib import asynccontextmanager
 
 from fastapi import Depends, FastAPI
@@ -8,17 +9,20 @@ from app.config import settings
 from app.dependencies.auth import enforce_authentication
 from app.routers import (
     alert_events,
+    audit_log,
     auth,
     demo,
     health,
     sensor_data,
     thresholds,
+    users,
     websocket,
     workers,
 )
 from app.services import (
     alert_publisher,
     alert_service,
+    auth_service,
     connection_monitor,
     location_service,
     mqtt_subscriber,
@@ -26,6 +30,8 @@ from app.services import (
     sensor_broadcast,
     uwb_service,
 )
+
+logger = logging.getLogger(__name__)
 
 
 @asynccontextmanager
@@ -43,6 +49,12 @@ async def lifespan(app: FastAPI):
         # safety-critical). 다른 서비스들(mqtt_subscriber.start() 등)과 동일하게
         # 예외를 그대로 전파시켜 기동 자체를 실패시킨다 (컨테이너 재시작 루프로 즉시 드러남).
         await alert_service.init()
+        # 최초 관리자 부트스트랩 (AUTH-9). 마이그레이션 직후, 서비스 기동 전 —
+        # 실패해도 기동을 막지 않는다: 부트스트랩은 편의 기능이고 로그로 드러난다.
+        try:
+            await auth_service.bootstrap_admin()
+        except Exception:
+            logger.exception("admin bootstrap failed")
         location_service.init()
         uwb_service.init()
         sensor_broadcast.init()
@@ -87,6 +99,8 @@ app.add_middleware(
 
 app.include_router(health.router)
 app.include_router(auth.router)
+app.include_router(audit_log.router)
+app.include_router(users.router)
 app.include_router(thresholds.router)
 app.include_router(sensor_data.router)
 app.include_router(alert_events.router)
