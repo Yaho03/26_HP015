@@ -1,4 +1,5 @@
-import { EventLogScreen } from "../screens/EventLogScreen";
+import { useState } from "react";
+import { EventLogScreen, type EventLogFilter } from "../screens/EventLogScreen";
 import { MonitoringScreen } from "../screens/MonitoringScreen";
 import { IconGauge, IconList } from "./icons";
 
@@ -15,6 +16,10 @@ const TABS: { key: SafetyWorkspaceView; label: string; Icon: typeof IconGauge }[
 ];
 
 export function SafetyWorkspace({ activeView, onViewChange }: SafetyWorkspaceProps) {
+  // Screen 1 ④ 의 행을 클릭하면 그 노드·등급으로 필터를 건 채 이력 화면이 열린다.
+  // 필터 없이 넘기면 관제사가 방금 본 행을 20건 목록에서 다시 찾아야 한다.
+  const [logFilter, setLogFilter] = useState<EventLogFilter>({});
+
   return (
     <div className="safety-workspace">
       <nav className="safety-tabs" aria-label="안전 관리 화면">
@@ -35,7 +40,16 @@ export function SafetyWorkspace({ activeView, onViewChange }: SafetyWorkspacePro
       {/* keyed view: CSS replaces only the workspace content, keeping the shell still */}
       <div className="safety-workspace__stage">
         <div key={activeView} className="safety-workspace__view">
-          {activeView === "monitoring" ? <MonitoringScreen /> : <EventLogScreen />}
+          {activeView === "monitoring" ? (
+            <MonitoringScreen
+              onOpenEventLog={(filter) => {
+                setLogFilter(filter);
+                onViewChange("event-log");
+              }}
+            />
+          ) : (
+            <EventLogScreen initialFilter={logFilter} />
+          )}
         </div>
       </div>
     </div>

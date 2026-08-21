@@ -1,5 +1,12 @@
 import { useEffect, useMemo, useState } from "react";
 import { fetchAlertEvents, type AlertEvent, type AlertEventFilter } from "../services/api";
+import { ALERT_TYPE_LABEL } from "../utils/alertLabels";
+
+/** Screen 1 ④ 에서 행을 클릭해 넘어올 때 걸고 오는 초기 필터. */
+export interface EventLogFilter {
+  nodeId?: string;
+  level?: string;
+}
 
 const STATUS_OPTIONS: { value: "" | "active" | "resolved"; label: string }[] = [
   { value: "", label: "전체" },
@@ -21,19 +28,14 @@ const LEVEL_OPTIONS = [
   { value: "level2_warning", label: "L2 경고" },
   { value: "level3_critical", label: "L3 위험" },
 ];
+// 유형 표기는 Screen 1 ④ 와 같은 표를 본다 (utils/alertLabels). 화면마다 따로
+// 들고 있으면 유형이 하나 늘 때 한쪽만 갱신되어 같은 사건이 다르게 보인다.
 const TYPE_OPTIONS = [
   { value: "", label: "전체 유형" },
-  { value: "gas_threshold", label: "가스 임계값" },
-  { value: "fall_detection", label: "낙상 감지" },
-  { value: "o2_low", label: "O₂ 저농도" },
-  { value: "o2_high", label: "O₂ 고농도" },
-  { value: "zone_intrusion", label: "위험 구역 진입" },
-  { value: "connection_lost", label: "연결 끊김" },
+  ...Object.entries(ALERT_TYPE_LABEL).map(([value, label]) => ({ value, label })),
 ];
 
-const TYPE_LABEL: Record<string, string> = Object.fromEntries(
-  TYPE_OPTIONS.filter((option) => option.value).map((option) => [option.value, option.label]),
-);
+const TYPE_LABEL = ALERT_TYPE_LABEL;
 
 const LEVEL_LABEL: Record<string, string> = {
   level1_caution: "L1 주의",
@@ -69,12 +71,12 @@ function formatType(type: string): string {
   return TYPE_LABEL[type] ?? type;
 }
 
-export function EventLogScreen() {
-  const [nodeId, setNodeId] = useState("");
+export function EventLogScreen({ initialFilter }: { initialFilter?: EventLogFilter } = {}) {
+  const [nodeId, setNodeId] = useState(initialFilter?.nodeId ?? "");
   const [alertKey, setAlertKey] = useState("");
   const [status, setStatus] = useState<"" | "active" | "resolved">("");
   const [dateRange, setDateRange] = useState<"" | "today" | "7d" | "30d">("");
-  const [level, setLevel] = useState("");
+  const [level, setLevel] = useState(initialFilter?.level ?? "");
   const [alertType, setAlertType] = useState("");
   const [limit, setLimit] = useState(100);
   const [events, setEvents] = useState<AlertEvent[]>([]);

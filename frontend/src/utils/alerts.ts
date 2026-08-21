@@ -75,6 +75,59 @@ export function classifyMetric(metric: MetricKey, value: number): AlertLevel {
   return classifyBy(metric, value);
 }
 
+/**
+ * 다음 등급 진입까지 얼마나 왔는가 — ② / ⑤ 의 "임계값 대비 근접도 바".
+ *
+ * 임계값은 서버에서 받은 것만 쓴다 (FR-201). 테이블이 없으면 null 을 돌려주고,
+ * 호출부는 바를 채우지 않는다. 여기서 임의의 만점 눈금을 만들어 채우면
+ * 임계값을 못 받은 동안에도 바가 "여유 있음"으로 보인다 (이슈 #165).
+ */
+export interface ThresholdApproach {
+  /** 다음에 진입할 등급. 이미 최고 등급 구간이면 그 등급. */
+  level: AlertLevel;
+  /** 그 등급의 진입 임계값. */
+  enter: number;
+  direction: "above" | "below";
+  /** 0~1. 1 이면 임계값에 닿았거나 넘었다. */
+  ratio: number;
+}
+
+export function thresholdApproach(metric: string, value: number): ThresholdApproach | null {
+  const entries = TABLE[metric];
+  if (!entries || entries.length === 0) return null;
+
+  // entries 는 심각 → 경미 순이다. 아직 넘지 않은 것 중 가장 가까운 것이 다음 관문.
+  const pending = entries.filter(({ direction, enter }) =>
+    direction === "below" ? value >= enter : value < enter,
+  );
+
+  if (pending.length === 0) {
+    // 전부 넘었다 — 최고 등급 구간이다. 바는 가득 찬다.
+    const worst = entries[0];
+    return { level: worst.level, enter: worst.enter, direction: worst.direction, ratio: 1 };
+  }
+
+  const next = pending[pending.length - 1];
+  // above: 값이 커질수록 위험하므로 value / enter.
+  // below: 값이 작아질수록 위험하므로 enter / value (O₂ 저농도).
+  // 둘 다 임계값에 닿으면 1 이 된다.
+  const raw =
+    next.direction === "below"
+      ? value > 0
+        ? next.enter / value
+        : 1
+      : next.enter > 0
+        ? value / next.enter
+        : 0;
+
+  return {
+    level: next.level,
+    enter: next.enter,
+    direction: next.direction,
+    ratio: Math.max(0, Math.min(1, raw)),
+  };
+}
+
 // O₂ 는 서버에서 o2_low/o2_high 두 방향으로 나뉘어 있다 (06_ALERT_RULES).
 export function classifyO2Low(value: number): AlertLevel {
   return classifyBy("o2_low", value);
