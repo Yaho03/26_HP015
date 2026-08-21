@@ -274,10 +274,15 @@ def fake_thresholds_repo(monkeypatch):
             self.store[(threshold.metric, threshold.level)] = threshold
             return threshold
 
+        async def find(self, metric: str, level: str):
+            self.calls.append(("find", metric, level))
+            return self.store.get((metric, level))
+
     fake = FakeRepo()
     monkeypatch.setattr(threshold_repository, "list_all", fake.list_all)
     monkeypatch.setattr(threshold_repository, "list_by_metric", fake.list_by_metric)
     monkeypatch.setattr(threshold_repository, "upsert", fake.upsert)
+    monkeypatch.setattr(threshold_repository, "find", fake.find)
     return fake
 
 

@@ -1,0 +1,175 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://hp015.local/schemas/worker-exposure.schema.json",
+  "title": "Worker Cumulative Exposure Message",
+  "description": "WebSocket message carrying a worker's cumulative hazardous-gas exposure. Sent by backend to dashboard. Concentration is taken from the nearest sensor node's measured value, never from IDW interpolation (ADR-005, ADR-008). See docs/11_EXPOSURE_DOSE_SPEC.md.",
+  "type": "object",
+  "required": [
+    "type",
+    "worker_id",
+    "worker_name",
+    "node_id",
+    "exposure_id",
+    "window_start",
+    "elapsed_s",
+    "accumulated_s",
+    "data_gap_s",
+    "trust_level",
+    "timestamp",
+    "metrics"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "type": { "type": "string", "const": "worker_exposure" },
+    "worker_id": {
+      "type": ["integer", "null"],
+      "description": "workers.id. null when the wearable is unassigned."
+    },
+    "worker_name": {
+      "type": "string",
+      "description": "Denormalized worker name. Empty string when unassigned."
+    },
+    "node_id": { "type": "string", "pattern": "^wearable-\\d{2}$" },
+    "exposure_id": {
+      "type": "string",
+      "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$",
+      "description": "ULID of the exposure window."
+    },
+    "window_start": { "type": "string", "format": "date-time" },
+    "window_source": {
+      "type": "string",
+      "enum": ["assignment", "manual_reset", "shift_rollover"]
+    },
+    "elapsed_s": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "Wall-clock seconds since window_start, including measurement gaps."
+    },
+    "accumulated_s": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "Seconds actually integrated into the dose (elapsed_s - data_gap_s)."
+    },
+    "data_gap_s": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "Seconds not integrated because no sample arrived within gap_max_s. Dose is UNDER-estimated by this much."
+    },
+    "trust_level": {
+      "type": "string",
+      "enum": ["high", "medium", "low"],
+      "description": "Confidence in the dose figure. See 11_EXPOSURE_DOSE_SPEC.md section 4.4."
+    },
+    "timestamp": { "type": "string", "format": "date-time" },
+    "metrics": {
+      "type": "object",
+      "description": "Keyed by metric name, matching sensor_data.metric values.",
+      "additionalProperties": false,
+      "properties": {
+        "co2_ppm": { "$ref": "#/$defs/doseMetric" },
+        "co_ppm": { "$ref": "#/$defs/doseMetric" },
+        "h2s_ppm": { "$ref": "#/$defs/doseMetric" },
+        "o2_pct": { "$ref": "#/$defs/o2Metric" }
+      }
+    }
+  },
+  "$defs": {
+    "exposureSource": {
+      "type": "string",
+      "enum": ["wearable_direct", "nearest_node", "unavailable"],
+      "description": "Where the concentration came from. IDW interpolation is never a valid source (ADR-008)."
+    },
+    "alertLevel": {
+      "type": "string",
+      "enum": ["normal", "level1_caution", "level2_warning", "level3_critical"]
+    },
+    "doseMetric": {
+      "type": "object",
+      "required": ["status"],
+      "additionalProperties": false,
+      "properties": {
+        "status": {
+          "type": "string",
+          "enum": ["active", "unavailable"],
+          "description": "unavailable means no dose can be computed (e.g. uncalibrated MQ sensor). Dashboards MUST NOT render this as 0%."
+        },
+        "reason": {
+          "type": "string",
+          "enum": [
+            "uncalibrated",
+            "limit_unverified",
+            "no_position",
+            "no_source_node",
+            "sensor_error"
+          ],
+          "description": "Required when status is unavailable. limit_unverified means the exposure limit for this metric has not been checked against the source regulation yet and was therefore not seeded."
+        },
+        "exposure_source": { "$ref": "#/$defs/exposureSource" },
+        "source_node_id": {
+          "type": ["string", "null"],
+          "description": "Sensor node supplying the concentration (nearest_node mode)."
+        },
+        "source_distance_m": {
+          "type": ["number", "null"],
+          "minimum": 0,
+          "description": "2D distance from worker to source node. Larger distance means weaker estimate."
+        },
+        "dose_ppm_min": {
+          "type": ["number", "null"],
+          "minimum": 0,
+          "description": "Cumulative exposure in ppm-minutes. Monotonically non-decreasing within a window."
+        },
+        "dose_limit_ppm_min": { "type": ["number", "null"], "exclusiveMinimum": 0 },
+        "dose_fraction": {
+          "type": ["number", "null"],
+          "minimum": 0,
+          "description": "dose_ppm_min / dose_limit_ppm_min. 1.0 means the 8h reference dose is spent."
+        },
+        "dose_worst_case_ppm_min": {
+          "type": ["number", "null"],
+          "minimum": 0,
+          "description": "Dose accumulated from the maximum across all nodes. DISPLAY ONLY, never used for alerting (ADR-008)."
+        },
+        "twa_8h_ppm": { "type": ["number", "null"], "minimum": 0 },
+        "twa_15min_ppm": { "type": ["number", "null"], "minimum": 0 },
+        "stel_limit_ppm": { "type": ["number", "null"], "exclusiveMinimum": 0 },
+        "stel_exceeded": { "type": "boolean" },
+        "peak_ppm": { "type": ["number", "null"], "minimum": 0 },
+        "peak_at": { "type": ["string", "null"], "format": "date-time" },
+        "alert_level": { "$ref": "#/$defs/alertLevel" }
+      }
+    },
+    "o2Metric": {
+      "type": "object",
+      "required": ["status"],
+      "additionalProperties": false,
+      "properties": {
+        "status": { "type": "string", "enum": ["active", "unavailable"] },
+        "reason": {
+          "type": "string",
+          "enum": ["sensor_error", "not_connected", "no_position"]
+        },
+        "exposure_source": { "$ref": "#/$defs/exposureSource" },
+        "source_node_id": { "type": ["string", "null"] },
+        "source_distance_m": { "type": ["number", "null"], "minimum": 0 },
+        "o2_deficient_s": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Cumulative seconds below 19.5 percent."
+        },
+        "o2_severe_s": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Cumulative seconds below 16.0 percent."
+        },
+        "o2_enriched_s": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Cumulative seconds above 23.5 percent (fire risk)."
+        },
+        "o2_min_pct": { "type": ["number", "null"] },
+        "alert_level": { "$ref": "#/$defs/alertLevel" }
+      }
+    }
+  }
+}
