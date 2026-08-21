@@ -74,6 +74,35 @@ async def load_limits() -> Dict[str, ExposureLimit]:
         return {r["metric"]: ExposureLimit(**dict(r)) for r in rows}
 
 
+async def upsert_limit(limit: ExposureLimit) -> ExposureLimit:
+    """기준값을 넣거나 고친다 (§6.2 PUT /api/exposure/limits/{metric}, admin 전용).
+
+    reference 는 DB CHECK 가 길이를 강제한다 (§3.3 MUST) — 고시명·조항·개정일이
+    들어가야 하므로 "ACGIH" 같은 단어 하나나 빈 문자열은 여기서 거절된다. 출처 없는
+    숫자가 안전 기준이 되는 것을 애플리케이션 검증이 아니라 DB 가 막는다.
+    """
+    pool = get_pool()
+    async with pool.acquire() as conn:
+        row = await conn.fetchrow(
+            """
+            INSERT INTO exposure_limits
+                (metric, twa_limit_ppm, dose_limit_ppm_min, stel_limit_ppm, reference)
+            VALUES ($1, $2, $3, $4, $5)
+            ON CONFLICT (metric) DO UPDATE SET
+                twa_limit_ppm      = EXCLUDED.twa_limit_ppm,
+                dose_limit_ppm_min = EXCLUDED.dose_limit_ppm_min,
+                stel_limit_ppm     = EXCLUDED.stel_limit_ppm,
+                reference          = EXCLUDED.reference,
+                updated_at         = now()
+            RETURNING metric, twa_limit_ppm, dose_limit_ppm_min, stel_limit_ppm,
+                      reference, updated_at
+            """,
+            limit.metric, limit.twa_limit_ppm, limit.dose_limit_ppm_min,
+            limit.stel_limit_ppm, limit.reference,
+        )
+        return ExposureLimit(**dict(row))
+
+
 # ── 활성 윈도우 ─────────────────────────────────────────────────────────
 
 async def load_active_states() -> List[ExposureStateRow]:

@@ -1,6 +1,6 @@
 import { ExposureGauge } from "../components/ExposureGauge";
 import { IconWarning } from "../components/icons";
-import { useExposure } from "../hooks/useExposure";
+import { useExposure, useExposureBootstrap } from "../hooks/useExposure";
 import {
   EXPOSURE_MOCK_STATES,
   MOCK_NODE_ID,
@@ -46,6 +46,7 @@ function num(value: number | null | undefined, digits: number): string {
  * 값이고, 둘은 다른 것이다 (§7 한계 #7).
  */
 export function ExposureScreen() {
+  useExposureBootstrap();
   const { exposure, is_mock } = useExposure(MOCK_NODE_ID);
 
   return (

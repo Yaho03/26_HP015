@@ -48,6 +48,7 @@ from app.services.exposure_accumulator import (
     stel_exceeded,
     trust_level,
     twa_8h_ppm,
+    twa_15min_ppm,
 )
 from app.services.uwb_service import parse_anchors
 
@@ -185,6 +186,17 @@ async def init() -> None:
         "노출량 적산 시작 (윈도우 %d개, gap_max=%.0fs, flush=%.0fs)",
         len(_windows), settings.exposure_gap_max_s, settings.exposure_flush_interval_s,
     )
+
+
+async def reload_limits() -> None:
+    """기준값을 다시 읽는다. 관리자가 고친 직후 라우터가 부른다.
+
+    프로세스를 재시작하지 않고 반영되어야 한다 — thresholds 가 alert_service.reload()
+    로 하는 것과 같은 이유다 (FR-201).
+    """
+    global _limits
+    _limits = await repo.load_limits()
+    logger.info("노출 기준값 재로드 (%d개 시드됨)", len(_limits))
 
 
 async def stop() -> None:
@@ -348,10 +360,13 @@ async def on_reading(node_id: str, metric: str, value: float, sampled_at: dateti
         )
         window.dirty = True
         await _maybe_alert(window)
+        await _broadcast(node_id)
         return
 
     if metric not in GAS_METRICS:
         return
+
+    touched: set[str] = set()
 
     for (wearable_id, window_metric), window in _windows.items():
         if window_metric != metric:
@@ -373,7 +388,11 @@ async def on_reading(node_id: str, metric: str, value: float, sampled_at: dateti
             window.state, value, sampled_at, gap_max_s=settings.exposure_gap_max_s
         )
         window.dirty = True
+        touched.add(wearable_id)
         await _maybe_alert(window)
+
+    for wearable_id in sorted(touched):
+        await _broadcast(wearable_id)
 
 
 async def _maybe_alert(window: "_Window") -> None:
@@ -424,6 +443,9 @@ async def _maybe_alert(window: "_Window") -> None:
     window.max_level = max_alert_level(window.max_level, level)
     logger.info("노출량 경보 %s %s → %s (worker=%s)",
                 window.row.node_id, ALERT_KEYS[metric], level, window.worker_name)
+    # 등급 변화는 스로틀을 무시한다 (§6.1). 사람이 즉시 알아야 하는 사건을 최대
+    # 5초 늦추는 것은 이 시스템이 존재하는 이유와 어긋난다.
+    await _broadcast(window.row.node_id, force=True)
 
 
 async def _resolve_alert(window: "_Window") -> None:
@@ -460,6 +482,167 @@ def _source_for(wearable_id: str) -> Tuple[Optional[str], Optional[float]]:
     if position is None:
         return None, None
     return nearest_node((position.x, position.y), _sensor_nodes)
+
+
+# ── 스냅샷 / 브로드캐스트 (§6.1) ────────────────────────────────────────
+
+def _metric_payload(window: _Window, now: datetime) -> dict:
+    """지표 하나의 페이로드.
+
+    산출 불가는 dose 필드를 **아예 빼고** status/reason 만 남긴다 (§6.1 예시).
+    0 으로 채우면 화면이 "노출 0%"로 그리고, 그게 §6.4 가 금지하는 표시다.
+    """
+    metric = window.row.metric
+    if metric == O2_METRIC:
+        if window.source == "unavailable":
+            return {"status": "unavailable", "reason": "no_position"}
+        return {
+            "status": "active",
+            "exposure_source": window.source,
+            "source_node_id": window.source_node_id,
+            "source_distance_m": window.source_distance_m,
+            "o2_deficient_s": int(window.state.o2_deficient_s),
+            "o2_severe_s": int(window.state.o2_severe_s),
+            "o2_enriched_s": int(window.state.o2_enriched_s),
+            "o2_min_pct": window.state.o2_min_pct,
+            "alert_level": o2_alert_level(
+                o2_deficient_s=window.state.o2_deficient_s,
+                o2_severe_s=window.state.o2_severe_s,
+            ),
+        }
+
+    limit = _limits.get(metric)
+    if limit is None:
+        # 고시 원문 대조 전이라 시드하지 않은 상태 (§3.2). 화면은 이것을
+        # "기준값 미검증"으로 그린다.
+        return {"status": "unavailable", "reason": "limit_unverified"}
+    if window.source == "unavailable":
+        return {"status": "unavailable", "reason": "no_position"}
+
+    fraction = dose_fraction(window.state.dose_ppm_min, limit.dose_limit_ppm_min)
+    stel_limit = getattr(limit, "stel_limit_ppm", None)
+    exceeded = stel_exceeded(window.state, stel_limit)
+    return {
+        "status": "active",
+        "exposure_source": window.source,
+        "source_node_id": window.source_node_id,
+        "source_distance_m": window.source_distance_m,
+        "dose_ppm_min": window.state.dose_ppm_min,
+        "dose_limit_ppm_min": limit.dose_limit_ppm_min,
+        "dose_fraction": fraction,
+        "dose_worst_case_ppm_min": window.state.dose_worst_case_ppm_min,
+        "twa_8h_ppm": twa_8h_ppm(window.state.dose_ppm_min, window.elapsed_s(now)),
+        "twa_15min_ppm": twa_15min_ppm(window.state),
+        "stel_limit_ppm": stel_limit,
+        "stel_exceeded": exceeded,
+        "peak_ppm": window.state.peak_ppm,
+        "peak_at": window.state.peak_at.isoformat() if window.state.peak_at else None,
+        "alert_level": (
+            alert_level_for_fraction(fraction, stel_exceeded=exceeded)
+            if fraction is not None else "normal"
+        ),
+    }
+
+
+def snapshot(node_id: str) -> Optional[dict]:
+    """웨어러블 하나의 worker_exposure 메시지 (§6.1). 윈도우가 없으면 None."""
+    windows = {m: w for (n, m), w in _windows.items() if n == node_id}
+    if not windows:
+        return None
+    now = datetime.now(timezone.utc)
+    any_window = next(iter(windows.values()))
+    elapsed = any_window.elapsed_s(now)
+    # 지표마다 공백이 다를 수 있다. 가장 큰 쪽을 대표로 쓴다 — 신뢰도는 보수적으로.
+    gap = max(w.state.data_gap_s for w in windows.values())
+
+    return {
+        "type": "worker_exposure",
+        "worker_id": any_window.row.worker_id,
+        "worker_name": any_window.worker_name,
+        "node_id": node_id,
+        "exposure_id": any_window.row.exposure_id,
+        "window_start": any_window.row.window_start.isoformat(),
+        "window_source": any_window.row.window_source,
+        "elapsed_s": int(elapsed),
+        "accumulated_s": int(max(elapsed - gap, 0)),
+        "data_gap_s": int(gap),
+        "trust_level": _trust_of(any_window, now),
+        "timestamp": now.isoformat(),
+        "metrics": {m: _metric_payload(w, now) for m, w in windows.items()},
+    }
+
+
+def snapshot_all() -> list[dict]:
+    nodes = {n for n, _ in _windows}
+    return [s for s in (snapshot(n) for n in sorted(nodes)) if s is not None]
+
+
+#: 마지막 브로드캐스트 시각 (node_id → epoch 초).
+_last_broadcast: Dict[str, float] = {}
+
+#: 발행 주기 (§6.1). dose 는 초 단위로 급변하지 않으므로 샘플마다 보내지 않는다.
+BROADCAST_INTERVAL_S = 5.0
+
+
+async def _broadcast(node_id: str, *, force: bool = False) -> None:
+    """worker_exposure 브로드캐스트 (§6.1).
+
+    5초 스로틀이되 **경보 등급이 바뀌면 스로틀을 무시한다.** 등급 변화는 사람이
+    즉시 알아야 하는 사건이고, 그걸 최대 5초 늦추는 것은 이 시스템이 존재하는
+    이유와 어긋난다.
+    """
+    now = datetime.now(timezone.utc).timestamp()
+    if not force and now - _last_broadcast.get(node_id, 0.0) < BROADCAST_INTERVAL_S:
+        return
+    message = snapshot(node_id)
+    if message is None:
+        return
+    _last_broadcast[node_id] = now
+    try:
+        from app.services.ws_manager import manager
+        await manager.broadcast(message)
+    except Exception:
+        logger.exception("노출량 브로드캐스트 실패 (node=%s)", node_id)
+
+
+# ── 수동 리셋 (§4.3, §5.2) ──────────────────────────────────────────────
+
+async def reset_windows(node_id: str, reason: str, actor: str) -> int:
+    """현재 윈도우를 확정하고 새 윈도우를 연다.
+
+    노출량 경보는 자동으로 해제되지 않으므로(§5.2) 이것이 **유일한 해제 경로**다.
+    그래서 권한(supervisor+)과 사유를 라우터가 강제한다.
+
+    사유와 행위자를 로그에 남긴다. FR-605 의 audit_log 테이블 적재는 그 인프라(#182)가
+    이 브랜치 계보에 아직 없어서 붙이지 못했다 — main 으로 rebase 한 뒤 연결한다.
+    """
+    keys = [k for k in _windows if k[0] == node_id]
+    if not keys:
+        return 0
+    logger.warning(
+        "노출량 수동 리셋 (node=%s, actor=%s, 사유=%s, 윈도우 %d개)",
+        node_id, actor, reason, len(keys),
+    )
+    for key in keys:
+        await _close(key)
+    await _reconcile_reset(node_id)
+    return len(keys)
+
+
+async def _reconcile_reset(node_id: str) -> None:
+    """리셋 직후 새 윈도우를 연다. window_source 가 manual_reset 이다."""
+    active = {a.node_id: a for a in await worker_repository.list_active()}
+    assignment = active.get(node_id)
+    if assignment is None:
+        return
+    now = datetime.now(timezone.utc)
+    for metric in (*GAS_METRICS, O2_METRIC):
+        row = await repo.open_window(
+            repo.new_exposure_id(), assignment.worker_id, node_id, metric,
+            now, "manual_reset",
+        )
+        if row is not None:
+            _windows[(node_id, metric)] = _Window(row, assignment.name)
 
 
 # ── 백그라운드 루프 ─────────────────────────────────────────────────────

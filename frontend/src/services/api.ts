@@ -1,4 +1,5 @@
 import type { MetricKey } from "../types";
+import type { WorkerExposureMessage } from "../types/ws";
 
 // 상대 경로 기본값 — nginx(배포)와 vite dev proxy(개발) 둘 다 /api를 백엔드로
 // 프록시하므로 프론트엔드가 :8000을 직접 호출할 필요가 없다 (이슈 #105).
@@ -211,6 +212,23 @@ export async function releaseNode(nodeId: string): Promise<void> {
     method: "POST",
   });
   if (!resp.ok) await readError(resp, "배정 해제 실패");
+}
+
+// ── 누적 노출량 (FR-701~708, 11_EXPOSURE_DOSE_SPEC §6.2) ────────────────
+
+/**
+ * 활성 노출 윈도우 전체.
+ *
+ * 초기 로드 전용이다. 이후 갱신은 WebSocket 의 `worker_exposure` 가 맡는다 (§6.1).
+ * REST 가 필요한 이유는 새로고침 직후다 — WS 는 다음 브로드캐스트(최대 5초)까지
+ * 아무것도 보내지 않아서, 그동안 화면이 "노출량 데이터 없음"으로 보인다.
+ */
+export async function fetchExposureCurrent(): Promise<WorkerExposureMessage[]> {
+  const resp = await fetch(`${API_BASE}/api/exposure/current`);
+  if (!resp.ok) {
+    throw new Error(`exposure current fetch failed: ${resp.status}`);
+  }
+  return (await resp.json()) as WorkerExposureMessage[];
 }
 
 export async function fetchHealth(): Promise<HealthStatus> {

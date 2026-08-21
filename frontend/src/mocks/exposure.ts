@@ -304,7 +304,10 @@ interface ExposureMockStore {
  * 보고 있는 값이 실측인지 가짜인지 스토어만 보고는 알 수 없게 된다.
  */
 export const useExposureMock = create<ExposureMockStore>((set) => ({
-  enabled: import.meta.env.DEV,
+  // 기본 꺼짐. A1 에서는 백엔드가 스텁이라 개발 모드에서 자동으로 켰지만, 이제
+  // 적산 서비스가 실제로 돈다 (A3~A5). 목이 기본이면 시연 중에 켜둔 것을 잊고
+  // 진짜 경보를 못 보게 된다. 필요할 때 노출량 화면에서 직접 켠다.
+  enabled: false,
   state: "normal",
   seed: Date.now(),
   setEnabled: (enabled) => set({ enabled, seed: Date.now() }),
