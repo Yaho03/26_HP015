@@ -163,6 +163,12 @@ async def init() -> None:
 
 
 async def stop() -> None:
+    """루프를 멈추고 마지막으로 한 번 flush 한다 (§4.5).
+
+    종료 경로라 flush 실패를 전파하지 않는다. 여기서 예외가 나가면 lifespan 의
+    나머지 정리(mqtt, DB 연결 해제)가 중단되고, 원래 종료 원인이 이 예외에 가려진다.
+    DB 가 이미 내려간 상태로 종료하는 경우가 실제로 있다.
+    """
     global _task
     if _task is not None:
         _task.cancel()
@@ -171,7 +177,11 @@ async def stop() -> None:
         except asyncio.CancelledError:
             pass
         _task = None
-    await _flush()
+    try:
+        await _flush()
+    except Exception:
+        logger.exception("노출량 종료 flush 실패 — 마지막 %.0f초 분량이 유실된다",
+                         settings.exposure_flush_interval_s)
 
 
 async def _recover() -> None:
@@ -242,8 +252,14 @@ async def _close(key: _WindowKey) -> None:
             window.state.dose_ppm_min,
             limit.dose_limit_ppm_min if limit else None,
         )
-        # 기준값이 없으면 등급을 매길 수 없다. normal 로 접으면 감사 로그에 거짓이
-        # 남는다 — 그 윈도우는 "정상이었다"가 아니라 "판정 불가였다"이다.
+        # 기준값이 없으면 소진율을 계산할 수 없고, 계산할 수 없었으므로 이 윈도우
+        # 동안 노출량 경보는 한 번도 발령되지 않았다. max_alert_level 은 "실제로
+        # 도달한 최고 경보 등급"이므로 그 경우 normal 이 사실이다.
+        #
+        # 이걸 "정상이었다"로 읽으면 안 되는데, 그 구분은 같은 행의
+        # dose_fraction IS NULL 이 해 준다 — 판정이 불가능했다는 표시가 남는다.
+        # (alert_level_for_fraction(None) 자체는 예외를 낸다. 등급 판정 함수가
+        # 조용히 normal 을 돌려주면 살아 있는 경보 경로에서 위험을 덮는다.)
         level = "normal" if fraction is None else alert_level_for_fraction(fraction)
 
     final = ExposureShiftLogRow(

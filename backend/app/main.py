@@ -70,6 +70,12 @@ async def lifespan(app: FastAPI):
             await retention.stop()
         if started_mqtt:
             await mqtt_subscriber.stop()
+        # 노출량은 종료 직전에 마지막 flush 를 한 번 더 한다 (FR-704, §4.5). 이게
+        # 없으면 정상 종료에서도 flush 주기만큼(기본 10초) 누적이 날아간다.
+        # started_* 플래그를 두지 않는 이유는 stop() 이 열린 윈도우가 없으면 DB 를
+        # 건드리지 않고 즉시 돌아오기 때문이다 — 기동이 일찍 실패해도 안전하다.
+        # 반드시 db.disconnect() **앞**이어야 한다. flush 가 풀을 쓴다.
+        await exposure_service.stop()
         if db.is_initialized():
             await db.disconnect()
 

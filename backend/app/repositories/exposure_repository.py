@@ -17,9 +17,23 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Dict, Iterable, List, Optional
 
+from ulid import ULID
+
 from app.db import get_pool
 from app.models.exposure import ExposureLimit, ExposureShiftLogRow, ExposureStateRow
-from app.services.exposure_ids import new_exposure_id
+
+
+def new_exposure_id() -> str:
+    """노출 윈도우 ID (§2.3 ULID).
+
+    UUID4 가 아니라 ULID 인 이유는 **시간순 정렬**이다. 앞 48비트가 밀리초
+    타임스탬프라 문자열 정렬이 곧 발생 순서가 되고, 사고 조사에서 시간축으로 훑을 때
+    정렬 인덱스 없이도 눈으로 따라갈 수 있다.
+
+    직접 구현하지 않는다 — `python-ulid` 가 이미 requirements.txt 에 있다.
+    """
+    return str(ULID())
+
 
 __all__ = [
     "new_exposure_id",
