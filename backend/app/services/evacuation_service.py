@@ -29,11 +29,19 @@ from datetime import datetime, timezone
 from ulid import ULID
 
 from app.config import settings
+from app.models.alert import AlertLevel, AlertTransition
 from app.models.evacuation import HazardZone, NavTopology, RouteResult, TopologyStatus
 from app.repositories import nav_repository
-from app.services import evacuation_hazards, evacuation_router, evacuation_topology
+from app.services import (
+    alert_service,
+    evacuation_hazards,
+    evacuation_router,
+    evacuation_topology,
+    location_service,
+)
 from app.services.evacuation_coordinates import to_ship_visual
 from app.services.evacuation_router import Position2D
+from app.services.ws_manager import manager
 
 logger = logging.getLogger(__name__)
 
@@ -90,6 +98,21 @@ async def init() -> None:
         _status.exit_count,
     )
 
+    # 토폴로지가 살아 있을 때만 위치를 구독한다. 꺼져 있는데 구독하면 측위마다
+    # unavailable 경로를 만들어 브로드캐스트하게 된다.
+    location_service.add_observer(_on_filtered_position)
+
+
+async def _on_filtered_position(pos) -> None:
+    """location_service 가 필터링을 마친 위치를 넘겨준다."""
+    await on_position_update(
+        pos.node_id,
+        pos.x,
+        pos.y,
+        pos.timestamp,
+        settings.location_source_coordinate_system,
+    )
+
 
 def _summarize(errors: list[str]) -> str:
     """검증 오류를 한 문장으로 줄인다. /health 응답과 배너에 그대로 실린다.
@@ -132,8 +155,12 @@ def reset_for_test() -> None:
     _routes.clear()
 
 
-def set_topology_for_test(topology: NavTopology) -> None:
-    """DB 없이 경로 계산만 시험할 때 쓴다."""
+def set_topology(topology: NavTopology) -> None:
+    """메모리의 통행 구조를 갈아끼운다 (PUT /api/evacuation/topology).
+
+    DB 반영은 호출부가 먼저 한다. 순서가 뒤바뀌면 메모리는 새 그래프인데 DB 는
+    옛 그래프인 상태로 재기동 시 되돌아간다.
+    """
     global _status, _topology
     _topology = topology
     _status = TopologyStatus(
@@ -142,6 +169,28 @@ def set_topology_for_test(topology: NavTopology) -> None:
         edge_count=len(topology.nav_edges),
         exit_count=len(topology.exits),
     )
+
+
+# 테스트가 쓰던 이름을 유지한다.
+set_topology_for_test = set_topology
+
+
+def set_exit_usable_in_memory(exit_id: str, is_usable: bool) -> bool:
+    """출구 하나의 가용 여부를 메모리에도 반영한다. 실제로 바뀌었으면 True.
+
+    DB 만 고치면 다음 재기동 전까지 경로 계산이 옛 상태를 본다 — 관리자가 닫은
+    출구로 사람을 계속 보내게 된다.
+    """
+    topology = _topology
+    if topology is None:
+        return False
+    for exit_ in topology.exits:
+        if exit_.exit_id == exit_id:
+            if exit_.is_usable == is_usable:
+                return False
+            exit_.is_usable = is_usable
+            return True
+    return False
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -235,6 +284,15 @@ def decide_replacement(
     # 노드로 되돌아가는 선이 그려진다.
     if current.result.entry_nav_node_id != candidate.entry_nav_node_id:
         return "position_moved"
+
+    # 목표 출구가 닫혔다. 지나는 통로의 비용은 그대로여도 그 길로 보내면 안 된다 —
+    # 도착해서야 잠긴 해치를 마주하게 된다. 간선 비용만 보는 아래 비교로는 이 경우가
+    # 절대 잡히지 않는다 (출구를 닫아도 간선은 그대로 열려 있다).
+    target_id = current.result.target_exit_id
+    if target_id and _topology is not None:
+        target = next((x for x in _topology.exits if x.exit_id == target_id), None)
+        if target is None or not target.is_usable:
+            return "topology_changed"
 
     current_cost = _recompute_cost(current.result, zones)
     if current_cost is None or current_cost == float("inf"):
@@ -330,6 +388,155 @@ def position_from_measurement(
     system = source_coordinate_system or settings.location_source_coordinate_system
     ship_x, ship_y = to_ship_visual(x_m, y_m, system)
     return Position2D(ship_x, ship_y)
+
+
+def to_message(node_id: str, active: ActiveRoute) -> dict:
+    """WebSocket / REST 페이로드. schemas/evacuation-route.schema.json 을 따른다.
+
+    worker_id / worker_name 은 배정이 없으면 비운다 (§6.1). 경로는 노드에 대해
+    계산되고 사람은 그 노드를 차고 있을 뿐이라, 배정이 없다고 경로를 안 그릴
+    이유가 없다.
+    """
+    result = active.result
+    payload: dict = {
+        "type": "evacuation_route",
+        "route_id": active.route_id,
+        "node_id": node_id,
+        "computed_at": active.computed_at.isoformat().replace("+00:00", "Z"),
+        "route_status": result.route_status,
+        "coordinate_system": "ship-visual",
+        "assumed_level_id": result.assumed_level_id,
+        "target_exit_id": result.target_exit_id,
+        "entry_nav_node_id": result.entry_nav_node_id,
+        "snap_distance_m": result.snap_distance_m,
+        "total_length_m": result.total_length_m,
+        "total_cost": result.total_cost,
+        "estimated_seconds": result.estimated_seconds,
+        "hazard_multiplier_max": result.hazard_multiplier_max,
+        "switch_reason": active.switch_reason,
+        "waypoints": [w.model_dump() for w in result.waypoints],
+        "blocked_exits": [b.model_dump() for b in result.blocked_exits],
+        "warnings": list(result.warnings),
+    }
+    if result.unavailable_reason:
+        payload["unavailable_reason"] = result.unavailable_reason
+    return payload
+
+
+async def _publish(node_id: str, active: ActiveRoute) -> None:
+    """경로를 화면으로 내보내고 이력에 남긴다.
+
+    브로드캐스트 실패가 경로 계산을 깨면 안 된다. 구독자가 없거나 소켓이 죽은
+    것은 정상 상황이다.
+    """
+    try:
+        await manager.broadcast(to_message(node_id, active))
+    except Exception:
+        logger.exception("evacuation route broadcast 실패 (node=%s)", node_id)
+
+    result = active.result
+    await nav_repository.record_route(
+        route_id=active.route_id,
+        node_id=node_id,
+        worker_id=None,
+        worker_name="",
+        computed_at=active.computed_at,
+        route_status=result.route_status,
+        target_exit_id=result.target_exit_id,
+        total_length_m=result.total_length_m,
+        total_cost=result.total_cost,
+        switch_reason=active.switch_reason,
+        waypoints=[w.model_dump() for w in result.waypoints],
+        blocked_exits=[b.model_dump() for b in result.blocked_exits],
+    )
+
+
+# 노드별 직전 route_status. 경보는 상태가 **바뀔 때만** 발령한다 —
+# 재계산마다 발령하면 초당 몇 건씩 같은 경보가 쌓인다.
+_last_status: dict[str, str] = {}
+
+
+async def _sync_no_safe_route_alert(node_id: str, active: ActiveRoute) -> None:
+    """안전 경로가 사라졌다는 사실을 경보로 올린다 (§3.5 MUST).
+
+    화면을 보고 있지 않은 감독자에게도 닿아야 하므로 배너만으로는 부족하다.
+    """
+    status_now = active.result.route_status
+    previous = _last_status.get(node_id)
+    if previous == status_now:
+        return
+    _last_status[node_id] = status_now
+
+    entering = status_now == "no_safe_route"
+    leaving = previous == "no_safe_route" and not entering
+    if not (entering or leaving):
+        return
+
+    try:
+        await alert_service.handle_transition(
+            AlertTransition(
+                node_id=node_id,
+                # alert_key 는 metric 에서 나온다 (alert_publisher). 가스 지표가
+                # 아니라 상황 자체가 키다.
+                metric="no_safe_route",
+                from_level=AlertLevel.LEVEL3 if leaving else AlertLevel.NORMAL,
+                to_level=AlertLevel.NORMAL if leaving else AlertLevel.LEVEL3,
+                value=active.result.total_cost or 0.0,
+                threshold=0.0,
+                timestamp=active.computed_at,
+            )
+        )
+    except Exception:
+        logger.exception("no_safe_route 경보 발행 실패 (node=%s)", node_id)
+
+
+async def on_position_update(
+    node_id: str,
+    x_m: float,
+    y_m: float,
+    sampled_at: datetime | None = None,
+    source_coordinate_system: str | None = None,
+) -> None:
+    """측위가 갱신될 때 호출된다. 필요하면 다시 계산하고 바뀌었을 때만 발행한다.
+
+    웨어러블이 아닌 노드는 무시한다. 고정 센서는 대피하지 않는다.
+    """
+    if not node_id.startswith("wearable-"):
+        return
+    if not is_enabled():
+        return
+
+    position = position_from_measurement(x_m, y_m, source_coordinate_system, sampled_at)
+    if position is None:
+        # 위치가 오래됐다. 경로를 지우는 대신 stale 상태로 알린다 (§6.1).
+        active, changed = compute_and_decide(node_id, None)
+        active.result.unavailable_reason = "stale_position"
+        if changed:
+            await _publish(node_id, active)
+        return
+
+    if not should_recompute_for_move(node_id, position):
+        return
+
+    active, changed = compute_and_decide(node_id, position)
+    if changed:
+        await _publish(node_id, active)
+        await _sync_no_safe_route_alert(node_id, active)
+
+
+async def recompute_all(reason: str = "hazard_changed") -> None:
+    """위험 구역이나 토폴로지가 바뀌었을 때 전 노드를 다시 계산한다 (§3.4).
+
+    위치는 그대로여도 주변이 달라졌으면 경로가 달라진다.
+    """
+    if not is_enabled():
+        return
+    for node_id in list(_routes):
+        current = _routes[node_id]
+        active, changed = compute_and_decide(node_id, current.position)
+        if changed:
+            await _publish(node_id, active)
+            await _sync_no_safe_route_alert(node_id, active)
 
 
 def should_recompute_for_move(node_id: str, position: Position2D) -> bool:

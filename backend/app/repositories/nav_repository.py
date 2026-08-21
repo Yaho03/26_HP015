@@ -11,8 +11,14 @@ YAML 이 소스이고 DB 는 사본이다. 그러면 왜 DB 에 넣나 —
 """
 from __future__ import annotations
 
+import json
+import logging
+from datetime import datetime
+
 from app.db import get_pool
 from app.models.evacuation import EvacuationExit, NavEdge, NavNode, NavTopology
+
+logger = logging.getLogger(__name__)
 
 
 async def replace_topology(topology: NavTopology) -> None:
@@ -112,6 +118,82 @@ async def load_topology() -> NavTopology:
         nav_edges=[NavEdge(**dict(r)) for r in edge_rows],
         exits=[EvacuationExit(**dict(r)) for r in exit_rows],
     )
+
+
+async def record_route(
+    route_id: str,
+    node_id: str,
+    worker_id: int | None,
+    worker_name: str,
+    computed_at: datetime,
+    route_status: str,
+    target_exit_id: str | None,
+    total_length_m: float | None,
+    total_cost: float | None,
+    switch_reason: str | None,
+    waypoints: list[dict],
+    blocked_exits: list[dict],
+) -> None:
+    """경로 교체 1건을 이력에 남긴다 (FR-807).
+
+    재계산마다가 아니라 **route_id 가 바뀔 때만** 부른다. 측위가 초당 여러 번
+    들어오므로 매번 기록하면 하루에 수십만 행이 쌓이고, 정작 사고 조사에서
+    "언제 지시가 바뀌었는가"를 찾기 어려워진다.
+
+    기록 실패가 경로 제시를 막으면 안 된다. 대피 중에 DB 가 느리다고 화면이
+    멈추는 것이 훨씬 나쁘다 — 예외를 삼키고 로그만 남긴다.
+    """
+    try:
+        pool = get_pool()
+        async with pool.acquire() as conn:
+            await conn.execute(
+                """
+                INSERT INTO evacuation_routes (
+                    route_id, node_id, worker_id, worker_name, computed_at,
+                    route_status, target_exit_id, total_length_m, total_cost,
+                    switch_reason, waypoints, blocked_exits
+                )
+                VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11::jsonb,$12::jsonb)
+                ON CONFLICT (route_id) DO NOTHING
+                """,
+                route_id, node_id, worker_id, worker_name, computed_at,
+                route_status, target_exit_id, total_length_m, total_cost,
+                switch_reason, json.dumps(waypoints), json.dumps(blocked_exits),
+            )
+    except Exception:
+        logger.exception(
+            "경로 이력 기록 실패 (route_id=%s node=%s) — 경로 제시는 계속된다",
+            route_id, node_id,
+        )
+
+
+async def list_route_history(
+    node_id: str | None = None, limit: int = 100
+) -> list[dict]:
+    """과거 경로 이력. 최신순 (사고 조사용)."""
+    pool = get_pool()
+    async with pool.acquire() as conn:
+        rows = await conn.fetch(
+            """
+            SELECT route_id, node_id, worker_id, worker_name, computed_at,
+                   route_status, target_exit_id, total_length_m, total_cost,
+                   switch_reason, waypoints, blocked_exits
+            FROM evacuation_routes
+            WHERE ($1::text IS NULL OR node_id = $1)
+            ORDER BY computed_at DESC, route_id DESC
+            LIMIT $2
+            """,
+            node_id, limit,
+        )
+    out = []
+    for row in rows:
+        item = dict(row)
+        item["waypoints"] = json.loads(item["waypoints"]) if item["waypoints"] else []
+        item["blocked_exits"] = (
+            json.loads(item["blocked_exits"]) if item["blocked_exits"] else []
+        )
+        out.append(item)
+    return out
 
 
 async def set_exit_usable(exit_id: str, is_usable: bool) -> bool:
