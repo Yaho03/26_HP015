@@ -171,7 +171,7 @@ IDW 히트맵 화면에는 다음 레이블을 표시해야 한다.
 | 2 | **UWB 측위가 2D(z 고정)라 작업자의 비계 층을 알 수 없다** | 항상 최하층 가정. 작업자가 비계 위에 있으면 경로 시작점이 틀리다 |
 | 3 | 연기·시야·화재·구조물 붕괴를 인지하지 못한다 | 가스 농도만 반영 |
 | 4 | 위험 구역은 원형 근사다 | 실제 가스 분포와 다르다 |
-| 5 | **위험 구역 반경의 근거가 없다** | 아래 3.5.3 참조 |
+| 5 | **위험 구역 반경에 표준 근거가 없다** (문헌으로 확보 불가 — 3.5.3) | 확산 범위가 아니라 근접성 휴리스틱 설정값으로만 해석 |
 | 6 | 통로 폭을 병목으로 계산하지 않는다 | 다수 작업자 동시 대피 미고려 (MVP는 1명) |
 | 7 | 경로는 대시보드에만 표시된다 | 작업자 본인은 볼 수 없다. 감독자의 무전 지시를 전제한다 |
 | 8 | 그래프에 없는 임시 통로를 모른다 | 실제로는 더 빠른 길이 있을 수 있다 |
@@ -179,11 +179,42 @@ IDW 히트맵 화면에는 다음 레이블을 표시해야 한다.
 
 한계 #2는 근본적이다. 해결하려면 3D 측위 또는 웨어러블 기압계가 필요하며 둘 다 MVP OUT OF SCOPE다. **화면에 가정을 명시하는 것이 유일한 정직한 대응이다.**
 
-### 3.5.3 위험 구역 반경 — 미결
+### 3.5.3 위험 구역 반경 — 근거가 없고, 문헌으로는 확보되지 않는다
 
 `05_DIGITAL_TWIN_SPEC` §5.1은 위험 구역 반경을 0.5m로 적었다. 그 값은 축소 데모 공간(2.5 × 2.0m) 기준이며, 실제 선박 좌표계(60 × 20 × 14m)에 그대로 적용하면 점이 된다. 고정 센서는 `y = ±3.25`에 있고 통행로는 `y = 0`이므로, 0.5m 반경으로는 **어떤 경보가 떠도 경로가 바뀌지 않는다.**
 
-현재 구현은 이 값을 설정(`evacuation_hazard_radius_m`)으로 빼고 기본값 4.0m를 쓴다. 센서선에서 통행로까지 닿게 한 값일 뿐이며 **실측이나 가스 확산 모델에 근거하지 않는다.** 최종 보고서에서 이 수치를 안전 판단 기준으로 제시해서는 안 된다.
+현재 구현은 이 값을 설정(`evacuation_hazard_radius_m`)으로 빼고 기본값 4.0m를 쓴다. 센서선에서 통행로까지 닿게 한 값일 뿐이며 **실측이나 가스 확산 모델에 근거하지 않는다.**
+
+#### 조사 결과 (2026-08-22)
+
+근거를 문헌에서 확보하려 했고, **확보되지 않는다는 것이 결론이다.** 값을 못 찾은 것이 아니라 그런 값이 존재하지 않는다.
+
+**① 어떤 표준도 점 센서 주위의 "위험 반경"을 정의하지 않는다.**
+밀폐공간 규정의 판정 단위는 *공간*이지 원이 아니다. OSHA 29 CFR 1910.146은 입장 전 대기 시험 결과로 공간 전체를 permit space 로 다루고, 국내 규정도 "적정공기"(산소 18% 이상 23.5% 미만, 탄산가스 1.5% 미만, 황화수소 10ppm 미만) 기준을 **공간에 대해** 적용한다. 센서에서 몇 미터까지가 위험이라는 개념 자체가 규정에 없다.
+
+**② 오히려 표준은 "센서값이 주변으로 매끄럽게 퍼진다"는 전제를 부정한다.**
+안전보건공단 지침은 측정을 수직·수평 **각각 3개소 이상**에서 하도록 하며, 그 이유를 *"밀폐공간은 공기흐름이 나쁜 경우가 많아 같은 장소에서도 위치에 따라 공기농도에 현저한 차이가 있으므로"* 라고 밝힌다. 즉 한 지점의 값에서 반경을 외삽하는 방식은 지침이 경계하는 바로 그 가정이다. 이는 §3.4의 IDW 한계(ADR-005)와 같은 뿌리다.
+
+**③ 공학적으로 답을 내려면 CFD 확산 해석이 필요하다.**
+선박 밀폐공간의 가스 확산 범위는 누출원 항(source term), 환기량, 격실 형상을 입력으로 하는 CFD로 산출한다(ABS *Gas Dispersion Studies of Gas Fueled Vessels* 등). 본 시스템은 셋 중 어느 것도 갖고 있지 않다. 벌크선 화물창은 환기 덕트가 상부에 있고 하부는 해치 개구부로만 환기되어 층별 편차가 크다는 점도 단일 반경 가정을 더 약하게 만든다.
+
+#### 그래서 이 프로젝트가 주장할 수 있는 것
+
+`evacuation_hazard_radius_m`는 **가스 확산 범위의 추정치가 아니다.** "경보가 뜬 센서 근처를 지나는 경로에 가중치를 준다"는 **근접성 휴리스틱의 설정값**이며, 그 이상으로 해석해서는 안 된다. 최종 보고서·발표에서 이 수치를 안전 판단 기준이나 확산 범위로 제시하지 않는다.
+
+규정에 가장 충실한 대안은 **L3 판정 시 화물창 전체(또는 격실 단위)를 위험으로 보는 것**이지만, 그러면 모든 경로가 항상 `no_safe_route`가 되어 경로 안내 기능이 성립하지 않는다. 이 긴장은 MVP에서 해소되지 않으며, 해소하려면 다음이 필요하다.
+
+- 격실별 환기량 실측
+- 누출 시나리오별 CFD 해석, 또는
+- 수직·수평 3점 이상의 다지점 측정으로 실제 농도 구배 확보 (센서 수 증설)
+
+**참고**
+- [OSHA 29 CFR 1910.146 — Permit-Required Confined Spaces](https://www.osha.gov/laws-regs/regulations/standardnumber/1910/1910.146AppC)
+- [안전보건공단 — 밀폐공간 산소 및 유해가스 농도 측정](https://www.kosha.or.kr/kosha/business/musculoskeletalPreventionData_A.do?mode=download&articleNo=452084&attachNo=257821)
+- [KOSHA GUIDE H-80-2021 — 밀폐공간작업 프로그램 수립 및 시행에 관한 기술지침](https://handohealth.com/wp-content/uploads/2022/02/H-80-2021_%EB%B0%80%ED%8F%90%EA%B3%B5%EA%B0%84_%EC%9E%91%EC%97%85_%ED%94%84%EB%A1%9C%EA%B7%B8%EB%9E%A8_%EC%88%98%EB%A6%BD_%EB%B0%8F_%EC%8B%9C%ED%96%89%EC%97%90_%EA%B4%80%ED%95%9C_%EA%B8%B0%EC%88%A0%EC%A7%80%EC%B9%A8.pdf)
+- [ABS — Gas Dispersion Studies of Gas Fueled Vessels (Guidance Notes)](https://ww2.eagle.org/content/dam/eagle/rules-and-guides/current/design_and_analysis/311guidancenotesgasdispersionstudiesgasfueledvessels/gas-dispersion-guidance-notes-nov19.pdf)
+- [INTERCARGO — Cargo and Cargo Hold Ventilation Guide (2020)](https://maritimesafetyinnovationlab.org/wp-content/uploads/2021/02/INTERCARGO-Cargo-Ventilation-Guide-2020_11.pdf)
+- [Transport Canada — Guidance on Confined Spaces: Cargo Hold](https://tc.canada.ca/en/marine-transportation/seafarer-certification/guidance-confined-spaces-cargo-hold)
 
 ---
 
