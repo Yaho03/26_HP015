@@ -14,6 +14,15 @@ cp .env.example .env
 
 `docker/.env` 는 `.gitignore` 로 무시된다 (비밀 값이 저장소에 올라가지 않음).
 
+### 최초 관리자 계정 (AUTH-9)
+
+`.env` 의 `BOOTSTRAP_ADMIN_USERNAME` / `BOOTSTRAP_ADMIN_PASSWORD` 를 채우면
+백엔드 기동 시 **사용자가 한 명도 없을 때만** 관리자 계정이 1회 생성된다.
+마이그레이션 SQL에 계정이 하드코딩되지 않는다. 첫 로그인 후 비밀번호 변경이
+강제되며(`must_change_password`), 변경 전에는 다른 API 접근이 차단된다.
+이미 계정이 있으면 이 값들은 무시된다 — `.env` 유출로 운영 계정이
+교체되는 일이 없다.
+
 ## 2. Mosquitto 인증 파일 생성
 
 > **`scripts/deploy.sh up` 을 쓰면 이 단계는 자동이다** (이슈 #115). `docker/.env` 에

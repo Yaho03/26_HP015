@@ -13,10 +13,34 @@ def test_websocket_endpoint_exists():
     assert "/ws" in routes
 
 
-def test_websocket_connect_and_receive_snapshot():
+def test_websocket_connect_and_receive_snapshot(monkeypatch):
     from app.main import app
+    from app.dependencies import auth as deps_auth
+    from app.repositories.user_repository import UserRow
+    from app.services.auth_service import ValidSession
+
+    # AUTH-4(#134) 부터 /ws 는 세션 쿠키가 필요하다 — 기존 계약(snapshot 수신)
+    # 은 유효 세션에서 검증한다.
+    async def _valid(token):
+        return ValidSession(
+            session_id=1,
+            csrf_token="csrf",
+            user=UserRow(
+                {
+                    "id": 1,
+                    "username": "ws-user",
+                    "password_hash": "",
+                    "display_name": "WS",
+                    "role": "viewer",
+                    "is_active": True,
+                    "must_change_password": False,
+                }
+            ),
+        )
+
+    monkeypatch.setattr(deps_auth.auth_service, "validate_session", _valid)
     client = TestClient(app)
-    with client.websocket_connect("/ws") as ws:
+    with client.websocket_connect("/ws", cookies={"hp015_session": "t"}) as ws:
         data = ws.receive_json()
     assert data["type"] == "snapshot"
     assert "nodes" in data

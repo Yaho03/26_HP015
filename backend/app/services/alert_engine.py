@@ -56,6 +56,25 @@ class AlertEvaluator:
             self._states[key] = AlertState()
         return self._states[key]
 
+    def restore_active_state(
+        self, node_id: str, metric: str, level: AlertLevel
+    ) -> bool:
+        """DB에 남은 활성 경보를 판정 상태로 복구한다 (#196).
+
+        임계값이 없는 alert_key(connection_lost 등)는 이 판정기가 담당하지
+        않으므로 복구하지 않는다. 이미 active인 level을 바로 넣고 모든 pending
+        timer를 비운다. 다음 샘플이 같은 level이면 재진입하지 않고, 상향/하향이
+        필요할 때만 그 시점부터 새 timer를 시작한다.
+        """
+        if metric not in self._thresholds or level == AlertLevel.NORMAL:
+            return False
+        state = self.get_state(node_id, metric)
+        state.current_level = level
+        state.enter_started_at = None
+        state.enter_pending_level = None
+        state.exit_started_at = None
+        return True
+
     async def evaluate(
         self,
         node_id: str,

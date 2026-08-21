@@ -7,6 +7,26 @@ from typing import List, Optional
 from app.db import get_pool
 
 
+async def has_active_alerts_at_or_above(level: str) -> bool:
+    """활성 L2+ 경보 존재 여부 (AUTH-7/이슈 #137 — 세션 유휴 연장 판정).
+
+    level 은 하한: 'level2_warning' 을 주면 L2+L3, 'level3_critical' 이면 L3.
+    경보 규칙상 level 문자열 정렬이 위험도 순과 일치한다
+    (level1_caution < level2_warning < level3_critical).
+    """
+    pool = get_pool()
+    async with pool.acquire() as conn:
+        return await conn.fetchval(
+            """
+            SELECT EXISTS(
+                SELECT 1 FROM alert_events
+                WHERE status = 'active' AND level >= $1
+            )
+            """,
+            level,
+        )
+
+
 async def query(
     *,
     node_id: Optional[str] = None,
