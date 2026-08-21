@@ -182,6 +182,42 @@ async def test_reconcile_closes_window_when_assignment_ends(env):
 
 
 @pytest.mark.asyncio
+async def test_reassigning_the_wearable_does_not_reuse_the_previous_window(env):
+    """웨어러블이 다른 작업자에게 넘어가면 윈도우를 새로 연다.
+
+    `_windows` 는 (node_id, metric) 키라 착용자가 바뀌어도 같은 자리를 가리킨다.
+    이전 구현은 키가 있으면 **worker_name 만 바꿔 달았고**, 그러면 B 의 노출이
+    A 의 exposure_id·worker_id 에 쌓여 교대 로그가 worker_id=A / worker_name=B 라는
+    자기모순인 행으로 확정된다. 누적은 되돌릴 수 없다.
+
+    통합 테스트(`test_exposure_recovery.py`)가 다운타임 중 교대 경로를 실 DB 로
+    검증하지만, DB 없이 도는 이 파일에도 둔다 — Docker 없이 돌릴 때도 이 보호가
+    깨졌는지 알아야 한다.
+    """
+    await svc._reconcile()
+    before = svc._windows[("wearable-01", "co2_ppm")].row.exposure_id
+    env["repo"].closed.clear()
+
+    env["assignments"][:] = [_Assignment(worker_id=9, name="김철수")]
+    await svc._reconcile()
+
+    window = svc._windows[("wearable-01", "co2_ppm")]
+    assert window.row.worker_id == 9, "B 가 착용 중인데 A 에게 적산된다"
+    assert window.row.exposure_id != before
+    assert window.worker_name == "김철수"
+
+    # A 의 기록은 확정되어 남는다. 이름은 A 의 것이어야 한다.
+    finals = {(node, metric): f for node, metric, f in env["repo"].closed}
+    assert set(finals) == {
+        ("wearable-01", "co2_ppm"), ("wearable-01", "co_ppm"),
+        ("wearable-01", "h2s_ppm"), ("wearable-01", "o2_pct"),
+    }
+    closed_co2 = finals[("wearable-01", "co2_ppm")]
+    assert closed_co2.worker_id == 7
+    assert closed_co2.worker_name == "홍길동", "A 의 교대 기록에 B 의 이름이 적혔다"
+
+
+@pytest.mark.asyncio
 async def test_close_records_no_alert_when_limit_unseeded(env):
     """기준값이 없으면 경보가 발령된 적이 없으므로 max_alert_level 은 normal 이
     사실이다. 판정 불가라는 사실은 같은 행의 dose_fraction IS NULL 이 전한다."""

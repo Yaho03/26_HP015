@@ -222,14 +222,62 @@ async def stop() -> None:
 
 
 async def _recover() -> None:
-    """기동 시 열려 있던 윈도우를 메모리로 되살린다 (§4.5)."""
+    """기동 시 열려 있던 윈도우를 메모리로 되살린다 (§4.5).
+
+    **한 노드/지표에 활성 윈도우가 둘 이상일 수 있다.** `uq_exposure_state_active`
+    는 worker_id 까지 포함한 키라, 백엔드가 꺼진 사이 웨어러블이 다른 작업자에게
+    넘어가면 두 행이 동시에 열려 있게 된다. `_windows` 는 (node_id, metric) 키라
+    하나만 들 수 있으므로 **현재 배정된 작업자의 것을 고른다.**
+
+    아무거나 고르면 B 가 착용 중인데 A 의 exposure_id 에 노출이 쌓인다. 누적은
+    되돌릴 수 없고, 교대 로그는 A 의 기록으로 확정된다.
+    """
     active = {a.node_id: a for a in await worker_repository.list_active()}
-    for row in await repo.load_active_states():
+    # 정렬은 결정성을 위해서다. DB 반환 순서에 기대면 같은 데이터로 기동할 때마다
+    # 다른 윈도우가 선택될 수 있다.
+    for row in sorted(await repo.load_active_states(),
+                      key=lambda r: (r.window_start, r.exposure_id)):
+        key = (row.node_id, row.metric)
         assignment = active.get(row.node_id)
-        name = assignment.name if assignment else "(배정 해제됨)"
-        _windows[(row.node_id, row.metric)] = _Window(row, name)
+        previous = _windows.get(key)
+        if previous is not None:
+            keep_previous = (assignment is not None
+                             and previous.row.worker_id == assignment.worker_id)
+            chosen = previous.row.worker_id if keep_previous else row.worker_id
+            logger.warning(
+                "노출량: %s/%s 에 활성 윈도우가 둘 이상이다 (worker %s, %s). "
+                "worker %s 것을 적산에 쓴다 — 나머지는 DB 에 열린 채 남으므로 "
+                "확인이 필요하다",
+                row.node_id, row.metric,
+                previous.row.worker_id, row.worker_id, chosen,
+            )
+            if keep_previous:
+                continue
+        _windows[key] = _Window(row, await _worker_name_for(row.worker_id, assignment))
     if _windows:
         logger.info("노출량: 활성 윈도우 %d개 복구", len(_windows))
+
+
+async def _worker_name_for(worker_id: int, assignment) -> str:
+    """윈도우 주인의 이름. **현재 착용자에서 가져오지 않는다.**
+
+    `exposure_shift_log.worker_name` 은 일부러 비정규화된 컬럼이고 workers FK 도
+    없다 — 작업자 행이 지워져도 그 교대에 누가 있었는지가 남아야 하기 때문이다.
+    그 자리에 지금 배정된 사람 이름을 넣으면 기록이 사실과 달라진다.
+
+    배정이 이미 다른 사람에게 넘어간 뒤에 복구가 돌 수 있으므로(다운타임 중 교대)
+    이름은 윈도우가 가리키는 worker_id 로 조회한다.
+    """
+    if assignment is not None and assignment.worker_id == worker_id:
+        return assignment.name
+    worker = await worker_repository.get(worker_id)
+    if worker is not None:
+        return worker.name
+    # 조회 실패를 빈 문자열이나 현재 착용자 이름으로 메우지 않는다. 모른다는 것이
+    # 기록에 남아야 나중에 worker_id 로 되짚을 수 있다.
+    logger.warning("노출량: worker %s 를 조회하지 못했다 (교대 기록의 이름이 비어 있다)",
+                   worker_id)
+    return f"(worker {worker_id} 조회 실패)"
 
 
 # ── 윈도우 수명주기 ─────────────────────────────────────────────────────
@@ -246,8 +294,21 @@ async def _reconcile() -> None:
             wanted.add(key)
             existing = _windows.get(key)
             if existing is not None:
-                existing.worker_name = assignment.name
-                continue
+                if existing.row.worker_id == assignment.worker_id:
+                    existing.worker_name = assignment.name
+                    continue
+                # 같은 웨어러블이 **다른 작업자**에게 넘어갔다. 백엔드가 꺼진 사이
+                # 교대가 일어나면 복구된 윈도우의 주인이 지금 착용자와 다르다.
+                #
+                # 이름만 바꿔 달면 A 의 exposure_id·worker_id 에 B 의 노출이 쌓이고,
+                # 교대 로그는 worker_id=A / worker_name=B 라는 자기모순인 행으로
+                # 확정된다. A 의 윈도우를 먼저 닫아 A 의 기록을 온전히 남긴다.
+                logger.info(
+                    "노출량: %s 착용자가 바뀌었다 (worker %s → %s). 이전 윈도우를 "
+                    "확정하고 새로 연다",
+                    assignment.node_id, existing.row.worker_id, assignment.worker_id,
+                )
+                await _close(key)
             row = await repo.open_window(
                 repo.new_exposure_id(),
                 assignment.worker_id,
