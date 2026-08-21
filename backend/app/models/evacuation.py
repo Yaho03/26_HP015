@@ -124,6 +124,67 @@ class NavTopology(BaseModel):
         return {n.nav_node_id for n in self.nav_nodes}
 
 
+class HazardZone(BaseModel):
+    """활성 위험 구역. 원형 근사다 (05_DIGITAL_TWIN_SPEC §5.1).
+
+    실제 가스 분포는 원이 아니다. 경로 계산에 쓰는 것은 "이 근처를 지나면 위험하다"는
+    정도의 근사이고, 그 이상을 주장하지 않는다 (§7 한계 #4).
+
+    좌표는 ship-visual 이다. 원의 중심은 보통 경보가 뜬 고정 센서 노드의 위치다.
+    """
+
+    zone_id: str
+    center_x_m: float
+    center_y_m: float
+    radius_m: float = Field(..., gt=0)
+    # normal 은 위험 구역이 아니다. 만들지 않는다.
+    level: str = Field(..., pattern=r"^level[123]_(caution|warning|critical)$")
+
+
+class RouteWaypoint(BaseModel):
+    """경로 위의 한 점. schemas/evacuation-route.schema.json 과 필드명이 같아야 한다."""
+
+    seq: int = Field(..., ge=0)
+    # seq 0 은 작업자의 실측 위치라 그래프 노드가 아니다.
+    nav_node_id: str | None = None
+    x_m: float
+    y_m: float
+    z_m: float
+    level_id: str
+    # 마지막 waypoint 는 None.
+    edge_kind_to_next: str | None = None
+    label: str = ""
+
+
+class BlockedExit(BaseModel):
+    exit_id: str
+    reason: str  # hazard_level3 | disabled | unreachable
+
+
+class RouteResult(BaseModel):
+    """경로 계산 결과. WebSocket 메시지와 REST 응답이 이것을 그대로 싣는다.
+
+    route_id 와 computed_at 은 여기 없다. 그것들은 "이 경로를 채택했다"는 결정에
+    붙는 값이고, 계산 자체는 같은 입력에 같은 결과를 내는 순수 함수여야 한다.
+    """
+
+    route_status: str  # safe | degraded | no_safe_route | unavailable
+    unavailable_reason: str | None = None
+    coordinate_system: str = "ship-visual"
+    # UWB 가 2D 라 작업자의 비계 층은 측정된 적이 없다. 항상 가정이다 (§7 한계 #2).
+    assumed_level_id: str = "L0"
+    target_exit_id: str | None = None
+    entry_nav_node_id: str | None = None
+    snap_distance_m: float | None = None
+    total_length_m: float | None = None
+    total_cost: float | None = None
+    estimated_seconds: int | None = None
+    hazard_multiplier_max: float | None = None
+    waypoints: list[RouteWaypoint] = Field(default_factory=list)
+    blocked_exits: list[BlockedExit] = Field(default_factory=list)
+    warnings: list[str] = Field(default_factory=list)
+
+
 class TopologyStatus(BaseModel):
     """경로 기능이 살아 있는지와 그 사유.
 
