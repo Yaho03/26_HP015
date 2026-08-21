@@ -123,6 +123,13 @@ describe("EXPOSURE_DISCLAIMER", () => {
 });
 
 describe("mockExposure", () => {
+  it("uses the verified ministry limits used by the database seed", () => {
+    const metrics = mockExposure("normal", 1_700_000_000_000).metrics;
+    expect(metrics.co2_ppm?.dose_limit_ppm_min).toBe(5_000 * 480);
+    expect(metrics.co_ppm?.dose_limit_ppm_min).toBe(30 * 480);
+    expect(metrics.h2s_ppm?.dose_limit_ppm_min).toBe(10 * 480);
+  });
+
   it("A1 이 요구한 네 상태를 만들어낸다", () => {
     expect(mockExposure("normal", NOW).metrics.co2_ppm?.dose_fraction).toBeCloseTo(0.2, 5);
 

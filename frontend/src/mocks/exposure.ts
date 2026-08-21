@@ -4,10 +4,10 @@
 // 실제 WebSocket 으로 교체하되 **이 파일은 남긴다** — 백엔드 없이 UI 를 확인하는
 // 경로가 있어야 시연 리허설과 디버깅이 쉽다.
 //
-// 여기 숫자는 전부 화면 확인용 예시다. 실제 노출 기준값의 출처는 고용노동부
-// 「화학물질 및 물리적 인자의 노출기준」 고시로 확정되어 있고(11_EXPOSURE_DOSE_SPEC §3.1),
-// 원문 대조(P0-A)가 끝나기 전까지 exposure_limits 에 시드되지 않는다(§3.2).
-// **이 파일의 limit 값을 안전 기준으로 인용하지 말 것.**
+// 농도·시간·소진율은 화면 확인용 예시지만 limit 은 운영 DB 시드와 같아야 한다.
+// 고용노동부고시 제2020-48호 별표 1을 대조한 값이며, DB 의 단일 소스는
+// 011_exposure_limits.sql 이다. 둘이 어긋나면 데모 화면이 운영 화면과 다른 기준을
+// 설명하게 되므로 테스트에서 정확값을 고정한다.
 //
 // CO·H₂S 가 active 로 나오는 목 상태(normal/warning/exceeded)는 MVP 에서는
 // 발생하지 않는다 — MQ 센서 미교정으로 두 지표는 MVP 기간 내내 unavailable 이다
@@ -34,11 +34,11 @@ export const EXPOSURE_MOCK_STATES: { key: ExposureMockState; label: string }[] =
 
 export const MOCK_NODE_ID = "wearable-01";
 
-// 예시 기준값 (ppm·min). 8시간 = 480분 기준의 산술 곱이며 검증 전 숫자다.
+// 검증된 기준값 (ppm·min). 8시간 = 480분 기준의 산술 곱이다.
 const LIMIT = {
   co2_ppm: 5000 * 480,
-  co_ppm: 25 * 480,
-  h2s_ppm: 1 * 480,
+  co_ppm: 30 * 480,
+  h2s_ppm: 10 * 480,
 } as const;
 
 function iso(now: number, offsetSeconds = 0): string {
