@@ -21,6 +21,7 @@ from pydantic import BaseModel, Field
 
 from app.dependencies.auth import require_role, verify_csrf
 from app.models.exposure import EXPOSURE_METRICS, ExposureLimit, ExposureShiftLogRow
+from app.repositories import audit_repository
 from app.repositories import exposure_repository as repo
 from app.services import exposure_service
 
@@ -96,12 +97,22 @@ async def put_limit(
             status_code=400,
             detail=f"노출량 대상 metric 이 아닙니다: {metric}",
         )
+    before = (await repo.load_limits()).get(metric)
     saved = await repo.upsert_limit(ExposureLimit(metric=metric, **payload.model_dump()))
-    # FR-605 감사 로그 테이블 적재는 그 인프라(#182)가 이 브랜치 계보에 아직 없다.
-    # main 으로 rebase 한 뒤 연결한다. 그때까지는 애플리케이션 로그에 남긴다.
+    actor_id, actor_name = _actor(user)
+    # FR-605. 노출 기준값은 안전 기준이라 "누가 언제 무엇을 무엇으로 바꿨는가"가
+    # 남아야 한다. before 를 함께 남기는 이유는 사후에 "원래 값이 뭐였나"를 다른
+    # 곳에서 복원할 수 없기 때문이다 — upsert 가 이전 행을 덮어쓴다.
+    await audit_repository.record(
+        actor_id, actor_name, "exposure_limit_update", metric,
+        {
+            "before": before.model_dump(mode="json") if before else None,
+            "after": saved.model_dump(mode="json"),
+        },
+    )
     logger.warning(
         "노출 기준값 변경 (metric=%s, actor=%s, reference=%r)",
-        metric, _actor(user), saved.reference,
+        metric, actor_name, saved.reference,
     )
     await exposure_service.reload_limits()
     return saved
@@ -115,14 +126,31 @@ async def reset_exposure(
     user=Depends(require_role("supervisor")),
     _csrf: None = Depends(verify_csrf),
 ):
+    actor_id, actor_name = _actor(user)
+    # 리셋 **전** 상태를 감사 로그에 남긴다. 리셋하고 나면 누적값이 확정 로그로
+    # 넘어가 버려서, 무엇을 지웠는지가 이 기록에만 남는다.
+    before = exposure_service.snapshot(payload.node_id)
     closed = await exposure_service.reset_windows(
-        payload.node_id, payload.reason, _actor(user)
+        payload.node_id, payload.reason, actor_name
     )
     if closed == 0:
         raise HTTPException(status_code=404, detail="활성 노출 윈도우가 없습니다")
+
+    # FR-605 MUST (§5.2). 노출량 경보의 유일한 해제 경로라, 사유 없이 지운 흔적이
+    # 남지 않으면 8시간 누적을 지운 근거를 나중에 아무도 대지 못한다.
+    await audit_repository.record(
+        actor_id, actor_name, "exposure_reset", payload.node_id,
+        {"reason": payload.reason, "closed_windows": closed, "before": before},
+    )
     return {"node_id": payload.node_id, "closed_windows": closed}
 
 
-def _actor(user) -> str:
-    """감사 기록용 행위자 표기. 모델이 바뀌어도 리셋이 실패하지는 않게 한다."""
-    return getattr(user, "username", None) or getattr(user, "id", None) or "unknown"
+def _actor(user) -> tuple[Optional[int], str]:
+    """감사 기록용 행위자. 모델이 바뀌어도 리셋 자체가 실패하지는 않게 방어한다.
+
+    감사 쓰기가 본 기능을 막으면 감사가 오히려 안전 운영을 막는 역설이 된다
+    (audit_repository.record 의 같은 판단).
+    """
+    actor_id = getattr(user, "id", None)
+    name = getattr(user, "username", None) or (str(actor_id) if actor_id else "unknown")
+    return (actor_id if isinstance(actor_id, int) else None), name

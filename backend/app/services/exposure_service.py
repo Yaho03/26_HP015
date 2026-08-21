@@ -613,8 +613,8 @@ async def reset_windows(node_id: str, reason: str, actor: str) -> int:
     노출량 경보는 자동으로 해제되지 않으므로(§5.2) 이것이 **유일한 해제 경로**다.
     그래서 권한(supervisor+)과 사유를 라우터가 강제한다.
 
-    사유와 행위자를 로그에 남긴다. FR-605 의 audit_log 테이블 적재는 그 인프라(#182)가
-    이 브랜치 계보에 아직 없어서 붙이지 못했다 — main 으로 rebase 한 뒤 연결한다.
+    사유와 행위자를 로그에 남긴다. audit_log 테이블 적재는 라우터가 한다 (FR-605) —
+    감사 기록은 "누가 HTTP 로 요청했는가"의 사실이라 요청 경계에 있는 쪽이 안다.
     """
     keys = [k for k in _windows if k[0] == node_id]
     if not keys:

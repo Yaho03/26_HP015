@@ -8,12 +8,21 @@ DB·MQTT 없이 돌린다. 리포지토리와 위치 서비스를 대역으로 �
 """
 from __future__ import annotations
 
+import json
 from datetime import datetime, timedelta, timezone
+from pathlib import Path
 
 import pytest
+from jsonschema import Draft202012Validator
+from ulid import ULID
 
 from app.models.exposure import ExposureStateRow
 from app.services import exposure_service as svc
+
+#: WS 계약. 스펙 문서가 아니라 **이 파일**이 프론트·펌웨어와의 계약이다.
+SCHEMA_PATH = (
+    Path(__file__).resolve().parents[2] / "schemas" / "worker-exposure.schema.json"
+)
 
 T0 = datetime(2026, 8, 21, 1, 0, 0, tzinfo=timezone.utc)
 
@@ -57,8 +66,10 @@ class _Repo:
         self._seq = 0
 
     def new_exposure_id(self):
+        # 진짜 ULID 를 쓴다. worker-exposure.schema.json 이 exposure_id 패턴을
+        # 검사하므로, 가짜 ID 를 쓰면 스키마 검증 테스트가 통과할 수 없다.
         self._seq += 1
-        return f"EXP{self._seq:04d}"
+        return str(ULID())
 
     async def load_limits(self):
         return {"co2_ppm": type("L", (), {"dose_limit_ppm_min": 2_400_000.0})()}
@@ -422,6 +433,82 @@ async def test_close_does_not_resolve_what_never_fired(env):
     env["assignments"].clear()
     await svc._reconcile()
     assert env["transitions"] == []
+
+
+# ============================================================
+# §6.1 WS 계약 — schemas/worker-exposure.schema.json
+# ============================================================
+
+def _validate(message: dict) -> None:
+    """스키마 위반을 전부 모아서 보여준다. 하나씩 고치면 왕복이 길어진다."""
+    schema = json.loads(SCHEMA_PATH.read_text(encoding="utf-8"))
+    errors = sorted(
+        Draft202012Validator(schema).iter_errors(message), key=lambda e: e.path
+    )
+    assert not errors, "\n".join(
+        f"  {'/'.join(str(p) for p in e.path) or '(root)'}: {e.message}" for e in errors
+    )
+
+
+@pytest.mark.asyncio
+async def test_snapshot_conforms_to_schema_when_active(env):
+    """`additionalProperties: false` 라 필드를 하나만 잘못 넣어도 계약이 깨진다.
+
+    사양서 §6.1 의 **예시**를 보고 페이로드를 만들었기 때문에 스키마와 실제로
+    맞는지는 별개 문제다. 여기서 확인한다.
+    """
+    svc._limits = await env["repo"].load_limits()
+    await svc._reconcile()
+    await _push_dose(0.3)
+    await svc.on_reading("wearable-01", "o2_pct", 18.0, T0)
+    await svc.on_reading("wearable-01", "o2_pct", 18.0, T0 + timedelta(seconds=60))
+    _validate(svc.snapshot("wearable-01"))
+
+
+@pytest.mark.asyncio
+async def test_snapshot_conforms_to_schema_when_limit_unseeded(env):
+    """기준값 미시드 경로도 계약 안에 있어야 한다 (reason: limit_unverified)."""
+    svc._limits = {}
+    await svc._reconcile()
+    await _push_dose(0.3)
+    message = svc.snapshot("wearable-01")
+    _validate(message)
+    assert message["metrics"]["co2_ppm"] == {
+        "status": "unavailable", "reason": "limit_unverified",
+    }
+
+
+@pytest.mark.asyncio
+async def test_snapshot_conforms_to_schema_when_position_unknown(env):
+    """위치를 모르는 경로도 계약 안에 있어야 한다 (reason: no_position)."""
+    svc._limits = await env["repo"].load_limits()
+    await svc._reconcile()
+    env["positions"].clear()
+    await svc.on_reading("sensor-01", "co2_ppm", 1000.0, T0)
+    message = svc.snapshot("wearable-01")
+    _validate(message)
+    assert message["metrics"]["co2_ppm"]["reason"] == "no_position"
+
+
+@pytest.mark.asyncio
+async def test_snapshot_seconds_are_integers_not_floats(env):
+    """적산기는 float 초로 계산하지만 계약은 integer 를 요구한다."""
+    svc._limits = await env["repo"].load_limits()
+    await svc._reconcile()
+    await _push_dose(0.1)
+    m = svc.snapshot("wearable-01")
+    for field in ("elapsed_s", "accumulated_s", "data_gap_s"):
+        assert isinstance(m[field], int), f"{field} 가 int 가 아니다: {type(m[field])}"
+    o2 = m["metrics"]["o2_pct"]
+    if o2["status"] == "active":
+        for field in ("o2_deficient_s", "o2_severe_s", "o2_enriched_s"):
+            assert isinstance(o2[field], int)
+
+
+@pytest.mark.asyncio
+async def test_snapshot_is_none_without_windows(env):
+    assert svc.snapshot("wearable-01") is None
+    assert svc.snapshot_all() == []
 
 
 @pytest.mark.asyncio

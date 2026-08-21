@@ -128,6 +128,84 @@ def test_limit_update_requires_a_reference():
         ExposureLimitUpdate(twa_limit_ppm=5000.0)  # reference 누락
 
 
+# ============================================================
+# FR-605 감사 로그 — 남지 않으면 지운 근거를 아무도 대지 못한다
+# ============================================================
+
+class _User:
+    id = 3
+    username = "supervisor-kim"
+
+
+@pytest.mark.asyncio
+async def test_reset_writes_an_audit_record(monkeypatch):
+    """§5.2 MUST — 수동 리셋은 감사 로그에 남는다.
+
+    노출량 경보의 유일한 해제 경로다. 사유와 행위자가 남지 않으면 8시간 누적을
+    지운 근거를 나중에 아무도 대지 못한다.
+    """
+    from app.repositories import audit_repository
+    from app.routers import exposure as router_mod
+    from app.services import exposure_service
+
+    records: list = []
+
+    async def _record(actor_id, actor_name, action, target="", detail=None):
+        records.append((actor_id, actor_name, action, target, detail))
+
+    async def _reset(node_id, reason, actor):
+        return 4
+
+    monkeypatch.setattr(audit_repository, "record", _record)
+    monkeypatch.setattr(exposure_service, "reset_windows", _reset)
+    monkeypatch.setattr(exposure_service, "snapshot", lambda n: {"node_id": n})
+
+    result = await router_mod.reset_exposure(
+        router_mod.ExposureResetRequest(node_id="wearable-01", reason="교대 종료"),
+        user=_User(),
+        _csrf=None,
+    )
+    assert result["closed_windows"] == 4
+    assert len(records) == 1
+    actor_id, actor_name, action, target, detail = records[0]
+    assert (actor_id, actor_name) == (3, "supervisor-kim")
+    assert action == "exposure_reset"
+    assert target == "wearable-01"
+    assert detail["reason"] == "교대 종료"
+    # 무엇을 지웠는지가 이 기록에만 남는다 — 리셋 후에는 복원할 수 없다.
+    assert detail["before"] is not None
+
+
+@pytest.mark.asyncio
+async def test_reset_without_active_window_does_not_log_a_reset(monkeypatch):
+    """지운 게 없으면 지웠다고 기록하지 않는다."""
+    from app.repositories import audit_repository
+    from app.routers import exposure as router_mod
+    from app.services import exposure_service
+    from fastapi import HTTPException
+
+    records: list = []
+
+    async def _record(*a, **k):
+        records.append(a)
+
+    async def _reset(node_id, reason, actor):
+        return 0
+
+    monkeypatch.setattr(audit_repository, "record", _record)
+    monkeypatch.setattr(exposure_service, "reset_windows", _reset)
+    monkeypatch.setattr(exposure_service, "snapshot", lambda n: None)
+
+    with pytest.raises(HTTPException) as exc:
+        await router_mod.reset_exposure(
+            router_mod.ExposureResetRequest(node_id="wearable-01", reason="오조작"),
+            user=_User(),
+            _csrf=None,
+        )
+    assert exc.value.status_code == 404
+    assert records == []
+
+
 def test_exposure_metrics_vocabulary_is_shared():
     """라우터가 받는 metric 목록이 DB CHECK 와 같은 어휘여야 한다 (§2.3)."""
     assert set(EXPOSURE_METRICS) == {"co2_ppm", "co_ppm", "h2s_ppm", "o2_pct"}
