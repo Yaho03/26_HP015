@@ -83,6 +83,38 @@ async def test_exposure_migration_is_idempotent_on_timescale(conn):
 
 
 @pytest.mark.asyncio
+async def test_verified_exposure_limits_are_seeded_exactly(conn):
+    rows = await conn.fetch(
+        """SELECT metric, twa_limit_ppm, dose_limit_ppm_min, stel_limit_ppm,
+                  reference
+           FROM exposure_limits
+           ORDER BY metric"""
+    )
+    by_metric = {row["metric"]: row for row in rows}
+
+    assert set(by_metric) == {"co2_ppm", "co_ppm", "h2s_ppm"}
+    expected = {
+        "co2_ppm": (5000, 2_400_000, 30_000, "124-38-9"),
+        "co_ppm": (30, 14_400, 200, "630-08-0"),
+        "h2s_ppm": (10, 4_800, 15, "7783-06-4"),
+    }
+    for metric, (twa, dose, stel, cas) in expected.items():
+        row = by_metric[metric]
+        assert row["twa_limit_ppm"] == twa
+        assert row["dose_limit_ppm_min"] == dose == twa * 480
+        assert row["stel_limit_ppm"] == stel
+        assert "제2020-48호" in row["reference"]
+        assert cas in row["reference"]
+
+
+@pytest.mark.asyncio
+async def test_o2_is_not_seeded_as_accumulated_ppm_limit(conn):
+    assert await conn.fetchval(
+        "SELECT count(*) FROM exposure_limits WHERE metric = 'o2_pct'"
+    ) == 0
+
+
+@pytest.mark.asyncio
 async def test_active_window_unique_index_rejects_duplicate(conn):
     worker_id = await _worker(conn, "UNIQUE")
     args = (worker_id, "wearable-test", "co2_ppm", T0, "assignment")
@@ -150,6 +182,6 @@ async def test_exposure_limit_rejects_non_substantive_reference(conn, reference)
         await conn.execute(
             """INSERT INTO exposure_limits
                (metric, twa_limit_ppm, dose_limit_ppm_min, stel_limit_ppm, reference)
-               VALUES ('co2_ppm', 5000, 2400000, 30000, $1)""",
+               VALUES ('o2_pct', 19.5, 9360, NULL, $1)""",
             reference,
         )
