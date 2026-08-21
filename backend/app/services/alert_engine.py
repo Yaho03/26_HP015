@@ -56,6 +56,23 @@ class AlertEvaluator:
             self._states[key] = AlertState()
         return self._states[key]
 
+    def node_levels(self) -> Dict[str, AlertLevel]:
+        """노드별 현재 최고 경보 등급 (normal 인 노드는 제외).
+
+        alert_key 는 (node_id, metric) 단위지만, 위험 구역은 **지점** 단위다 —
+        한 노드에서 CO2 가 L2 고 H2S 가 L1 이면 그 자리는 L2 로 취급해야 한다.
+
+        읽기 전용이다. get_state() 는 없는 키를 만들어내므로 순회에 쓸 수 없다.
+        """
+        out: Dict[str, AlertLevel] = {}
+        for (node_id, _metric), state in self._states.items():
+            if state.current_level == AlertLevel.NORMAL:
+                continue
+            known = out.get(node_id)
+            if known is None or state.current_level.numeric > known.numeric:
+                out[node_id] = state.current_level
+        return out
+
     async def evaluate(
         self,
         node_id: str,
