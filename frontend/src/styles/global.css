@@ -1,4 +1,4 @@
-/* ─────────────────────────────────────────────────────────────
+﻿/* ─────────────────────────────────────────────────────────────
    HP015 — Confined-Space Safety Console
    THESIS: A safety instrument, not a product dashboard. The language is
      the engineering placard and the instrument legend: hairline rules on a
@@ -1413,6 +1413,608 @@ body { background: var(--ground); }
   .monitor { gap: var(--s4); }
 }
 
+/* ═══════════════════════════════════════════════════════════════════════════
+   HP015 — 관제 콘솔 톤 + Screen 1 5분할 레이아웃 (FR-401)
+
+   TONE: 딥 네이비-인디고 지면 위의 차분한 다크 콘솔. 라운드 서피스와 얕은
+     그림자로 깊이를 주되, 데이터 패널에는 그라데이션과 글로우를 쓰지 않는다.
+     보라 계열 그라데이션은 **크롬에만** — 사이드바 활성 표식, 상단 경계선,
+     섹션 키커. 관제사가 몇 시간을 응시하는 화면이라 배경이 발광하면 안 된다.
+
+   COLOR DISCIPLINE: 채도 높은 색은 두 갈래뿐이다.
+     1) 안전 등급 램프 (normal/l1/l2/l3) — 상태에만 쓴다.
+     2) 액센트 보라 (--accent) — 상태가 아닌 것에만 쓴다.
+     둘은 색상환에서 멀리 떨어뜨려, 보라가 등급색으로 오독될 여지를 없앤다.
+     시안·청록을 액센트로 쓰지 않는 이유도 같다 — 초록(정상)과 헷갈린다.
+
+   등급은 색 단독으로 전달하지 않는다. 테두리 + 브래킷 마크 + 수치 색 +
+   아이콘 + 텍스트 라벨이 항상 함께 간다 (10_UI_FLOW §3.2).
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+:root {
+  --ground: #0a0d18;
+  --panel: #131727;
+  --raise: #1a1f33;
+  --rule: #252b45;
+  --rule-strong: #3a4166;
+
+  --ink-1: #e9ebf7;
+  --ink-2: #a3a9c9;
+  /* ink-3 는 9~10px 마이크로 라벨을 나른다. 작은 글자라 AA 4.5:1 을 --raise
+     기준으로 맞춰야 한다 — 패널색 기준으로만 맞추면 한 단계 밝은 표면 위에서
+     기준 아래로 떨어진다. */
+  --ink-3: #8086aa;
+
+  --select: #e9ebf7;
+  --select-bg: #232a45;
+
+  /* 크롬 전용 액센트. 상태를 나타내지 않는다. */
+  --accent: #7c6cf5;
+  --accent-2: #a855f7;
+  --accent-soft: rgba(124, 108, 245, 0.16);
+  --accent-line: linear-gradient(90deg, var(--accent), var(--accent-2));
+  --info: #8b93c9;
+
+  /* 안전 등급 램프 — 네이비 지면에서 대비가 나는 값으로 조정했다. */
+  --normal: #3ecf8e;
+  --l1: #f2c94c;
+  --l2: #ff9040;
+  --l3: #ff5470;
+  --normal-wash: rgba(62, 207, 142, 0.10);
+  --l1-wash: rgba(242, 201, 76, 0.11);
+  --l2-wash: rgba(255, 144, 64, 0.12);
+  --l3-wash: rgba(255, 84, 112, 0.13);
+  /* 판정 불가 (이슈 #165) — 등급 램프 어디에도 속하지 않는 중립 회색. */
+  --unknown: #8f97b8;
+  --unknown-wash: rgba(143, 151, 184, 0.11);
+
+  --r1: 6px;
+  --r2: 10px;
+  --r3: 14px;
+  --shadow-console: 0 10px 28px rgba(0, 0, 0, 0.34);
+  --shadow-soft: 0 4px 14px rgba(0, 0, 0, 0.22);
+}
+
+/* 주간 모드 — 같은 구조, 밝은 지면. 경보색은 흰 바탕에서 대비가 나도록 진하게. */
+:root[data-theme="light"] {
+  --ground: #e9ecf6;
+  --panel: #ffffff;
+  --raise: #f3f5fc;
+  --rule: #dbdfee;
+  --rule-strong: #b2b8d4;
+
+  --ink-1: #12162c;
+  --ink-2: #474e70;
+  --ink-3: #63698c;
+
+  --select: #12162c;
+  --select-bg: #e3e5f7;
+
+  --accent: #5b4bd6;
+  --accent-2: #8b3fd4;
+  --accent-soft: rgba(91, 75, 214, 0.12);
+  --accent-line: linear-gradient(90deg, var(--accent), var(--accent-2));
+  --info: #4b5486;
+
+  --normal: #0e7a52;
+  --l1: #8a6a08;
+  --l2: #b1520f;
+  --l3: #c02138;
+  --normal-wash: rgba(14, 122, 82, 0.10);
+  --l1-wash: rgba(138, 106, 8, 0.12);
+  --l2-wash: rgba(177, 82, 15, 0.11);
+  --l3-wash: rgba(192, 33, 56, 0.10);
+  --unknown: #545c7d;
+  --unknown-wash: rgba(84, 92, 125, 0.10);
+
+  --shadow-console: 0 8px 22px rgba(38, 44, 80, 0.10);
+  --shadow-soft: 0 3px 10px rgba(38, 44, 80, 0.07);
+}
+
+/* ── 셸: 라운드 서피스 + 얕은 그림자. 그라데이션은 경계선에만. ────────── */
+.sidebar { border-right: 1px solid var(--rule); }
+.sidebar-brand { position: relative; }
+.sidebar-brand::after {
+  content: ""; position: absolute; inset: auto 0 -1px 0; height: 2px;
+  background: var(--accent-line); opacity: 0.7;
+}
+.sidebar-brand-sub { color: var(--accent); }
+.sidebar-item { border-radius: var(--r2); }
+.sidebar-item-active {
+  background: var(--select-bg);
+  border-color: var(--rule);
+  border-left-color: var(--accent);
+}
+.sidebar-item-active .sidebar-item-icon { color: var(--accent); }
+.sidebar-status { border-radius: var(--r2); }
+
+.topbar { position: relative; }
+.topbar::after {
+  content: ""; position: absolute; inset: auto 0 -1px 0; height: 1px;
+  background: var(--accent-line); opacity: 0.35;
+}
+.theme-toggle { border-radius: var(--r2); }
+.theme-toggle:hover { border-color: var(--accent); color: var(--accent); }
+
+.panel { border-radius: var(--r2); box-shadow: var(--shadow-console); }
+.monitor-kicker, .chart-kicker, .event-kicker, .settings-kicker, .twin-kicker { color: var(--accent); }
+.safety-tab { border-radius: var(--r2) var(--r2) 0 0; }
+.safety-tab--active { border-bottom-color: var(--accent); }
+
+.twin-cam-toggle {
+  position: absolute; top: 10px; right: 12px; z-index: 10; display: flex; gap: 6px;
+}
+.twin-cam-btn {
+  min-height: 28px; padding: 0 10px;
+  border: 1px solid var(--rule-strong); border-radius: var(--r1);
+  background: var(--panel); color: var(--ink-2);
+  font: inherit; font-size: 11px; font-weight: 600;
+}
+.twin-cam-btn--active { border-color: var(--accent); background: var(--accent-soft); color: var(--ink-1); }
+
+/* ═══ Screen 1 — 5분할 관제 레이아웃 ═══════════════════════════════════════
+   ┌──────────────────────────┬──────────────┐
+   │ ① 디지털 트윈 히트맵      │ ② 위험 상세   │
+   ├──────────────────────────┤ ③ 센서 요약   │
+   │ ⑤ 노드별 센서 데이터 2×2  │ ④ 위험 로그   │
+   └──────────────────────────┴──────────────┘
+   1440×900 에서 세로 스크롤이 없어야 한다. 각 칸이 자기 안에서 스크롤을 받고,
+   페이지 자체는 절대 늘어나지 않는다 — 관제 화면은 원거리에서 훑는 용도라
+   스크롤이 생기는 순간 화면 밖의 값은 없는 값이 된다. */
+
+.safety-workspace { min-height: 0; height: 100%; }
+.safety-workspace__stage { display: flex; flex: 1; min-height: 0; }
+.safety-workspace__view { display: flex; flex: 1; flex-direction: column; min-height: 0; }
+
+.console { display: flex; flex: 1; flex-direction: column; gap: 12px; min-height: 0; }
+.console__grid {
+  display: grid;
+  grid-template-columns: minmax(0, 68fr) minmax(0, 32fr);
+  gap: 14px;
+  flex: 1;
+  min-height: 0;
+}
+.console__left {
+  display: grid;
+  grid-template-rows: minmax(0, 46fr) minmax(0, 54fr);
+  gap: 14px;
+  min-height: 0;
+}
+/* ②/③ 의 높이는 주의 이상 노드 수(n)에 따라 움직인다. 승격된 노드가 ③ 에서
+   빠져 ② 로 옮겨가므로, 비율이 바뀌는 것과 카드가 옮겨가는 것이 같은 사건이다.
+   값이 튀지 않도록 fr 단위로 두고 전환에 시간을 준다. */
+.console__right {
+  display: grid;
+  grid-template-rows: var(--panel2-share, 15fr) var(--panel3-share, 85fr) 180px;
+  gap: 14px;
+  min-height: 0;
+  transition: grid-template-rows 260ms ease;
+}
+
+.console__left > *, .console__right > * { min-height: 0; }
+
+/* 공통 패널 서피스 */
+.panel-1, .panel-2, .panel-3, .panel-4, .panel-5 {
+  display: flex; flex-direction: column; min-height: 0;
+  border: 1px solid var(--rule); border-radius: var(--r3);
+  background: var(--panel); box-shadow: var(--shadow-console);
+  overflow: hidden;
+}
+
+/* ── ① 디지털 트윈 히트맵 ─────────────────────────────────────────────── */
+.panel-1__stage { position: relative; flex: 1; min-height: 0; }
+.panel-1 .twin-canvas {
+  width: 100%; height: 100%; min-height: 0;
+  border: 0; border-radius: 0; background: #070a12;
+}
+.panel-1__insufficient {
+  position: absolute; inset: 0; z-index: 5;
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px;
+  background: rgba(10, 13, 24, 0.74);
+  color: var(--ink-1); text-align: center;
+}
+:root[data-theme="light"] .panel-1__insufficient { background: rgba(233, 236, 246, 0.82); }
+.panel-1__insufficient strong {
+  font-family: var(--font-mono); font-size: 13px; letter-spacing: 0.08em;
+  color: var(--unknown);
+}
+.panel-1__insufficient span { color: var(--ink-2); font-size: 11px; }
+
+.panel-1__foot {
+  display: flex; align-items: center; flex-wrap: wrap; gap: 6px 12px;
+  padding: 7px 12px; border-top: 1px solid var(--rule); background: var(--raise);
+  color: var(--ink-3); font-family: var(--font-mono); font-size: 10px; letter-spacing: 0.04em;
+}
+.panel-1__disclaimer { color: var(--ink-2); }
+.panel-1__badge {
+  padding: 1px 7px; border: 1px solid var(--rule-strong); border-radius: 999px;
+  color: var(--ink-2); font-weight: 600;
+}
+.panel-1__badge--sim { border-color: var(--l1); color: var(--l1); }
+.panel-1__coords { margin-left: auto; }
+
+/* ── ② 위험 센서 상세 ─────────────────────────────────────────────────── */
+.panel-2 .summary-bar {
+  flex: none; border: 0; border-bottom: 1px solid var(--rule); border-radius: 0;
+  background: var(--raise);
+}
+.panel-2 .summary-item { min-height: 46px; padding: 7px 12px; row-gap: 3px; }
+.panel-2 .summary-count { font-size: 20px; }
+.panel-2 .summary-label { font-size: 10px; letter-spacing: 0.1em; }
+
+.panel-2__body { flex: 1; min-height: 0; overflow-y: auto; padding: 10px; }
+/* n=0 일 때 이 칸은 15% 로 줄어든다. 카드 여백을 그대로 두면 "주의 이상 노드
+   없음" 한 줄이 잘려서, 아무 문제 없는 상태가 오히려 고장처럼 보인다. */
+.panel-2__body--empty { padding: 4px 10px; }
+.panel-2__clear {
+  display: flex; align-items: center; gap: 8px; margin: 0;
+  color: var(--ink-3); font-size: 11px; letter-spacing: 0.04em;
+}
+.panel-2__clear-mark {
+  width: 7px; height: 7px; border-radius: 50%; background: var(--normal); flex: none;
+}
+
+.rcard {
+  position: relative;
+  padding: 10px 11px;
+  border: 1px solid var(--lv, var(--rule)); border-radius: var(--r2);
+  background: var(--panel);
+}
+.rcard + .rcard { margin-top: 10px; }
+.rcard--sim { border-style: dashed; }
+
+.rcard__head { display: flex; align-items: center; gap: 7px; margin-bottom: 8px; }
+.rcard__head svg { color: var(--lv, var(--ink-2)); flex: none; }
+.rcard__id { font-family: var(--font-mono); font-size: 14px; font-weight: 700; letter-spacing: 0.1em; }
+.rcard__node { color: var(--ink-3); font-family: var(--font-mono); font-size: 10px; }
+.rcard__level {
+  margin-left: auto; padding: 2px 7px; border: 1px solid var(--lv); border-radius: 999px;
+  color: var(--lv); font-size: 10px; font-weight: 700; letter-spacing: 0.06em;
+}
+
+.rcard__table { width: 100%; border-collapse: collapse; }
+.rcard__row > * { padding: 3px 0; border-bottom: 1px solid var(--rule); }
+.rcard__row th {
+  width: 62px; text-align: left;
+  color: var(--ink-3); font-family: var(--font-mono); font-size: 10px;
+  font-weight: 600; letter-spacing: 0.08em;
+}
+.rcard__driver { color: var(--lv, var(--ink-1)); margin-right: 3px; }
+/* 등급을 끌어올린 행. 색이 아니라 왼쪽 마커 + 굵기 + 배경 워시가 함께 표시한다. */
+.rcard__row--driving th, .rcard__row--driving td { background: var(--lv-wash); }
+.rcard__row--driving .rcard__value { color: var(--lv); font-weight: 700; }
+.rcard__value {
+  color: var(--ink-1); font-family: var(--font-num); font-size: 12px; font-weight: 600;
+  font-variant-numeric: tabular-nums; white-space: nowrap;
+}
+.rcard__value em {
+  margin-left: 3px; color: var(--ink-3); font-family: var(--font-mono);
+  font-size: 9px; font-style: normal;
+}
+.rcard__bar { width: 62px; padding-left: 8px; }
+.rcard__spark { width: 54px; padding-left: 8px; }
+.rcard__spark .spark { width: 54px; height: 16px; }
+
+.rcard__foot { margin-top: 8px; }
+.rcard__foot-row {
+  display: flex; align-items: baseline; gap: 8px;
+  font-size: 11px;
+}
+.rcard__foot-label {
+  color: var(--ink-3); font-family: var(--font-mono); font-size: 9px;
+  letter-spacing: 0.12em; text-transform: uppercase;
+}
+.rcard__foot-value { color: var(--ink-1); font-variant-numeric: tabular-nums; }
+.rcard__alerts { margin: 5px 0; padding: 0; list-style: none; }
+.rcard__alert {
+  display: flex; align-items: baseline; gap: 7px; flex-wrap: wrap;
+  padding: 3px 7px; margin-bottom: 3px;
+  border-left: 2px solid var(--lv, var(--rule-strong)); border-radius: 0 var(--r1) var(--r1) 0;
+  background: var(--raise); font-size: 11px;
+}
+.rcard__alert--none { color: var(--ink-3); border-left-color: var(--rule-strong); }
+.rcard__alert-metric { color: var(--ink-1); font-weight: 600; }
+.rcard__alert-value {
+  color: var(--ink-2); font-family: var(--font-num); font-variant-numeric: tabular-nums; font-size: 10px;
+}
+.rcard__alert-level { margin-left: auto; color: var(--lv); font-size: 10px; font-weight: 700; }
+
+/* ── ③ 센서 4종 + 웨어러블 요약 ───────────────────────────────────────── */
+.panel-3__head {
+  display: flex; align-items: center; flex-wrap: wrap; gap: 4px 10px;
+  flex: none; padding: 7px 12px;
+  border-bottom: 1px solid var(--rule); background: var(--raise);
+}
+.panel-3__title {
+  color: var(--ink-3); font-family: var(--font-mono); font-size: 10px;
+  font-weight: 700; letter-spacing: 0.16em; text-transform: uppercase;
+}
+.panel-3__o2 { display: inline-flex; align-items: baseline; gap: 6px; margin-left: auto; }
+.panel-3__o2 svg { color: var(--lv, var(--ink-2)); align-self: center; }
+.panel-3__o2-label { color: var(--ink-3); font-size: 10px; letter-spacing: 0.06em; }
+.panel-3__o2 strong {
+  color: var(--lv, var(--ink-1)); font-family: var(--font-num); font-size: 17px;
+  font-weight: 700; font-variant-numeric: tabular-nums;
+}
+.panel-3__o2-level { color: var(--lv, var(--ink-2)); font-size: 10px; font-weight: 600; }
+.panel-3__o2-note {
+  width: 100%; color: var(--ink-3); font-family: var(--font-mono); font-size: 9px;
+  letter-spacing: 0.04em;
+}
+
+.panel-3__grid {
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(168px, 1fr));
+  align-content: start; gap: 8px;
+  flex: 1; min-height: 0; overflow-y: auto; padding: 8px;
+}
+.panel-3__empty { grid-column: 1 / -1; margin: 0; color: var(--ink-3); font-size: 11px; }
+
+.scard {
+  position: relative;
+  display: flex; flex-direction: column; gap: 4px;
+  padding: 8px 9px;
+  /* 배경은 등급과 무관하게 패널색으로 고정한다. 등급은 테두리·브래킷·수치
+     색·아이콘·텍스트가 나른다 (10_UI_FLOW §3.2). */
+  border: 1px solid var(--lv, var(--rule)); border-radius: var(--r2);
+  background: var(--panel);
+}
+.scard--sim { border-style: dashed; }
+.scard--offline, .scard--pending { opacity: 0.72; }
+.scard .brk { width: 9px; height: 9px; }
+
+.scard__head { display: flex; align-items: center; gap: 5px; }
+.scard__head svg { color: var(--lv, var(--ink-3)); flex: none; }
+.scard__id { font-family: var(--font-mono); font-size: 12px; font-weight: 700; letter-spacing: 0.1em; }
+.scard__level { color: var(--lv, var(--ink-2)); font-size: 10px; font-weight: 600; }
+.scard__src {
+  margin-left: auto; color: var(--ink-3); font-family: var(--font-mono);
+  font-size: 9px; letter-spacing: 0.08em;
+}
+.scard__src--sim { color: var(--l1); }
+
+.scard__co2 { display: flex; align-items: baseline; gap: 4px; }
+.scard__co2-value {
+  color: var(--lv, var(--ink-1)); font-family: var(--font-num); font-size: 22px;
+  font-weight: 700; line-height: 1; letter-spacing: -0.02em; font-variant-numeric: tabular-nums;
+}
+.scard.is-normal .scard__co2-value, .scard.is-unknown .scard__co2-value { color: var(--ink-1); }
+.scard__co2-unit { color: var(--ink-3); font-family: var(--font-mono); font-size: 9px; letter-spacing: 0.08em; }
+.scard__co2-spark { width: auto; flex: 1; height: 18px; margin-left: 2px; }
+
+.scard__chips { display: flex; flex-wrap: wrap; gap: 4px; }
+.mchip {
+  display: inline-flex; align-items: center; gap: 4px;
+  padding: 2px 5px; border: 1px solid var(--rule); border-radius: var(--r1);
+  background: var(--raise);
+}
+.mchip__label { color: var(--ink-2); font-family: var(--font-mono); font-size: 9px; font-weight: 700; }
+.mchip__state {
+  color: var(--lv, var(--ink-3)); font-family: var(--font-mono); font-size: 9px;
+  font-weight: 600; letter-spacing: 0.04em;
+}
+.mchip.is-unknown .mchip__state { color: var(--unknown); }
+
+.scard__projection {
+  display: flex; align-items: baseline; gap: 4px; margin: 0;
+  padding: 3px 6px; border-left: 2px solid var(--lv, var(--ink-3)); border-radius: 0 var(--r1) var(--r1) 0;
+  background: var(--raise); color: var(--lv, var(--ink-2)); font-size: 10px; line-height: 1.35;
+}
+
+.scard__all { font-size: 10px; }
+.scard__all > summary {
+  color: var(--ink-3); font-family: var(--font-mono); font-size: 9px;
+  letter-spacing: 0.1em; cursor: pointer; list-style: none;
+}
+.scard__all > summary::marker, .scard__all > summary::-webkit-details-marker { display: none; }
+.scard__all > summary::before { content: "▸ "; }
+.scard__all[open] > summary::before { content: "▾ "; }
+.scard__all-list { margin: 5px 0 0; }
+.scard__all-row {
+  display: grid; grid-template-columns: 46px 1fr 40px; align-items: center; gap: 5px;
+  padding: 2px 0; border-top: 1px solid var(--rule);
+}
+.scard__all-row dt { color: var(--ink-3); font-family: var(--font-mono); font-size: 9px; }
+.scard__all-row dd {
+  margin: 0; color: var(--ink-1); font-family: var(--font-num); font-size: 10px;
+  font-variant-numeric: tabular-nums;
+}
+.scard__all-row .spark { width: 40px; height: 13px; }
+
+/* ── ④ 최근 위험 로그 ─────────────────────────────────────────────────── */
+.panel-4__head {
+  display: flex; align-items: baseline; gap: 8px; flex: none;
+  padding: 7px 12px; border-bottom: 1px solid var(--rule); background: var(--raise);
+}
+.panel-4__title {
+  color: var(--ink-3); font-family: var(--font-mono); font-size: 10px;
+  font-weight: 700; letter-spacing: 0.16em; text-transform: uppercase;
+}
+.panel-4__note { margin-left: auto; color: var(--ink-3); font-family: var(--font-mono); font-size: 9px; }
+.panel-4__body { flex: 1; min-height: 0; overflow-y: auto; }
+.panel-4__empty { margin: 0; padding: 14px 12px; color: var(--ink-3); font-size: 11px; }
+.panel-4__empty--error { color: var(--l3); }
+
+.risk-log { width: 100%; border-collapse: collapse; font-size: 11px; }
+.risk-log th {
+  position: sticky; top: 0; z-index: 1;
+  padding: 5px 8px; text-align: left;
+  border-bottom: 1px solid var(--rule); background: var(--panel);
+  color: var(--ink-3); font-family: var(--font-mono); font-size: 9px;
+  font-weight: 600; letter-spacing: 0.1em;
+}
+.risk-log td {
+  padding: 5px 8px; border-bottom: 1px solid var(--rule);
+  color: var(--ink-2); white-space: nowrap;
+}
+.risk-log tbody tr { cursor: pointer; }
+.risk-log tbody tr:hover, .risk-log tbody tr:focus-visible { background: var(--raise); }
+.risk-log__row--active { background: var(--l3-wash); }
+.risk-log__time { color: var(--ink-1); font-family: var(--font-num); font-variant-numeric: tabular-nums; }
+.risk-log__worker {
+  margin-left: 5px; color: var(--ink-3); font-size: 9px; font-style: normal;
+}
+
+/* ── ⑤ 노드별 센서 데이터 (2×2) + 웨어러블 스트립 ──────────────────────── */
+.panel-5 { gap: 0; padding: 10px; }
+.panel-5__grid {
+  display: grid; grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-rows: repeat(2, minmax(0, 1fr));
+  gap: 10px; flex: 1; min-height: 0;
+}
+
+.ncell {
+  display: flex; flex-direction: column; min-height: 0; overflow: hidden;
+  padding: 5px 9px;
+  border: 1px solid var(--lv, var(--rule)); border-radius: var(--r2);
+  background: var(--raise);
+}
+.ncell--sim { border-style: dashed; }
+/* 오프라인이어도 값을 지우지 않는다. 흐리게 남겨 "마지막으로 관측된 상태"임을
+   보이고, 헤더가 언제부터 모르는지를 밝힌다. */
+.ncell--offline { opacity: 0.62; }
+
+.ncell__head { display: flex; align-items: center; gap: 5px; margin-bottom: 3px; }
+.ncell__head svg { color: var(--lv, var(--ink-3)); flex: none; }
+.ncell__id { font-family: var(--font-mono); font-size: 12px; font-weight: 700; letter-spacing: 0.1em; }
+.ncell__node { color: var(--ink-3); font-family: var(--font-mono); font-size: 9px; }
+.ncell__state {
+  margin-left: auto; color: var(--lv, var(--ink-3)); font-family: var(--font-mono);
+  font-size: 9px; font-weight: 600; letter-spacing: 0.04em; white-space: nowrap;
+}
+
+/* 6행이 한 칸 안에 다 들어가야 한다 — 스크롤이 생기면 노드 간 비교라는 이 칸의
+   목적이 무너진다.
+   행 높이를 결정하는 건 글자가 아니라 인라인 요소의 베이스라인 정렬이다.
+   스파크라인·근접도 바를 middle 로 붙이지 않으면 디센더 공간이 행마다 붙어
+   6행에서 15px 가 새어 나간다. line-height 도 명시해 스트럿을 눌러 둔다. */
+.ncell__table {
+  width: 100%; border-collapse: collapse; table-layout: fixed; line-height: 1.1;
+}
+.ncell__table th {
+  width: 52px; height: 16px; padding: 1px 0; text-align: left;
+  color: var(--ink-3); font-family: var(--font-mono); font-size: 9px;
+  font-weight: 600; letter-spacing: 0.06em;
+}
+.ncell__table td { height: 16px; padding: 1px 0; border-top: 1px solid var(--rule); }
+.ncell__table .tbar, .ncell__table .spark { vertical-align: middle; }
+.ncell__table tr:first-child td, .ncell__table tr:first-child th { border-top: 0; }
+.ncell__value {
+  color: var(--ink-1); font-family: var(--font-num); font-size: 11px; font-weight: 600;
+  font-variant-numeric: tabular-nums; text-align: right; white-space: nowrap;
+}
+.ncell__value em {
+  margin-left: 3px; color: var(--ink-3); font-family: var(--font-mono);
+  font-size: 8px; font-style: normal;
+}
+.ncell__bar { width: 56px; padding-left: 7px; }
+.ncell__spark { width: 46px; padding-left: 7px; }
+.ncell__spark .spark { width: 46px; height: 13px; }
+
+.wstrip {
+  position: relative;
+  display: flex; align-items: center; flex-wrap: wrap; gap: 6px 16px;
+  flex: none; margin-top: 10px; padding: 7px 11px;
+  border: 1px solid var(--lv, var(--rule)); border-radius: var(--r2);
+  background: var(--raise);
+}
+.wstrip__who { display: inline-flex; align-items: baseline; gap: 6px; }
+.wstrip__who svg { color: var(--lv, var(--ink-3)); align-self: center; flex: none; }
+.wstrip__who strong { color: var(--ink-1); font-size: 13px; font-weight: 700; }
+/* 미배정은 비어 있는 상태가 아니라 "안에 누가 있는지 모른다"는 경고다. */
+.wstrip__who--none { color: var(--unknown) !important; }
+.wstrip__who em {
+  color: var(--ink-3); font-family: var(--font-mono); font-size: 9px;
+  font-style: normal; letter-spacing: 0.06em;
+}
+.wstrip__fact { display: inline-flex; align-items: baseline; gap: 5px; }
+.wstrip__label {
+  color: var(--ink-3); font-family: var(--font-mono); font-size: 9px;
+  font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase;
+}
+.wstrip__fact strong {
+  color: var(--ink-1); font-family: var(--font-num); font-size: 12px; font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+.wstrip__q--good { color: var(--normal); }
+.wstrip__q--fair { color: var(--l1); }
+.wstrip__q--poor { color: var(--l3); }
+.wstrip__q--pending { color: var(--ink-3) !important; font-weight: 500 !important; }
+.wstrip__fall { color: var(--l3) !important; }
+.wstrip--fall { background: var(--l3-wash); animation: crit-flash 1.15s steps(2, jump-none) infinite; }
+.wstrip__overlay {
+  margin-left: auto; padding: 2px 9px; border-radius: var(--r1);
+  background: var(--l3); color: #fff;
+  font-family: var(--font-mono); font-size: 10px; font-weight: 700; letter-spacing: 0.14em;
+}
+
+/* ── 공용 원자 ─────────────────────────────────────────────────────────── */
+
+/* 임계값 대비 근접도 바. 블록 6칸 — 원거리에서 "몇 칸 남았나"가 먼저 읽힌다. */
+.tbar { display: inline-flex; gap: 2px; vertical-align: middle; }
+.tbar__seg {
+  width: 7px; height: 9px; border-radius: 1px;
+  background: var(--rule); transition: background 200ms ease;
+}
+.tbar__seg--on { background: var(--lv, var(--ink-2)); }
+/* 판정 불가·미교정. 빈 바(=여유 있음)로 보이면 안 되므로 빗금으로 채운다. */
+.tbar--indeterminate .tbar__seg {
+  background: repeating-linear-gradient(
+    45deg, var(--rule) 0 2px, transparent 2px 4px
+  );
+  border: 1px solid var(--rule);
+}
+
+/* 인라인 SVG 스파크라인. Recharts 를 쓰지 않는 이유는 Sparkline.tsx 주석 참고. */
+.spark { display: block; width: 100%; height: 100%; overflow: visible; }
+.spark__line {
+  fill: none; stroke: var(--lv, var(--ink-2)); stroke-width: 1.3;
+  stroke-linejoin: round; stroke-linecap: round;
+}
+.spark__head { fill: var(--lv, var(--ink-2)); stroke: none; }
+.spark--stale .spark__line, .spark--stale .spark__head { stroke: var(--ink-3); fill: var(--ink-3); }
+.spark--empty {
+  display: inline-block; color: var(--ink-3); font-family: var(--font-mono);
+  font-size: 9px; line-height: 1; text-align: center; width: 100%;
+  vertical-align: middle;
+}
+
+.badge--uncal { margin-left: 4px; border-color: var(--unknown); color: var(--unknown); }
+
+/* ── 반응형 (10_UI_FLOW §12) ───────────────────────────────────────────
+   1280px 미만에서는 우측 열이 좌측 아래로 내려가는 1열 스택이 된다. 좁은 폭에서
+   68/32 를 유지하면 두 열 모두 판독 불가가 되므로, 여기서만 스크롤을 허용한다. */
+@media (max-width: 1279px) {
+  .safety-workspace, .safety-workspace__stage, .safety-workspace__view, .console { height: auto; }
+  .console__grid { grid-template-columns: minmax(0, 1fr); }
+  .console__left, .console__right {
+    display: flex; flex-direction: column; gap: 14px; grid-template-rows: none;
+  }
+  /* 스택 모드에서는 칸이 내용만큼 늘고 페이지가 스크롤된다. 여기서도 칸마다
+     내부 스크롤을 만들면 스크롤 컨테이너가 이중으로 겹쳐 조작이 엉킨다. */
+  .panel-1, .panel-2, .panel-3, .panel-4, .panel-5 { flex: none; }
+  .panel-1__stage { height: 320px; flex: none; }
+  .panel-2__body, .panel-3__grid { overflow: visible; }
+  .panel-2__body { max-height: none; }
+  /* ④ 만 예외로 높이를 고정한다 — 이력 20건이 스택 전체를 밀어내면 안 된다. */
+  .panel-4 { height: 220px; }
+  .panel-4__body { overflow-y: auto; }
+  .panel-5__grid { grid-template-rows: none; grid-auto-rows: auto; }
+  .ncell { overflow: visible; }
+}
+@media (max-width: 767px) {
+  .panel-5__grid { grid-template-columns: minmax(0, 1fr); }
+  .panel-1__stage { height: 240px; }
+  .panel-1__coords { margin-left: 0; }
+  .wstrip { gap: 6px 12px; }
+}
+
+/* 세로가 짧은 관제 모니터. 여백을 먼저 줄이고, 그래도 모자라면 ④ 를 줄인다 —
+   최근 이력은 현재 상태보다 나중에 봐도 되는 정보다. */
+@media (max-height: 860px) and (min-width: 1280px) {
+  .console__grid, .console__left, .console__right { gap: 10px; }
+  .console__right { grid-template-rows: var(--panel2-share, 15fr) var(--panel3-share, 85fr) 150px; }
+  .panel-5 { padding: 8px; }
+}
 /* ── 로그인 화면 (AUTH-8, 이슈 #138) ─────────────────────────────── */
 
 .login-screen {
