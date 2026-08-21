@@ -38,6 +38,12 @@ class Settings(BaseSettings):
     # 기본값은 축소 데모 공간(2.5 x 2.0m) 네 모서리.
     uwb_anchors: str = "A1:0,0;A2:2.5,0;A3:2.5,2.0;A4:0,2.0"
 
+    # 비상 탈출 경로 (FR-801, 12_EVACUATION_ROUTE_SPEC §2.5).
+    # 통행 구조(nav graph) 파일 경로. 비우면 저장소 루트의
+    # config/space_topology.yaml 을 쓴다. 컨테이너 배포처럼 저장소 구조가 다른
+    # 환경에서 경로만 바꿔 끼울 수 있어야 해서 설정으로 뺐다.
+    evacuation_topology_path: str = ""
+
     # 데모 시나리오 제어 API (09_DEMO_SCENARIOS 4절).
     # 시뮬레이션 데이터를 원격으로 주입하는 기능이라 기본은 꺼둔다. 인증이 붙기 전
     # (#116) 이 열려 있으면 누구나 안전 시스템에 가짜 값을 밀어넣을 수 있고,

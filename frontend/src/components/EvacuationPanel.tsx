@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import { useEvacuationStatus } from "../hooks/useEvacuationStatus";
 import type { NavTopology } from "../types/evacuation";
 import type {
   EvacuationRouteMessage,
@@ -86,17 +87,46 @@ interface EvacuationPanelProps {
   children?: ReactNode;
 }
 
+/**
+ * 통행 구조가 없어 기능 자체가 꺼진 상태 (FR-806).
+ *
+ * "안전 경로 없음"과 반드시 구분되어야 한다. 전자는 설정이 틀린 것이고 후자는
+ * 실제 대피 상황이다. 둘을 같은 배너로 보여주면 관제사가 설정 오류를 위험 상황으로
+ * 읽거나 그 반대가 된다.
+ */
+function FeatureDisabledBanner({ reason }: { reason: string | null }) {
+  return (
+    <div className="evac__banner evac__banner--muted" role="status">
+      <strong>탈출 경로 기능 비활성 — 통행 구조 미설정</strong>
+      <span>
+        {reason ?? "사유가 보고되지 않았다."} 센서 수집과 가스 경보는 정상 동작한다.
+      </span>
+    </div>
+  );
+}
+
 export function EvacuationPanel({ route, topology, mock = false, children }: EvacuationPanelProps) {
-  if (!route) {
+  const health = useEvacuationStatus();
+  // health 가 null 이면 "알 수 없음"이다. 꺼짐으로 단정하지 않는다.
+  const featureDisabled = health !== null && !health.enabled;
+
+  // 목 모드에서는 화면을 가리지 않는다. 백엔드 없이 UI 를 확인하는 것이 목 모드의
+  // 존재 이유인데, 기능이 꺼졌다고 내용을 지우면 시연 리허설이 막힌다.
+  // 대신 아래에서 배너를 내용 위에 얹는다.
+  if (!route || (featureDisabled && !mock)) {
     return (
       <section className="panel evac" aria-label="비상 탈출 경로">
         <div className="evac__head">
           <h2 className="evac__title">Emergency Egress / 비상 탈출 경로</h2>
         </div>
-        <div className="evac__banner evac__banner--muted" role="status">
-          <strong>경로 정보 없음</strong>
-          <span>웨어러블이 배정되지 않았거나 경로 서비스가 아직 응답하지 않았다.</span>
-        </div>
+        {featureDisabled ? (
+          <FeatureDisabledBanner reason={health.reason} />
+        ) : (
+          <div className="evac__banner evac__banner--muted" role="status">
+            <strong>경로 정보 없음</strong>
+            <span>웨어러블이 배정되지 않았거나 경로 서비스가 아직 응답하지 않았다.</span>
+          </div>
+        )}
       </section>
     );
   }
@@ -120,6 +150,8 @@ export function EvacuationPanel({ route, topology, mock = false, children }: Eva
       </div>
 
       {children}
+
+      {featureDisabled && <FeatureDisabledBanner reason={health.reason} />}
 
       {/* 안전 경로가 없어도 화면을 비우지 않는다. 최소 위험 경로를 계속 제시한다. */}
       {status === "no_safe_route" && (
