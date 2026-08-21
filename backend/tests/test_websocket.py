@@ -82,6 +82,14 @@ def test_alert_publisher_triggers_ws_broadcast(monkeypatch):
         broadcasted.append(msg)
     monkeypatch.setattr(ws_manager.manager, "broadcast", _fake_broadcast)
 
+    recomputed: list[str] = []
+
+    async def _fake_recompute(reason: str):
+        recomputed.append(reason)
+
+    from app.services import evacuation_service
+    monkeypatch.setattr(evacuation_service, "recompute_all", _fake_recompute)
+
     from app.services import alert_service
     from app.models.alert import AlertLevel, AlertTransition
     from datetime import datetime, timezone
@@ -104,6 +112,7 @@ def test_alert_publisher_triggers_ws_broadcast(monkeypatch):
 
     assert len(broadcasted) == 1
     assert broadcasted[0]["type"] == "alert"
+    assert recomputed == ["hazard_changed"]
 
 
 # ============================================================

@@ -103,6 +103,17 @@ async def _handle_transition(transition: AlertTransition) -> None:
     except Exception:
         logger.exception("ws broadcast failed for transition")
 
+    # 고정 센서의 경보 등급이 바뀌면 위험 구역도 바뀐다. 위치가 그대로여도
+    # 탈출 경로를 즉시 다시 계산해야 EXP-8.1의 자동 우회가 실제 배선에서 동작한다.
+    # 지연 import로 alert_service ↔ evacuation_service 순환 import를 피한다.
+    try:
+        from app.services import evacuation_service
+
+        await evacuation_service.recompute_all(reason="hazard_changed")
+    except Exception:
+        # 경로 부가 기능의 실패가 핵심 가스 경보 발행을 되돌리면 안 된다.
+        logger.exception("evacuation recompute failed after alert transition")
+
 
 def get_evaluator() -> AlertEvaluator | None:
     return _evaluator

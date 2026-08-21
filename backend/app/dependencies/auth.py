@@ -9,6 +9,7 @@ from __future__ import annotations
 from typing import Annotated
 
 from fastapi import Depends, HTTPException, Request, status
+from starlette.requests import HTTPConnection
 
 from app.models.user import UserOut
 from app.repositories.user_repository import UserRow
@@ -37,7 +38,7 @@ CurrentUser = Annotated[UserRow, Depends(_bearer_user)]
 PUBLIC_PATHS = frozenset({"/health", "/api/auth/login"})
 
 
-async def enforce_authentication(request: Request) -> None:
+async def enforce_authentication(request: HTTPConnection) -> None:
     """앱 전체 인증 게이트 — app.dependencies 에 등록된다.
 
     라우트별 Depends 를 빠뜨린 경로가 새어 나가는 것을 구조적으로 막는다.
@@ -50,7 +51,7 @@ async def enforce_authentication(request: Request) -> None:
     request.state.user = user
 
 
-async def _load_user(request: Request) -> UserRow:
+async def _load_user(request: HTTPConnection) -> UserRow:
     token = request.cookies.get(SESSION_COOKIE)
     if not token:
         raise HTTPException(
