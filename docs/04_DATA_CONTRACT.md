@@ -751,3 +751,109 @@ three_z = -physical_y
 > `visual_mapping: "demo-to-ship-scale"`인 경우 `position_raw`는 원본 UWB/데모 좌표,
 > `position`은 선박형 3D 트윈 표시 좌표이다. 대시보드는 둘을 혼동하지 않도록 source
 > 상태와 mapping 상태를 별도 배지로 표시한다.
+
+### 10.3 작업자 누적 노출량 (`worker_exposure`)
+
+> JSON Schema: `schemas/worker-exposure.schema.json`
+> 상세 사양: `11_EXPOSURE_DOSE_SPEC.md` §6.1
+
+작업자별 누적 유해가스 노출량이다. **발행은 5초 스로틀**이며, 경보 등급이 바뀌는 순간에는 스로틀을 무시하고 즉시 발행한다. dose는 초 단위로 급변하지 않으므로 센서 샘플마다 보내지 않는다.
+
+```json
+{
+  "type": "worker_exposure",
+  "worker_id": 7,
+  "worker_name": "김철수",
+  "node_id": "wearable-01",
+  "exposure_id": "01J6X3R8K7VQ2NTP5Z9MA4HWBC",
+  "window_start": "2026-08-21T01:00:00.000Z",
+  "elapsed_s": 7200,
+  "accumulated_s": 7080,
+  "data_gap_s": 120,
+  "trust_level": "medium",
+  "timestamp": "2026-08-21T03:00:00.000Z",
+  "metrics": {
+    "co2_ppm": {
+      "status": "active",
+      "exposure_source": "nearest_node",
+      "source_node_id": "sensor-02",
+      "source_distance_m": 1.8,
+      "dose_ppm_min": 96000.0,
+      "dose_limit_ppm_min": 2400000.0,
+      "dose_fraction": 0.04,
+      "twa_8h_ppm": 813.6,
+      "stel_exceeded": false,
+      "alert_level": "normal"
+    },
+    "co_ppm": { "status": "unavailable", "reason": "uncalibrated" }
+  }
+}
+```
+
+| 필드 | 타입 | 설명 |
+|------|------|------|
+| `worker_id` | integer\|null | `workers.id`. 웨어러블 미배정이면 `null` |
+| `node_id` | string | **웨어러블** 노드 ID. 노출은 사람에 귀속되므로 가스를 잰 센서 노드가 아니다 |
+| `exposure_id` | string | 노출 윈도우 ULID |
+| `elapsed_s` | integer | 윈도우 경과 초. 측정 공백 포함 |
+| `accumulated_s` | integer | 실제 적산된 초 (`elapsed_s - data_gap_s`) |
+| `data_gap_s` | integer | 샘플이 없어 적산하지 못한 초. **이만큼 dose가 과소평가되어 있다** |
+| `trust_level` | enum | `high` \| `medium` \| `low` |
+| `metrics.*.status` | enum | `active` \| `unavailable` |
+| `metrics.*.exposure_source` | enum | `wearable_direct` \| `nearest_node` \| `unavailable` |
+
+- **MUST**: `status: "unavailable"`을 대시보드가 **0%로 렌더링하지 않는다.** 측정 불가와 노출 없음은 다르다.
+- **MUST**: 농도 출처는 최근접 노드의 **실측값**이다. IDW 보간값은 출처가 될 수 없다 (ADR-005, ADR-008).
+- `metrics` 키는 `sensor_data.metric` 과 동일한 문자열을 쓴다 (`co2_ppm`, `co_ppm`, `h2s_ppm`, `o2_pct`).
+- O₂는 dose가 아니라 **결핍 노출 시간**(`o2_deficient_s`, `o2_severe_s`, `o2_enriched_s`)을 누적한다. 노출기준 고시에 O₂의 TWA가 없기 때문이다.
+
+### 10.4 비상 탈출 경로 (`evacuation_route`)
+
+> JSON Schema: `schemas/evacuation-route.schema.json`
+> 상세 사양: `12_EVACUATION_ROUTE_SPEC.md` §4.1
+
+작업자 1명의 위험 가중 최소비용 탈출 경로다. 경로가 **실제로 교체될 때만** 발행한다 — 교체 히스테리시스가 백엔드에 있으므로 프론트는 받은 대로 그린다.
+
+```json
+{
+  "type": "evacuation_route",
+  "route_id": "01J6X3R8K7VQ2NTP5Z9MA4HWBC",
+  "node_id": "wearable-01",
+  "worker_id": 7,
+  "worker_name": "김철수",
+  "computed_at": "2026-08-21T03:00:00.120Z",
+  "route_status": "degraded",
+  "coordinate_system": "ship-visual",
+  "assumed_level_id": "L0",
+  "target_exit_id": "trunk-fwd",
+  "entry_nav_node_id": "nav.floor.mid",
+  "snap_distance_m": 0.8,
+  "total_length_m": 42.0,
+  "total_cost": 96.5,
+  "estimated_seconds": 121,
+  "hazard_multiplier_max": 5.0,
+  "switch_reason": "hazard_changed",
+  "waypoints": [
+    { "seq": 0, "nav_node_id": null, "x_m": 29.4, "y_m": 0.6, "z_m": 0.0, "level_id": "L0", "edge_kind_to_next": "walk", "label": "현재 위치" },
+    { "seq": 1, "nav_node_id": "nav.exit.trunk-fwd", "x_m": 2.0, "y_m": 0.0, "z_m": 14.0, "level_id": "L1", "edge_kind_to_next": null, "label": "전방 접근 트렁크" }
+  ],
+  "blocked_exits": [{ "exit_id": "trunk-aft", "reason": "hazard_level3" }],
+  "warnings": ["passes_hazard_level2"]
+}
+```
+
+| 필드 | 타입 | 설명 |
+|------|------|------|
+| `route_status` | enum | `safe` \| `degraded` \| `no_safe_route` \| `unavailable` |
+| `coordinate_system` | const | **항상 `ship-visual`** — 다른 메시지와 다르다. 아래 주의 참조 |
+| `assumed_level_id` | string | 작업자가 있다고 **가정한** 비계 층. 측정값이 아니다 |
+| `waypoints[0]` | object | 작업자의 **실측 위치**. 그래프 노드가 아니라 `nav_node_id`가 `null` |
+| `estimated_seconds` | integer\|null | `Σ(length_m × traverse_factor) / walk_speed_mps`, 기본 0.8 m/s |
+| `blocked_exits` | array | 차단된 출구와 사유. 화면에 X로 표시한다 |
+
+> **좌표계 주의 — 이 메시지만 예외다.** 다른 telemetry 메시지는 §8 물리 좌표계(`demo-local` / `model-local`)로 보내고 표시 변환을 프론트가 하지만, 경로는 백엔드가 `ship-visual`(실제 선박 치수) + `TRUE SCALE` 균일 배율로 계산해 그 좌표를 그대로 보낸다. 경로는 표시물이 아니라 **기하 계산 결과**이고 거리가 보존되는 좌표계 하나에서만 성립하기 때문이다. `FILL` 프리셋(x 24배 / y 6.5배 비균일)을 쓰면 거리가 왜곡되어 "가장 가까운 출구"가 틀려진다. 근거는 ADR-010에 있다.
+>
+> 따라서 프론트엔드는 이 메시지에 **추가 비율 매핑을 적용하지 않는다.** Z-up → Y-up 축 변환(§8.2)만 적용한다.
+
+- **MUST**: `route_status: "no_safe_route"`는 "경로 없음"이 아니다. level3 구역을 지나는 최소 위험 경로를 여전히 담고 있으며 화면은 이를 숨기지 않는다.
+- **MUST**: `assumed_level_id`를 화면에 배지로 노출한다. UWB 측위가 2D라 층을 모른다는 사실을 숨기면 안 된다.
