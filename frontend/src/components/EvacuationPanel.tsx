@@ -127,6 +127,7 @@ export function EvacuationPanel({ route, topology, mock = false, children }: Eva
             <span>웨어러블이 배정되지 않았거나 경로 서비스가 아직 응답하지 않았다.</span>
           </div>
         )}
+        {children}
       </section>
     );
   }
