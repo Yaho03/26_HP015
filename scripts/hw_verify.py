@@ -50,7 +50,9 @@ def _load_dotenv(path: Path) -> None:
     """backend/.env 를 환경변수로 올린다. 이미 있는 값은 덮지 않는다."""
     if not path.exists():
         return
-    for line in path.read_text().splitlines():
+    # 저장소의 .env 예시는 UTF-8이고 Windows 기본 로케일은 CP949일 수 있다.
+    # 인코딩을 생략하면 한글 주석이 있는 설정 파일에서 도구가 시작도 못 한다 (#197).
+    for line in path.read_text(encoding="utf-8").splitlines():
         line = line.strip()
         if not line or line.startswith("#") or "=" not in line:
             continue

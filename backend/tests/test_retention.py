@@ -30,7 +30,9 @@ def test_migration_004_exists():
 
 def test_migration_004_creates_received_at_index():
     """004 마이그레이션은 processed_messages.received_at 에 인덱스를 생성해야 한다."""
-    sql = (MIGRATIONS_DIR / "004_processed_messages_retention.sql").read_text()
+    sql = (MIGRATIONS_DIR / "004_processed_messages_retention.sql").read_text(
+        encoding="utf-8"
+    )
     # CREATE INDEX IF NOT EXISTS ... ON processed_messages (received_at)
     pattern = re.compile(
         r"CREATE\s+INDEX\s+IF\s+NOT\s+EXISTS\s+\w+\s+ON\s+processed_messages\s*\(\s*received_at\s*\)",
@@ -43,7 +45,9 @@ def test_migration_004_creates_received_at_index():
 
 def test_migration_004_is_idempotent():
     """모든 DDL이 IF NOT EXISTS 가드를 가져야 한다 (#98 원칙)."""
-    sql = (MIGRATIONS_DIR / "004_processed_messages_retention.sql").read_text()
+    sql = (MIGRATIONS_DIR / "004_processed_messages_retention.sql").read_text(
+        encoding="utf-8"
+    )
     # 주석 제거
     lines = [l.split("--", 1)[0] for l in sql.splitlines() if not l.strip().startswith("--")]
     cleaned = "\n".join(lines)

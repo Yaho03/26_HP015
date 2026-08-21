@@ -55,7 +55,7 @@ def test_migrations_dir_has_files():
 @pytest.mark.parametrize("sql_file", _sql_files(), ids=lambda f: f.name)
 def test_create_table_has_if_not_exists(sql_file: Path):
     """모든 CREATE TABLE 구문은 IF NOT EXISTS 가드를 포함해야 한다."""
-    sql = _strip_sql_comments(sql_file.read_text())
+    sql = _strip_sql_comments(sql_file.read_text(encoding="utf-8"))
     # CREATE TABLE [IF NOT EXISTS] name ...
     pattern = re.compile(r"CREATE\s+TABLE\s+(?!IF\s+NOT\s+EXISTS)", re.IGNORECASE)
     matches = pattern.findall(sql)
@@ -68,7 +68,7 @@ def test_create_table_has_if_not_exists(sql_file: Path):
 @pytest.mark.parametrize("sql_file", _sql_files(), ids=lambda f: f.name)
 def test_create_index_has_if_not_exists(sql_file: Path):
     """모든 CREATE [UNIQUE] INDEX 구문은 IF NOT EXISTS 가드를 포함해야 한다."""
-    sql = _strip_sql_comments(sql_file.read_text())
+    sql = _strip_sql_comments(sql_file.read_text(encoding="utf-8"))
     # CREATE [UNIQUE] INDEX [IF NOT EXISTS] name ...
     pattern = re.compile(r"CREATE\s+(?:UNIQUE\s+)?INDEX\s+(?!IF\s+NOT\s+EXISTS)", re.IGNORECASE)
     matches = pattern.findall(sql)
@@ -80,7 +80,7 @@ def test_create_index_has_if_not_exists(sql_file: Path):
 @pytest.mark.parametrize("sql_file", _sql_files(), ids=lambda f: f.name)
 def test_create_materialized_view_has_if_not_exists(sql_file: Path):
     """CREATE MATERIALIZED VIEW 구문은 IF NOT EXISTS 를 포함해야 한다."""
-    sql = _strip_sql_comments(sql_file.read_text())
+    sql = _strip_sql_comments(sql_file.read_text(encoding="utf-8"))
     pattern = re.compile(
         r"CREATE\s+MATERIALIZED\s+VIEW\s+(?!IF\s+NOT\s+EXISTS)", re.IGNORECASE
     )
@@ -93,7 +93,7 @@ def test_create_materialized_view_has_if_not_exists(sql_file: Path):
 @pytest.mark.parametrize("sql_file", _sql_files(), ids=lambda f: f.name)
 def test_create_extension_has_if_not_exists(sql_file: Path):
     """CREATE EXTENSION 구문은 IF NOT EXISTS 를 포함해야 한다."""
-    sql = _strip_sql_comments(sql_file.read_text())
+    sql = _strip_sql_comments(sql_file.read_text(encoding="utf-8"))
     pattern = re.compile(r"CREATE\s+EXTENSION\s+(?!IF\s+NOT\s+EXISTS)", re.IGNORECASE)
     matches = pattern.findall(sql)
     assert not matches, (
@@ -104,7 +104,7 @@ def test_create_extension_has_if_not_exists(sql_file: Path):
 @pytest.mark.parametrize("sql_file", _sql_files(), ids=lambda f: f.name)
 def test_alter_table_add_column_has_if_not_exists(sql_file: Path):
     """ALTER TABLE ... ADD COLUMN 구문은 IF NOT EXISTS 를 포함해야 한다."""
-    sql = _strip_sql_comments(sql_file.read_text())
+    sql = _strip_sql_comments(sql_file.read_text(encoding="utf-8"))
     # ALTER TABLE 이후 ADD COLUMN [IF NOT EXISTS]
     if not re.search(r"ALTER\s+TABLE", sql, re.IGNORECASE):
         return  # ADD COLUMN 없는 ALTER TABLE 이면 스킵
@@ -121,7 +121,7 @@ def test_alter_table_add_column_has_if_not_exists(sql_file: Path):
 def test_timescaledb_functions_have_if_not_exists(sql_file: Path):
     """create_hypertable / add_continuous_aggregate_policy / add_retention_policy 호출은
     if_not_exists => TRUE 인자를 포함해야 한다."""
-    sql = _strip_sql_comments(sql_file.read_text())
+    sql = _strip_sql_comments(sql_file.read_text(encoding="utf-8"))
     for func in ("create_hypertable", "add_continuous_aggregate_policy", "add_retention_policy"):
         if func not in sql:
             continue
@@ -282,7 +282,10 @@ async def test_apply_all_skips_already_applied(tmp_path, monkeypatch):
     # 이미 적용된 것으로 가정
     conn.set_fetchrow(
         "SELECT",
-        {"filename": "001_test.sql", "checksum": _checksum(migration_file.read_text())},
+        {
+            "filename": "001_test.sql",
+            "checksum": _checksum(migration_file.read_text(encoding="utf-8")),
+        },
     )
     monkeypatch.setattr(migration_runner, "get_pool", lambda: pool)
     monkeypatch.setattr(migration_runner, "_migrations_dir", lambda: tmp_path)
