@@ -212,6 +212,73 @@ def twa_8h_ppm(dose_ppm_min: float, elapsed_s: float) -> Optional[float]:
     return dose_ppm_min / (elapsed_s / 60.0)
 
 
+AlertLevel = Literal["normal", "level1_caution", "level2_warning", "level3_critical"]
+
+#: 소진율 기준 등급 경계 (§5.1). 06_ALERT_RULES.md 의 등급 문자열을 재사용한다.
+#:
+#: 이 숫자는 "조절 가능한 임계값"이 아니라 **기준 대비 비율**이다. 실제 안전 기준은
+#: exposure_limits 의 dose_limit_ppm_min 이고 그건 DB 에서 온다 (FR-201). 여기 있는
+#: 0.5/0.8/1.0 은 그 기준을 얼마나 소진했을 때 몇 단계로 볼지를 사양서가 정한 것이다.
+_FRACTION_LADDER: tuple[tuple[float, AlertLevel], ...] = (
+    (1.0, "level3_critical"),
+    (0.8, "level2_warning"),
+    (0.5, "level1_caution"),
+)
+
+#: O2 시간 누적 등급 경계, 초 (§5.4).
+_O2_SEVERE_CRITICAL_S = 60
+_O2_DEFICIENT_WARNING_S = 900
+_O2_DEFICIENT_CAUTION_S = 300
+
+
+def alert_level_for_fraction(
+    fraction: Optional[float], *, stel_exceeded: bool = False
+) -> AlertLevel:
+    """소진율에서 노출량 경보 등급 (§5.1).
+
+    STEL 초과는 소진율과 무관하게 즉시 L3 다 — 15분 단시간 노출은 8시간 누적이
+    아직 여유롭더라도 그 자체로 위험하다.
+
+    fraction 이 None(기준값 미시드)이면 **판정하지 않고 normal 을 돌려주지 않는다.**
+    ...고 하고 싶지만 등급 어휘에 "판정 불가"가 없다. 그래서 호출부가 fraction is
+    None 인 경우를 먼저 걸러 status "unavailable" 로 내보내야 한다. 여기서 None 을
+    normal 로 접는 것은 모르는 것을 안전하다고 말하는 것이다.
+    """
+    if stel_exceeded:
+        return "level3_critical"
+    if fraction is None:
+        raise ValueError(
+            "기준값이 없는 상태를 등급으로 접지 마라 — status 'unavailable' 로 내보낸다"
+        )
+    for boundary, level in _FRACTION_LADDER:
+        if fraction >= boundary:
+            return level
+    return "normal"
+
+
+def o2_alert_level(*, o2_deficient_s: float, o2_severe_s: float) -> AlertLevel:
+    """O2 시간 누적 경보 등급 (§5.4).
+
+    기존 O2 순간값 경보(o2_low / o2_high)와 **독립적으로** 동작한다. 서로 대체하지
+    않는다 — 순간값은 "지금 위험한가"를, 이건 "얼마나 오래 위험했나"를 말한다.
+    """
+    if o2_severe_s >= _O2_SEVERE_CRITICAL_S:
+        return "level3_critical"
+    if o2_deficient_s >= _O2_DEFICIENT_WARNING_S:
+        return "level2_warning"
+    if o2_deficient_s >= _O2_DEFICIENT_CAUTION_S:
+        return "level1_caution"
+    return "normal"
+
+
+def max_alert_level(a: AlertLevel, b: AlertLevel) -> AlertLevel:
+    """둘 중 높은 등급. 윈도우의 최고 등급을 누적할 때 쓴다."""
+    order: tuple[AlertLevel, ...] = (
+        "normal", "level1_caution", "level2_warning", "level3_critical",
+    )
+    return a if order.index(a) >= order.index(b) else b
+
+
 def trust_level(
     *,
     data_gap_s: float,

@@ -16,10 +16,13 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from app.services.exposure_accumulator import (  # noqa: E402
     DoseState,
+    alert_level_for_fraction,
     dose_fraction,
     integrate,
     integrate_o2,
+    max_alert_level,
     nearest_node,
+    o2_alert_level,
     sensor_nodes_from_anchors,
     trust_level,
     twa_8h_ppm,
@@ -299,3 +302,49 @@ def test_unrecognised_anchor_id_is_dropped_not_guessed():
     """규칙에 맞지 않는 ID 를 추측해서 매핑하면 엉뚱한 노드의 농도가 귀속된다."""
     mapped = sensor_nodes_from_anchors({"A1": (0.0, 0.0), "GATEWAY": (9.0, 9.0), "A": (1.0, 1.0)})
     assert mapped == {"sensor-01": (0.0, 0.0)}
+
+
+# ============================================================
+# §5.1 / §5.4 등급 판정
+# ============================================================
+
+def test_fraction_ladder_matches_spec():
+    assert alert_level_for_fraction(0.49) == "normal"
+    assert alert_level_for_fraction(0.5) == "level1_caution"
+    assert alert_level_for_fraction(0.8) == "level2_warning"
+    assert alert_level_for_fraction(1.0) == "level3_critical"
+    assert alert_level_for_fraction(3.0) == "level3_critical"
+
+
+def test_stel_exceeded_is_critical_regardless_of_fraction():
+    """15분 단시간 노출은 8시간 누적이 여유로워도 그 자체로 위험하다."""
+    assert alert_level_for_fraction(0.05, stel_exceeded=True) == "level3_critical"
+    assert alert_level_for_fraction(None, stel_exceeded=True) == "level3_critical"
+
+
+def test_missing_limit_is_not_folded_into_normal():
+    """기준값이 없는 상태를 normal 로 접으면 모르는 것을 안전하다고 말하게 된다."""
+    raised = False
+    try:
+        alert_level_for_fraction(None)
+    except ValueError:
+        raised = True
+    assert raised, "기준값 없음이 조용히 normal 로 접혔다"
+
+
+def test_o2_time_ladder_matches_spec():
+    assert o2_alert_level(o2_deficient_s=299, o2_severe_s=0) == "normal"
+    assert o2_alert_level(o2_deficient_s=300, o2_severe_s=0) == "level1_caution"
+    assert o2_alert_level(o2_deficient_s=900, o2_severe_s=0) == "level2_warning"
+    assert o2_alert_level(o2_deficient_s=0, o2_severe_s=60) == "level3_critical"
+
+
+def test_o2_severe_wins_over_deficient():
+    """심각 1분이 결핍 5분보다 위다. 둘 다 걸리면 높은 쪽."""
+    assert o2_alert_level(o2_deficient_s=400, o2_severe_s=60) == "level3_critical"
+
+
+def test_max_alert_level_picks_higher():
+    assert max_alert_level("normal", "level2_warning") == "level2_warning"
+    assert max_alert_level("level3_critical", "level1_caution") == "level3_critical"
+    assert max_alert_level("normal", "normal") == "normal"
