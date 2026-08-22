@@ -169,9 +169,23 @@ def is_healthy() -> bool:
 def _on_message(client: mqtt.Client, userdata, msg: mqtt.MQTTMessage):
     if _loop is not None and _loop.is_running():
         try:
-            asyncio.run_coroutine_threadsafe(_handle_message(msg.topic, msg.payload), _loop)
+            future = asyncio.run_coroutine_threadsafe(
+                _handle_message(msg.topic, msg.payload), _loop
+            )
+            # Future 를 버리면 코루틴 내 예외가 미관측 상태로 사라진다 (#249).
+            # _handle_message 는 거의 모든 예외를 잡지만, 핸들러 탐색 등 진입부는
+            # 아니므로 안전망으로 done 콜백을 단다.
+            future.add_done_callback(_log_future_exception)
         except RuntimeError:
             logger.debug("event loop closed, dropping late MQTT message (topic=%s)", msg.topic)
+
+
+def _log_future_exception(future: "concurrent.futures.Future") -> None:
+    if future.cancelled():
+        return
+    exc = future.exception()
+    if exc is not None:
+        logger.error("unobserved exception in MQTT message handling", exc_info=exc)
 
 
 async def start() -> None:
@@ -184,7 +198,13 @@ async def start() -> None:
     _client.on_connect = _on_connect
     _client.on_disconnect = _on_disconnect
     _client.on_message = _on_message
-    _client.connect(settings.mqtt_host, settings.mqtt_port)
+    # connect() 는 DNS 해석+TCP 핸드셰이크를 동기적으로 막는다 (#248). 브로커가
+    # 느리거나 죽어 있으면 기동(lifespan)이 수 초간 이벤트 루프를 붙잡아 다른
+    # 서비스 초기화·헬스체크까지 지연시킨다. 스레드 풀로 밀어낸다.
+    loop = asyncio.get_running_loop()
+    await loop.run_in_executor(
+        None, _client.connect, settings.mqtt_host, settings.mqtt_port
+    )
     _client.loop_start()
 
     _retry_task = asyncio.create_task(_retry_loop())

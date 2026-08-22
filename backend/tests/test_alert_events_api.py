@@ -193,3 +193,18 @@ def test_get_events_invalid_status_returns_422(client):
 def test_get_events_applies_limit(client, fake_repo):
     resp = client.get("/api/alert-events", params={"limit": 50})
     assert resp.status_code == 200
+
+
+# ============================================================
+# 잘못된 datetime → 422 (#245)
+# ============================================================
+
+def test_invalid_start_datetime_returns_422(client):
+    resp = client.get("/api/alert-events", params={"start": "not-a-date"})
+    assert resp.status_code == 422
+    assert "ISO8601" in resp.json()["detail"]
+
+
+def test_invalid_end_datetime_returns_422(client):
+    resp = client.get("/api/alert-events", params={"end": "2026-13-99"})
+    assert resp.status_code == 422

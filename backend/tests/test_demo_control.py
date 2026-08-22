@@ -112,3 +112,40 @@ def test_duration_out_of_range_is_rejected(enabled):
 def test_status_reports_idle_when_nothing_running(enabled):
     body = enabled.get("/api/demo/status").json()
     assert body["running"] is False
+
+
+# ============================================================
+# MQTT 자격증명이 argv 에 노출되지 않는다 (#247)
+# ============================================================
+
+def test_credentials_not_in_argv(monkeypatch, enabled):
+    """subprocess argv 에 --password 가 있으면 ps 로 읽힌다. env 로 전달돼야 한다."""
+    import asyncio
+    import app.routers.demo as demo_mod
+
+    captured: dict = {}
+
+    class _FakeProc:
+        pid = 4242
+        returncode = None
+
+        async def wait(self):
+            return 0
+
+    async def fake_exec(*argv, **kwargs):
+        captured["argv"] = argv
+        captured["env"] = kwargs.get("env")
+        return _FakeProc()
+
+    monkeypatch.setattr(demo_mod.settings, "mqtt_username", "sec-user")
+    monkeypatch.setattr(demo_mod.settings, "mqtt_password", "sec-pass-31415")
+    monkeypatch.setattr(demo_mod.asyncio, "create_subprocess_exec", fake_exec)
+
+    c = enabled
+    resp = c.post("/api/demo/run", json={"scenario": "normal_steady"})
+    assert resp.status_code == 200
+    argv = " ".join(captured["argv"])
+    assert "sec-pass-31415" not in argv, "비밀번호가 argv 에 있다 — ps 로 노출된다"
+    assert "--password" not in argv
+    assert captured["env"]["MQTT_PASSWORD"] == "sec-pass-31415"
+    assert captured["env"]["MQTT_USERNAME"] == "sec-user"

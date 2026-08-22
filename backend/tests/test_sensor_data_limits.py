@@ -118,3 +118,23 @@ class TestExport:
     def test_export_is_bounded_too(self, client):
         client.get("/api/sensor-data/export", params=BASE)
         assert client.captured["limit"] == sensor_data.DEFAULT_LIMIT
+
+
+# ============================================================
+# CSV Content-Disposition 헤더 인젝션 방지 (#244)
+# ============================================================
+
+class TestFilenameSanitization:
+    def test_safe_part_strips_crlf_and_quotes(self):
+        from app.routers.sensor_data import _safe_filename_part
+
+        assert _safe_filename_part("sensor-01") == "sensor-01"
+        # CR/LF 로 헤더 분열 시도
+        assert "\r" not in _safe_filename_part("evil\r\nSet-Cookie: x=1")
+        assert "\n" not in _safe_filename_part("evil\r\nSet-Cookie: x=1")
+        # 따옴표로 filename 파싱 파괴 시도
+        assert '"' not in _safe_filename_part('a"; dump.sql')
+        # 빈 값/전부 불가 문자 → 폴백
+        assert _safe_filename_part("///") == "data"
+        # 길이 상한
+        assert len(_safe_filename_part("a" * 500)) <= 64
