@@ -226,41 +226,51 @@ async def ingest_telemetry(payload: bytes) -> None:
                     ],
                 )
 
-            for metric, value in extracted:
-                if _alert_callback is not None:
-                    try:
-                        await _alert_callback(node_id, metric, value, sampled_at)
-                    except Exception:
-                        logger.exception(
-                            "alert evaluation failed (node=%s metric=%s value=%s)",
-                            node_id, metric, value,
-                        )
-                if _reading_callback is not None:
-                    try:
-                        await _reading_callback(node_id, metric, value, sampled_at)
-                    except Exception:
-                        logger.exception(
-                            "reading broadcast failed (node=%s metric=%s value=%s)",
-                            node_id, metric, value,
-                        )
-                if _exposure_callback is not None:
-                    try:
-                        await _exposure_callback(node_id, metric, value, sampled_at)
-                    except Exception:
-                        # 적산 실패가 경보 판정과 브로드캐스트를 막으면 안 된다.
-                        # 노출량은 누적 지표라 한 샘플을 놓쳐도 다음 샘플에서
-                        # 이어지지만, 순간값 경보는 그 샘플을 놓치면 끝이다.
-                        logger.exception(
-                            "exposure accumulation failed (node=%s metric=%s value=%s)",
-                            node_id, metric, value,
-                        )
-
             # 메시지 1건은 1 로 센다. 예전에는 이 증가가 metric 루프 안에 있어
             # 지표 4개짜리 가스 메시지가 4건으로 집계됐다 (이슈 #117).
             # 지표 단위 집계가 필요하면 metrics_written 을 본다.
             metrics.increment("messages_processed")
             if extracted:
                 metrics.increment("metrics_written", len(extracted))
+
+    # 경보 판정·브로드캐스트·적산 콜백은 트랜잭션 **밖에서** 실행한다 (이슈 #237).
+    # 트랜잭션 안에서 await 하면 WS broadcast 타임아웃(2초)만큼 커넥션을 붙잡아
+    # 풀을 고갈시킨다. 저장(dedup+INSERT)만 원자적이면 되고, 파생 처리는 커밋
+    # 후에 순서를 유지하며 흐른다. 커밋 후 콜백이 실패해도 저장은 이미 확정 —
+    # 경보 엔진은 상태 기반이라 다음 샘플(1초 후)이 같은 판정을 다시 한다.
+    for metric, value in extracted:
+        if _alert_callback is not None:
+            try:
+                await _alert_callback(node_id, metric, value, sampled_at)
+            except Exception:
+                # 순간값 경보는 이 샘플을 놓치면 끝이므로 (#236) 실패를 세어
+                # /api/metrics 로 노출한다 — 로그만으로는 지속적 실패를 못 본다.
+                metrics.increment("alert_callback_failures")
+                logger.exception(
+                    "alert evaluation failed (node=%s metric=%s value=%s)",
+                    node_id, metric, value,
+                )
+        if _reading_callback is not None:
+            try:
+                await _reading_callback(node_id, metric, value, sampled_at)
+            except Exception:
+                metrics.increment("broadcast_callback_failures")
+                logger.exception(
+                    "reading broadcast failed (node=%s metric=%s value=%s)",
+                    node_id, metric, value,
+                )
+        if _exposure_callback is not None:
+            try:
+                await _exposure_callback(node_id, metric, value, sampled_at)
+            except Exception:
+                # 적산 실패가 경보 판정과 브로드캐스트를 막으면 안 된다.
+                # 노출량은 누적 지표라 한 샘플을 놓쳐도 다음 샘플에서
+                # 이어지지만, 순간값 경보는 그 샘플을 놓치면 끝이다.
+                metrics.increment("exposure_callback_failures")
+                logger.exception(
+                    "exposure accumulation failed (node=%s metric=%s value=%s)",
+                    node_id, metric, value,
+                )
 
     if _location_callback is not None and isinstance(data, dict):
         if "x_m" in data and "y_m" in data and "z_m" in data:

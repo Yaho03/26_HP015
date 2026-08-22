@@ -13,6 +13,7 @@ from typing import Dict, List
 
 from app.models.alert import AlertLevel, AlertTransition
 from app.models.threshold import Threshold
+from app.observability import metrics
 from app.repositories import threshold_repository
 from app.services import alert_publisher, ingest
 from app.services.alert_engine import AlertEvaluator
@@ -83,6 +84,10 @@ async def _handle_transition(transition: AlertTransition) -> None:
     try:
         await alert_publisher.publish_transition(transition)
     except Exception:
+        # 저장·MQTT 발행 실패 (#240). 경보 상태 기계는 이미 전환됐으므로 이
+        # 전이의 DB 영속/웨어러블 진동은 유실된다 — WS broadcast 는 아래에서
+        # 계속 흐른다. 카운터로 노출해 지속 실패를 /api/metrics 에서 잡는다.
+        metrics.increment("alerts_publish_failed")
         logger.exception(
             "alert publish failed (node=%s metric=%s)",
             transition.node_id, transition.metric,

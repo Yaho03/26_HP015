@@ -50,6 +50,12 @@ class _Metrics:
         self.alerts_published: int = 0
         self.alerts_resolved: int = 0
         self.mqtt_reconnects: int = 0
+        # 안전 경로 실패 관측 (#236, #239, #240, #241). 0이 아니면 원인 조회 대상.
+        self.alert_callback_failures: int = 0
+        self.broadcast_callback_failures: int = 0
+        self.exposure_callback_failures: int = 0
+        self.alerts_publish_failed: int = 0
+        self.messages_dropped_retry_overflow: int = 0
 
     def increment(self, name: str, amount: int = 1) -> None:
         current = getattr(self, name, None)
@@ -74,6 +80,11 @@ class _Metrics:
             "alerts_published": self.alerts_published,
             "alerts_resolved": self.alerts_resolved,
             "mqtt_reconnects": self.mqtt_reconnects,
+            "alert_callback_failures": self.alert_callback_failures,
+            "broadcast_callback_failures": self.broadcast_callback_failures,
+            "exposure_callback_failures": self.exposure_callback_failures,
+            "alerts_publish_failed": self.alerts_publish_failed,
+            "messages_dropped_retry_overflow": self.messages_dropped_retry_overflow,
         }
 
 
