@@ -50,6 +50,32 @@ def _make_async_persist(store):
     return _f
 
 
+def _exposure_transition(
+    *, alert_key: str, metric: str, node_id: str = "wearable-01",
+    from_level: AlertLevel = AlertLevel.NORMAL,
+    to_level: AlertLevel = AlertLevel.LEVEL1,
+) -> AlertTransition:
+    """누적 노출량 경보 (11_EXPOSURE_DOSE_SPEC.md §5.3) — alert_key != metric."""
+    return AlertTransition(
+        node_id=node_id,
+        metric=metric,
+        alert_key=alert_key,
+        from_level=from_level,
+        to_level=to_level,
+        value=1_500_000.0,
+        threshold=2_400_000.0,
+        timestamp=datetime(2026, 8, 10, 12, 0, 0, tzinfo=timezone.utc),
+    )
+
+
+def _wire(publisher, monkeypatch, events):
+    monkeypatch.setattr(publisher, "_persist_event", _make_async_persist(events))
+    monkeypatch.setattr(
+        publisher, "_publish_mqtt",
+        lambda topic, payload, retain: events.append(("mqtt", topic, payload, retain)),
+    )
+
+
 async def _async_noop(*args, **kwargs):
     pass
 
@@ -62,6 +88,79 @@ def test_publisher_module_importable():
     from app.services import alert_publisher
     assert hasattr(alert_publisher, "AlertEventPublisher")
     assert hasattr(alert_publisher, "publish_transition")
+
+
+# ============================================================
+# alert_key 가 metric 과 다를 때 (누적 노출량, §5.3 / §5.4)
+# ============================================================
+
+@pytest.mark.asyncio
+async def test_alert_key_can_differ_from_metric(monkeypatch):
+    """§5.3 — 노출량은 alert_key `exposure_co2` / metric `co2_ppm` 로 갈라진다."""
+    from app.services import alert_publisher
+
+    publisher = alert_publisher.AlertEventPublisher(mqtt_client=None)
+    events: list[Any] = []
+    _wire(publisher, monkeypatch, events)
+
+    await publisher.publish_transition(
+        _exposure_transition(alert_key="exposure_co2", metric="co2_ppm")
+    )
+    event = [e for e in events if e[0] == "db"][0][1]
+    assert event["alert_key"] == "exposure_co2"
+    assert event["metric"] == "co2_ppm"
+    assert event["alert_type"] == "exposure_dose"
+    assert event["source_node_id"] == "wearable-01"
+
+
+@pytest.mark.asyncio
+async def test_alert_key_defaults_to_metric_for_existing_alerts(monkeypatch):
+    """기존 가스·O2 경보는 alert_key 를 안 채운다. 동작이 그대로여야 한다."""
+    from app.services import alert_publisher
+
+    publisher = alert_publisher.AlertEventPublisher(mqtt_client=None)
+    events: list[Any] = []
+    _wire(publisher, monkeypatch, events)
+
+    await publisher.publish_transition(_transition(metric="o2_low"))
+    event = [e for e in events if e[0] == "db"][0][1]
+    assert event["alert_key"] == "o2_low"
+    assert event["alert_type"] == "o2_low"
+
+
+@pytest.mark.asyncio
+async def test_o2_time_alert_and_instant_o2_alert_are_tracked_separately(monkeypatch):
+    """§5.4 MUST — 두 경보는 독립이며 서로 대체하지 않는다.
+
+    둘 다 metric 이 o2_pct 라, 추적 키를 metric 으로 잡으면 한쪽이 다른 쪽의
+    alert_id 를 가져가고 해제까지 서로 덮어쓴다. 실제로 그렇게 돼 있던 것을 고쳤다.
+    """
+    from app.services import alert_publisher
+
+    publisher = alert_publisher.AlertEventPublisher(mqtt_client=None)
+    events: list[Any] = []
+    _wire(publisher, monkeypatch, events)
+
+    # 순간값 경보와 시간 누적 경보를 차례로 올린다.
+    await publisher.publish_transition(_transition(metric="o2_low", to_level=AlertLevel.LEVEL2))
+    await publisher.publish_transition(
+        _exposure_transition(alert_key="o2_deficiency_time", metric="o2_pct",
+                             to_level=AlertLevel.LEVEL1)
+    )
+    db = [e[1] for e in events if e[0] == "db"]
+    assert db[0]["alert_id"] != db[1]["alert_id"], "두 경보가 alert_id 를 공유했다"
+
+    # 순간값 경보만 해제해도 시간 누적 경보는 살아 있어야 한다.
+    events.clear()
+    await publisher.publish_transition(
+        _transition(metric="o2_low", from_level=AlertLevel.LEVEL2, to_level=AlertLevel.NORMAL)
+    )
+    resolved = [e[1] for e in events if e[0] == "db"]
+    assert len(resolved) == 1
+    assert resolved[0]["alert_key"] == "o2_low"
+    assert ("wearable-01", "o2_deficiency_time") in publisher._active_alert_ids, (
+        "순간값 경보 해제가 시간 누적 경보까지 지웠다"
+    )
 
 
 # ============================================================
@@ -267,7 +366,7 @@ async def test_mqtt_publishes_events_and_state_topics(monkeypatch):
 async def test_event_conforms_to_schema(monkeypatch):
     from app.services import alert_publisher
 
-    schema = json.loads(SCHEMA_PATH.read_text())
+    schema = json.loads(SCHEMA_PATH.read_text(encoding="utf-8"))
     publisher = alert_publisher.AlertEventPublisher(mqtt_client=None)
     monkeypatch.setattr(publisher, "_persist_event", _async_noop)
     monkeypatch.setattr(publisher, "_publish_mqtt", lambda *a, **kw: None)
@@ -280,7 +379,7 @@ async def test_event_conforms_to_schema(monkeypatch):
 async def test_resolved_event_conforms_to_schema(monkeypatch):
     from app.services import alert_publisher
 
-    schema = json.loads(SCHEMA_PATH.read_text())
+    schema = json.loads(SCHEMA_PATH.read_text(encoding="utf-8"))
     publisher = alert_publisher.AlertEventPublisher(mqtt_client=None)
     monkeypatch.setattr(publisher, "_persist_event", _async_noop)
     monkeypatch.setattr(publisher, "_publish_mqtt", lambda *a, **kw: None)

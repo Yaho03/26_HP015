@@ -89,3 +89,18 @@ async def conn(db_pool):
 @pytest.fixture
 def node_id() -> str:
     return "sensor-01"
+
+
+@pytest.fixture(autouse=True)
+def _reset_login_rate_limit():
+    """로그인 IP rate limit 카운터를 테스트마다 비운다 (AUTH-10, 이슈 #140).
+
+    통합 테스트는 전부 같은 가상 IP(testclient)에서 수십 번 로그인한다 —
+    프로덕션 제한(분당 10회)을 그대로 두면 서로 얽혀 실패한다. limit 자체를
+    끄지 않고 카운터만 리셋해 rate limit 테스트 자체는 그대로 돈다.
+    """
+    from app.routers import auth as auth_router
+
+    auth_router._login_attempts.clear()
+    yield
+    auth_router._login_attempts.clear()

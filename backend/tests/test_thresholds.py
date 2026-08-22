@@ -27,7 +27,7 @@ def test_migration_005_exists():
 
 
 def test_migration_005_creates_thresholds_table():
-    sql = (MIGRATIONS_DIR / "005_thresholds.sql").read_text()
+    sql = (MIGRATIONS_DIR / "005_thresholds.sql").read_text(encoding="utf-8")
     pattern = re.compile(
         r"CREATE\s+TABLE\s+IF\s+NOT\s+EXISTS\s+thresholds",
         re.IGNORECASE,
@@ -36,7 +36,7 @@ def test_migration_005_creates_thresholds_table():
 
 
 def test_migration_005_has_required_columns():
-    sql = (MIGRATIONS_DIR / "005_thresholds.sql").read_text().upper()
+    sql = (MIGRATIONS_DIR / "005_thresholds.sql").read_text(encoding="utf-8").upper()
     for col in (
         "METRIC", "LEVEL", "DIRECTION",
         "ENTER_THRESHOLD", "EXIT_THRESHOLD",
@@ -47,7 +47,7 @@ def test_migration_005_has_required_columns():
 
 
 def test_migration_005_has_primary_key_on_metric_level():
-    sql = (MIGRATIONS_DIR / "005_thresholds.sql").read_text().upper()
+    sql = (MIGRATIONS_DIR / "005_thresholds.sql").read_text(encoding="utf-8").upper()
     assert "PRIMARY KEY" in sql
     assert "METRIC" in sql and "LEVEL" in sql
 
@@ -55,7 +55,7 @@ def test_migration_005_has_primary_key_on_metric_level():
 def test_migration_005_seeds_default_thresholds():
     """PRD FR-201 + 06_ALERT_RULES 기본 임계값 18행이 시드되어야 한다.
     6 metrics (co2_ppm, co_ppm, h2s_ppm, temperature_c, o2_low, o2_high) × 3 levels."""
-    sql = (MIGRATIONS_DIR / "005_thresholds.sql").read_text()
+    sql = (MIGRATIONS_DIR / "005_thresholds.sql").read_text(encoding="utf-8")
     insert_count = len(re.findall(r"INSERT\s+INTO\s+thresholds", sql, re.IGNORECASE))
     assert insert_count >= 1, "INSERT 구문이 없다"
 
@@ -68,7 +68,7 @@ def test_migration_005_seeds_default_thresholds():
 
 def test_migration_005_is_idempotent_or_uses_on_conflict():
     """시드 INSERT 는 재실행에 안전해야 한다 (ON CONFLICT DO NOTHING 또는 INSERT 단회)."""
-    sql = (MIGRATIONS_DIR / "005_thresholds.sql").read_text().upper()
+    sql = (MIGRATIONS_DIR / "005_thresholds.sql").read_text(encoding="utf-8").upper()
     if "INSERT INTO THRESHOLDS" in sql:
         assert "ON CONFLICT" in sql, (
             "INSERT 시드에 ON CONFLICT 가 없으면 재실행 시 중복 에러 (#98 위배)"
@@ -274,10 +274,15 @@ def fake_thresholds_repo(monkeypatch):
             self.store[(threshold.metric, threshold.level)] = threshold
             return threshold
 
+        async def find(self, metric: str, level: str):
+            self.calls.append(("find", metric, level))
+            return self.store.get((metric, level))
+
     fake = FakeRepo()
     monkeypatch.setattr(threshold_repository, "list_all", fake.list_all)
     monkeypatch.setattr(threshold_repository, "list_by_metric", fake.list_by_metric)
     monkeypatch.setattr(threshold_repository, "upsert", fake.upsert)
+    monkeypatch.setattr(threshold_repository, "find", fake.find)
     return fake
 
 

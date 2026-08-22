@@ -37,6 +37,16 @@ CurrentUser = Annotated[UserRow, Depends(_bearer_user)]
 # 따로 검증한다.
 PUBLIC_PATHS = frozenset({"/health", "/api/auth/login"})
 
+# must_change_password 상태에서도 접근 가능한 경로 (AUTH-9, FR-610).
+# 비밀번호 변경 전 다른 API 접근을 차단한다 — 부트스트랩 계정의 초기
+# 비밀번호가 .env 유출 등으로 알려져 있어도, 교체 전에는 아무것도 못 하게
+# 한다. me 는 프론트가 상태를 알 수 있게 허용하고, WS 도 경보 가시성
+# (FR-607)을 위해 읽기 스트림을 유지한다... 단 WS 인증은 validate_session 을
+# 그대로 통과하므로 여기 목록에 /ws 는 없다 (HTTP 게이트만 본다).
+PASSWORD_CHANGE_ALLOWED_PATHS = frozenset(
+    {"/api/auth/me", "/api/auth/password", "/api/auth/logout"}
+)
+
 
 async def enforce_authentication(request: HTTPConnection) -> None:
     """앱 전체 인증 게이트 — app.dependencies 에 등록된다.
@@ -48,6 +58,14 @@ async def enforce_authentication(request: HTTPConnection) -> None:
     if request.url.path in PUBLIC_PATHS:
         return
     user = await _load_user(request)
+    if (
+        user.must_change_password
+        and request.url.path not in PASSWORD_CHANGE_ALLOWED_PATHS
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Password change required",
+        )
     request.state.user = user
 
 
@@ -98,3 +116,20 @@ def verify_csrf(request: Request, user: CurrentUser) -> None:
             status_code=status.HTTP_403_FORBIDDEN,
             detail="CSRF token missing or invalid",
         )
+
+
+async def authenticate_ws(ws) -> UserRow | None:
+    """WebSocket 핸드셰이크 인증 (AUTH-4, 이슈 #134).
+
+    브라우저 WebSocket API 는 커스텀 헤더를 못 붙인다 — 그래서 세션 쿠키로
+    인증한다 (ADR-007 이 쿠키 세션을 고른 결정적 이유). 핸드셰이크 쿠키는
+    자동으로 따라온다.
+    """
+    token = ws.cookies.get(SESSION_COOKIE)
+    if not token:
+        return None
+    try:
+        session = await auth_service.validate_session(token)
+    except auth_service.SessionExpired:
+        return None
+    return session.user

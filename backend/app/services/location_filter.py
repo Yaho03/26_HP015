@@ -128,6 +128,18 @@ class LocationFilter:
         self._reject_counts[node_id] = 0
         return pos
 
+    def latest(self, node_id: str) -> Optional[FilteredPosition]:
+        """마지막으로 채택된 필터링 위치. 없으면 None.
+
+        노출량 적산이 최근접 센서 노드를 정할 때 쓴다 (ADR-008). 위치를 모르면
+        **추측하지 않고** 출처 없음으로 내려간다 — 잘못된 노드의 농도를 작업자에게
+        귀속시키느니 산출 불가가 낫다.
+
+        오래된 값인지는 호출부가 timestamp 를 보고 판단한다. 여기서 임의의 유효기간을
+        정하면 그 숫자가 곧 하드코딩된 임계값이 된다.
+        """
+        return self._last.get(node_id)
+
     @staticmethod
     def _seconds_between(previous: datetime, current: datetime) -> float:
         if previous.tzinfo is None and current.tzinfo is not None:

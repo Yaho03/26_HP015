@@ -124,34 +124,32 @@ async def reload() -> None:
     await init()
 
 
-async def recover_from_retain_messages(messages: list) -> None:
-    """백엔드 재시작 시 MQTT alerts/state/# Retain 메시지로부터 활성 alert 복구 (#87).
-    04_DATA_CONTRACT 199번 줄: 이미 active인 경보는 그대로 유지(timers reset 안 함)."""
+def restore_active_alert_rows(rows: list) -> int:
+    """DB 최신 행으로 AlertEvaluator의 현재 level을 복구한다 (#196).
+
+    발행 측 상태와 같은 DB snapshot을 사용해야 두 메모리 상태가 서로 다른
+    시점을 보지 않는다. connection_lost처럼 임계값 판정기 소관이 아닌 경보는
+    AlertEvaluator.restore_active_state()가 건너뛴다.
+    """
     if _evaluator is None:
-        logger.warning("recover_from_retain_messages called before init(), skipping")
-        return
+        logger.warning("evaluator not initialized, skipping active alert restore")
+        return 0
     recovered = 0
-    for msg in messages:
-        if not isinstance(msg, dict):
-            continue
+    for row in rows:
         try:
-            node_id = msg.get("source_node_id")
-            alert_key = msg.get("alert_key")
-            level_str = msg.get("level")
-            status = msg.get("status")
+            node_id = row.get("source_node_id")
+            alert_key = row.get("alert_key")
+            level_str = row.get("level")
+            status = row.get("status")
             if not (node_id and alert_key and level_str and status):
                 continue
             if status != "active":
                 continue
-            levels = _evaluator._thresholds.get(alert_key)
-            if not levels:
-                continue
-            target_level = AlertLevel(level_str)
-            state = _evaluator.get_state(node_id, alert_key)
-            state.current_level = target_level
-            state.enter_started_at = None
-            state.exit_started_at = None
-            recovered += 1
-        except (ValueError, KeyError):
+            if _evaluator.restore_active_state(
+                node_id, alert_key, AlertLevel(level_str)
+            ):
+                recovered += 1
+        except (AttributeError, TypeError, ValueError, KeyError):
             continue
-    logger.info("recovered %d active alerts from retain messages", recovered)
+    logger.info("restored %d evaluator alert state(s) from alert_events", recovered)
+    return recovered

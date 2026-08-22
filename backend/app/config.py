@@ -98,6 +98,28 @@ class Settings(BaseSettings):
     # HTTPS 운영에서만 true (Secure 쿠키 속성). 개발(http)에서는 false.
     cookie_secure: bool = False
 
+    # 누적 노출량 적산 (FR-701~708, 11_EXPOSURE_DOSE_SPEC.md §4).
+    #
+    # 마지막 값을 최대 이만큼만 유지해 적산하고 초과분은 data_gap_s 로 보낸다 (§4.2).
+    # 공백을 0 으로 간주하면 노출량을 과소평가하고, 무한 유지하면 하루 끊겼을 때
+    # dose 가 천문학적으로 뛴다. 둘 다 위험해서 나온 절충값이다.
+    exposure_gap_max_s: float = 60.0
+    # exposure_state 로 flush 하는 주기 (§4.5). 백엔드가 죽었을 때의 손실 상한이
+    # 곧 이 값이다 — 8시간 누적을 메모리에만 두지 않기 위한 것이다.
+    exposure_flush_interval_s: float = 10.0
+    # 농도 출처 노드까지의 거리로 신뢰도를 낮추는 경계 (§4.4).
+    # 최근접 노드 실측값을 작업자 위치에 대입하는 방식이라(ADR-008) 멀수록 추정이
+    # 약해진다. 그 약함을 숨기지 않고 trust_level 로 드러낸다.
+    exposure_max_trust_distance_m: float = 3.0
+    exposure_medium_trust_distance_m: float = 1.5
+
+    # 최초 관리자 부트스트랩 (AUTH-9, FR-610). 사용자 테이블이 비어 있을 때만
+    # 1회 생성한다. 빈 값이면 부트스트랩 자체를 건너뛴다. 마이그레이션 SQL 이나
+    # 코드에 계정을 심지 않는다 — 첫 로그인 후 must_change_password 로 강제
+    # 교체된다.
+    bootstrap_admin_username: str = ""
+    bootstrap_admin_password: str = ""
+
     @property
     def cors_origins_list(self) -> list[str]:
         return [o.strip() for o in self.cors_origins.split(",") if o.strip()]

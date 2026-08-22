@@ -1,4 +1,4 @@
-# Backend dev/test dependencies (TDD 인프라 — 이슈 #98 이후 모든 백엔드 작업에 사용).
+﻿# Backend dev/test dependencies (TDD 인프라 — 이슈 #98 이후 모든 백엔드 작업에 사용).
 -r requirements.txt
 pytest==8.3.4
 pytest-asyncio==0.25.2

@@ -14,6 +14,8 @@
 #include "mqtt/mqtt_topics.h"
 #include "mqtt/mqtt_time.h"
 #include "mqtt/ulid.h"
+#include "wearable/local_alert.h"
+#include "wearable/vibration_motor.h"
 
 // ============================================================
 // Configuration
@@ -94,6 +96,19 @@ bool dwm1000Ready = false;
 
 Sen0322Data latestOxygen;
 bool hasOxygen = false;
+
+// ------------------------------------------------------------
+// 로컬 폴백 경보 (06_ALERT_RULES 12, 이슈 #86 / #113)
+//
+// 백엔드나 MQTT 가 죽어도 산소 경보는 울려야 한다. 기본 경보 흐름
+// (센서 → MQTT → 백엔드 판정 → MQTT → 웨어러블)은 단일 장애점을 갖는다.
+// 여기서는 그 경로를 전혀 타지 않고 펌웨어가 직접 판정한다.
+// ------------------------------------------------------------
+
+constexpr uint8_t VIBRATION_MOTOR_PIN = 25;  // 03_HARDWARE_DESIGN 11
+
+hp015::wearable::VibrationMotor vibrationMotor(VIBRATION_MOTOR_PIN);
+hp015::wearable::LocalAlert localAlert(vibrationMotor);
 
 
 // ============================================================
@@ -548,6 +563,17 @@ void publishStatus() {
     data["dwm1000_role"] =
         dwm1000Ranging.roleName();
 
+    // 로컬 폴백 경보 상태 (06_ALERT_RULES 12).
+    //
+    // 관제 화면이 "웨어러블이 자체 판단으로 울리고 있다"를 알아야 한다. 백엔드가
+    // 아무 경보도 안 냈는데 작업자가 진동을 느끼는 상황이 정상 동작이기 때문이다.
+    data["local_alert_active"] =
+        localAlert.isActive();
+
+    // 산소가 낮아서 우는 것과 센서가 죽어서 우는 것은 조치가 다르다.
+    data["local_alert_degraded"] =
+        localAlert.isDegraded();
+
     JsonArray sensorsOnline =
         data["sensors_online"].to<JsonArray>();
 
@@ -796,6 +822,25 @@ void setup() {
         );
     }
 
+    // --------------------------------------------------------
+    // 로컬 폴백 경보 (safety-critical)
+    // --------------------------------------------------------
+
+    vibrationMotor.begin();
+    localAlert.begin(millis());
+
+    if (!oxygenReady) {
+        // 센서가 처음부터 없으면 산소를 감시할 수단이 없다. 조용히 넘어가면
+        // 작업자는 감시받고 있다고 믿는다 — 지속 실패로 곧 진동이 울린다.
+        Serial.println(
+            "[LOCAL ALERT] SEN0322 unavailable — 로컬 O2 경보가 실패 상태로 시작한다."
+        );
+    } else {
+        Serial.println(
+            "[LOCAL ALERT] Armed (O2 < 16.0% / > 28.0% / 센서 실패 지속)."
+        );
+    }
+
 
     // --------------------------------------------------------
     // DWM1000
@@ -901,6 +946,26 @@ void loop() {
 
     unsigned long now =
         millis();
+
+    // 로컬 폴백 경보 — MQTT 도 백엔드도 거치지 않는다 (06_ALERT_RULES 12).
+    //
+    // 매 루프 호출한다. 값이 없을 때도 불러야 실패 지속을 시간으로 잴 수 있다.
+    // 센서를 아예 못 찾은 경우(oxygenReady=false)도 실패로 넘긴다 — 감시 수단이
+    // 없다는 사실이 작업자에게 전달되어야 한다.
+    {
+        const bool readingValid =
+            oxygenReady && latestOxygen.valid;
+
+        const bool warmingUp =
+            oxygenReady && oxygenDriver.isWaitingForResponse();
+
+        localAlert.evaluate(
+            latestOxygen.o2Pct,
+            readingValid,
+            warmingUp,
+            now
+        );
+    }
 
     if (
         now - lastDwm1000CheckMs
