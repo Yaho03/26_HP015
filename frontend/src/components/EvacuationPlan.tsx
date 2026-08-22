@@ -161,7 +161,12 @@ export function EvacuationPlan({
           .map((n) => (
             <g key={n.nav_node_id}>
               <circle className="evac-plan__node" cx={n.x_m} cy={sy(n.y_m)} r={0.32} />
-              <text className="evac-plan__node-label" x={n.x_m} y={sy(n.y_m) - 1.65} textAnchor="middle">
+              <text
+                className="evac-plan__node-label"
+                x={n.x_m}
+                y={sy(n.y_m) - 1.65}
+                textAnchor="middle"
+              >
                 {n.label}
               </text>
             </g>
@@ -200,15 +205,29 @@ export function EvacuationPlan({
           const cy = sy(exit.y_m);
           // 긴 출구명이 도면 밖으로 잘리지 않도록 선수/선미 쪽으로 붙인다.
           const labelOnLeft = cx < SHIP_SPACE.length_m / 2;
-          const labelX = labelOnLeft ? Math.max(0, cx - 1.15) : Math.min(SHIP_SPACE.length_m, cx + 1.15);
+          const labelX = labelOnLeft
+            ? Math.max(0, cx - 1.15)
+            : Math.min(SHIP_SPACE.length_m, cx + 1.15);
           return (
             <g key={exit.exit_id}>
               <circle className={cls} cx={cx} cy={cy} r={1.15} />
               {isTarget && !blocked && <circle className={cls} cx={cx} cy={cy} r={1.75} />}
               {blocked && (
                 <>
-                  <line className="evac-plan__exit-cross" x1={cx - 1.0} y1={cy - 1.0} x2={cx + 1.0} y2={cy + 1.0} />
-                  <line className="evac-plan__exit-cross" x1={cx + 1.0} y1={cy - 1.0} x2={cx - 1.0} y2={cy + 1.0} />
+                  <line
+                    className="evac-plan__exit-cross"
+                    x1={cx - 1.0}
+                    y1={cy - 1.0}
+                    x2={cx + 1.0}
+                    y2={cy + 1.0}
+                  />
+                  <line
+                    className="evac-plan__exit-cross"
+                    x1={cx + 1.0}
+                    y1={cy - 1.0}
+                    x2={cx - 1.0}
+                    y2={cy + 1.0}
+                  />
                 </>
               )}
               <text

@@ -43,12 +43,16 @@ export function LiveSensorPanel({ slots, nodes }: LiveSensorPanelProps) {
               <article className="live-sensor-row live-sensor-row--pending" key={id}>
                 <div className="live-sensor-row__head">
                   <strong>{id}</strong>
-                  <span className="live-sensor-state"><IconClock size={11} /> 데이터 대기</span>
+                  <span className="live-sensor-state">
+                    <IconClock size={11} /> 데이터 대기
+                  </span>
                 </div>
                 <div className="live-sensor-values">
                   {READOUTS.map(({ key, label, unit }) => (
                     <span className="live-sensor-value" key={key}>
-                      <small>{label}</small><b>—</b><em>{unit}</em>
+                      <small>{label}</small>
+                      <b>—</b>
+                      <em>{unit}</em>
                     </span>
                   ))}
                 </div>
@@ -60,29 +64,40 @@ export function LiveSensorPanel({ slots, nodes }: LiveSensorPanelProps) {
           const level = nodeAlertLevel(node);
           const LevelIcon = LEVEL_ICON[level] as ComponentType<{ size?: number | string }>;
           return (
-            <article className={`live-sensor-row is-${level}${node.connection_status === "offline" ? " live-sensor-row--offline" : ""}`} key={id}>
+            <article
+              className={`live-sensor-row is-${level}${node.connection_status === "offline" ? " live-sensor-row--offline" : ""}`}
+              key={id}
+            >
               <div className="live-sensor-row__head">
                 <strong>{id}</strong>
-                <span className="live-sensor-state"><LevelIcon size={11} /> {node.connection_status === "offline" ? "연결 끊김" : levelLabel(level)}</span>
+                <span className="live-sensor-state">
+                  <LevelIcon size={11} />{" "}
+                  {node.connection_status === "offline" ? "연결 끊김" : levelLabel(level)}
+                </span>
               </div>
               <div className="live-sensor-values">
                 {READOUTS.map(({ key, label, unit, digits }) => {
                   const reading = node.readings[key];
                   return (
                     <span className="live-sensor-value" key={key}>
-                      <small>{label}</small><b>{reading ? formatValue(reading.value, digits) : "—"}</b><em>{unit}</em>
+                      <small>{label}</small>
+                      <b>{reading ? formatValue(reading.value, digits) : "—"}</b>
+                      <em>{unit}</em>
                     </span>
                   );
                 })}
               </div>
               <span className="live-sensor-meta">
-                {node.source_mode === "simulation" ? "SIM" : "LIVE"} · {sampleTime(node.last_seen_at)}
+                {node.source_mode === "simulation" ? "SIM" : "LIVE"} ·{" "}
+                {sampleTime(node.last_seen_at)}
               </span>
             </article>
           );
         })}
       </div>
-      <p className="monitor-live-sensors__foot">센서 선택 시 상세 이력은 차트 메뉴에서 확인합니다.</p>
+      <p className="monitor-live-sensors__foot">
+        센서 선택 시 상세 이력은 차트 메뉴에서 확인합니다.
+      </p>
     </section>
   );
 }

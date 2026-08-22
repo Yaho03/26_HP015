@@ -36,7 +36,12 @@ export function Header({ title, overall_level, connection, theme, onToggleTheme 
         </span>
         <span className="readout-cell">
           <span className="legend">링크</span>
-          <span className={"readout-value is-lv " + (connState === "connected" ? "is-normal" : "is-level3_critical")}>
+          <span
+            className={
+              "readout-value is-lv " +
+              (connState === "connected" ? "is-normal" : "is-level3_critical")
+            }
+          >
             <span className="readout-mark" />
             {connLabel}
           </span>

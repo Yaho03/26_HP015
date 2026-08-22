@@ -32,9 +32,9 @@ export { classifyMetric as classifyValue } from "./alerts";
 
 export const LEVEL_RGB: Record<AlertLevel, [number, number, number]> = {
   // 판정 불가는 무채색이다. 히트맵에서 초록으로 칠하면 안전해 보인다.
-  unknown: [0.42, 0.45, 0.50],
+  unknown: [0.42, 0.45, 0.5],
   normal: [0.06, 0.45, 0.27],
-  level1_caution: [0.98, 0.80, 0.08],
+  level1_caution: [0.98, 0.8, 0.08],
   level2_warning: [0.98, 0.57, 0.24],
   level3_critical: [0.94, 0.27, 0.27],
 };

@@ -12,7 +12,9 @@ export function AlertModal() {
       aria-live="assertive"
     >
       <div className="alert-modal__accent" aria-hidden="true" />
-      <div className="alert-modal-siren" aria-hidden="true">!</div>
+      <div className="alert-modal-siren" aria-hidden="true">
+        !
+      </div>
       <div className="alert-modal-content">
         <p className="alert-modal-eyebrow">ACTIVE SAFETY ALERT / L3</p>
         <h2 className="alert-modal-title">{modal.title}</h2>

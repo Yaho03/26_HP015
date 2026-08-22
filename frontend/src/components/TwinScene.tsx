@@ -49,39 +49,43 @@ interface TwinSceneProps {
 const LEVEL_COLOR: Record<AlertLevel, string> = {
   // 판정 불가는 회색이다 — 안전(초록)으로도 위험(빨강)으로도 읽히면 안 된다.
   unknown: "#94a3b8",
-  normal: "#10b981", level1_caution: "#facc15",
-  level2_warning: "#fb923c", level3_critical: "#ef4444",
+  normal: "#10b981",
+  level1_caution: "#facc15",
+  level2_warning: "#fb923c",
+  level3_critical: "#ef4444",
 };
 const LEVEL_LABEL: Record<AlertLevel, string> = {
   unknown: "판정불가",
-  normal: "정상", level1_caution: "L1",
-  level2_warning: "L2", level3_critical: "L3",
+  normal: "정상",
+  level1_caution: "L1",
+  level2_warning: "L2",
+  level3_critical: "L3",
 };
 
 // ── Dimensions (real ship scale) ──────────────────────────────
-const TL   = 60;   // length x: 0→60 m
-const THW  = 10;   // half-width at the side shell z: -10→+10 (total 20 m)
-const TH   = 14;   // height y: 0→14 m
-const BH   = 5.5;  // top of the hopper slope
-const TS   = 9.0;  // topside knuckle — wall starts leaning inboard here
-const TTW  = 4.8;  // half-width at the tank top
-const FHW  = 6.5;  // flat floor half-width
-const NSEG = 14;   // hopper curve segments
-const PAINT_Y   = 7.4;  // height of the oxide-red / topside-blue coat boundary
-const DOT_Y     = 11.6; // marker dots, up on the topside slope
-const BRACKET_Y = 7.8;  // wall fittings, on the vertical side shell
-const LABEL_Y   = 8.1;  // stencilled markings
+const TL = 60; // length x: 0→60 m
+const THW = 10; // half-width at the side shell z: -10→+10 (total 20 m)
+const TH = 14; // height y: 0→14 m
+const BH = 5.5; // top of the hopper slope
+const TS = 9.0; // topside knuckle — wall starts leaning inboard here
+const TTW = 4.8; // half-width at the tank top
+const FHW = 6.5; // flat floor half-width
+const NSEG = 14; // hopper curve segments
+const PAINT_Y = 7.4; // height of the oxide-red / topside-blue coat boundary
+const DOT_Y = 11.6; // marker dots, up on the topside slope
+const BRACKET_Y = 7.8; // wall fittings, on the vertical side shell
+const LABEL_Y = 8.1; // stencilled markings
 
 export type CamMode = "overview" | "inside" | "plan";
-const CAMS: Record<CamMode, { pos: [number,number,number]; tgt: [number,number,number] }> = {
+const CAMS: Record<CamMode, { pos: [number, number, number]; tgt: [number, number, number] }> = {
   // Frame the hold interior so floor data, heatmap, and worker markers share
   // the first viewport instead of appearing as a distant ship silhouette.
-  overview: { pos: [TL*0.5, 17, -40], tgt: [TL*0.5, TH*0.3, 0] },
-  inside:   { pos: [2,    TH*0.6, 0.2     ], tgt: [TL*0.85, TH*0.42, 0] },
+  overview: { pos: [TL * 0.5, 17, -40], tgt: [TL * 0.5, TH * 0.3, 0] },
+  inside: { pos: [2, TH * 0.6, 0.2], tgt: [TL * 0.85, TH * 0.42, 0] },
   // Screen 1 ① 의 고정 크롭. 타깃이 바닥 중앙(y=0)이라 화물창 바닥이 화면을
   // 채운다. 시점을 돌릴 수 없으므로 노드 화면 위치가 항상 같고, ⑤ 2×2 격자와의
   // 대응(SENSOR_SCREEN_ORDER)이 유지된다.
-  plan:     { pos: [TL*0.5, 30, -21], tgt: [TL*0.5, 0, 0] },
+  plan: { pos: [TL * 0.5, 30, -21], tgt: [TL * 0.5, 0, 0] },
 };
 
 /** 60m 길이를 뷰포트 폭에 맞추는 거리. 좁은 화면일수록 멀리 물러난다. */
@@ -113,8 +117,8 @@ function cameraPosition(mode: CamMode, aspect: number): [number, number, number]
 // Sampled off the reference photos: sprayed anticorrosive coating over steel.
 // No panel grid — real tank walls read as continuous surfaces with fine spray
 // grain, broad soft blotching, faint weld seams and vertical run-off streaks.
-const BLUE: [number, number, number] = [34, 51, 96];   // topside coating
-const RED:  [number, number, number] = [84, 36, 31];   // oxide/holding primer
+const BLUE: [number, number, number] = [34, 51, 96]; // topside coating
+const RED: [number, number, number] = [84, 36, 31]; // oxide/holding primer
 
 const TEX = 1024;
 function canvas2d(): [HTMLCanvasElement, CanvasRenderingContext2D] {
@@ -145,7 +149,8 @@ function makeCoatMap(redFrac: number, repX: number, repY: number): THREE.CanvasT
 
   // Uneven coat thickness — many small mottles, not a few big blobs
   for (let i = 0; i < 260; i++) {
-    const x = Math.random() * TEX, y = Math.random() * TEX;
+    const x = Math.random() * TEX,
+      y = Math.random() * TEX;
     const r = 18 + Math.random() * 70;
     const g = cx.createRadialGradient(x, y, 0, x, y, r);
     const dark = Math.random() > 0.4;
@@ -179,7 +184,7 @@ function makeCoatMap(redFrac: number, repX: number, repY: number): THREE.CanvasT
   const d = img.data;
   for (let i = 0; i < d.length; i += 4) {
     const n = (Math.random() - 0.5) * 34;
-    d[i]     = Math.max(0, Math.min(255, d[i]     + n));
+    d[i] = Math.max(0, Math.min(255, d[i] + n));
     d[i + 1] = Math.max(0, Math.min(255, d[i + 1] + n));
     d[i + 2] = Math.max(0, Math.min(255, d[i + 2] + n));
   }
@@ -215,8 +220,13 @@ let _mats: ReturnType<typeof buildMats> | null = null;
 function buildMats() {
   const bump = makeGrainBump(24, 12);
   // Matte coating: no specular sheen, no metallic response.
-  const coat = { roughness: 0.97, metalness: 0.0, bumpMap: bump, bumpScale: 0.05,
-                 side: THREE.DoubleSide } as const;
+  const coat = {
+    roughness: 0.97,
+    metalness: 0.0,
+    bumpMap: bump,
+    bumpScale: 0.05,
+    side: THREE.DoubleSide,
+  } as const;
   return {
     // Side shell: blue topside coat above the oxide-red band. The band edge is
     // placed by arc length along the section, so it follows the hull curve.
@@ -227,17 +237,26 @@ function buildMats() {
     red: new THREE.MeshStandardMaterial({ ...coat, map: makeCoatMap(1, 8, 2) }),
     // Tank top / deck beams — near black, matte, in the photos
     dark: new THREE.MeshStandardMaterial({
-      color: "#0d0e11", roughness: 0.99, metalness: 0.0,
-      bumpMap: bump, bumpScale: 0.04, side: THREE.DoubleSide,
+      color: "#0d0e11",
+      roughness: 0.99,
+      metalness: 0.0,
+      bumpMap: bump,
+      bumpScale: 0.04,
+      side: THREE.DoubleSide,
     }),
     // Bare structural steel (brackets, fittings)
     steel: new THREE.MeshStandardMaterial({
-      color: "#20232a", roughness: 0.62, metalness: 0.65,
+      color: "#20232a",
+      roughness: 0.62,
+      metalness: 0.65,
     }),
     // Keel sump — same coating, worn darker
     keel: new THREE.MeshStandardMaterial({
-      color: "#5c2a23", roughness: 0.95, metalness: 0.0,
-      bumpMap: bump, bumpScale: 0.05,
+      color: "#5c2a23",
+      roughness: 0.95,
+      metalness: 0.0,
+      bumpMap: bump,
+      bumpScale: 0.05,
     }),
   };
 }
@@ -252,7 +271,13 @@ function getMats() {
 // topside tank slope leaning back in overhead. Because it is a single curved
 // surface, the painted coat boundary sweeps across it instead of reading as a
 // straight line on a flat wall.
-interface Station { z: number; y: number; ny: number; nz: number; s: number }
+interface Station {
+  z: number;
+  y: number;
+  ny: number;
+  nz: number;
+  s: number;
+}
 
 function buildProfile(): Station[] {
   const pts: [number, number][] = [];
@@ -266,14 +291,16 @@ function buildProfile(): Station[] {
   // Topside slope: eased curve (THW,TS) → (TTW,TH), knuckle at the bottom
   for (let i = 1; i <= 8; i++) {
     const u = i / 8;
-    pts.push([THW - (THW - TTW) * (1 - Math.cos(u * Math.PI / 2)), TS + (TH - TS) * u]);
+    pts.push([THW - (THW - TTW) * (1 - Math.cos((u * Math.PI) / 2)), TS + (TH - TS) * u]);
   }
 
   // Inward normals from central differences, so every knuckle shades smoothly.
   let acc = 0;
   return pts.map(([z, y], i) => {
-    const p = pts[Math.max(0, i - 1)], n = pts[Math.min(pts.length - 1, i + 1)];
-    const dz = n[0] - p[0], dy = n[1] - p[1];
+    const p = pts[Math.max(0, i - 1)],
+      n = pts[Math.min(pts.length - 1, i + 1)];
+    const dz = n[0] - p[0],
+      dy = n[1] - p[1];
     const l = Math.hypot(dy, dz) || 1;
     if (i > 0) acc += Math.hypot(z - pts[i - 1][0], y - pts[i - 1][1]);
     return { z, y, ny: -dz / l, nz: dy / l, s: acc };
@@ -286,7 +313,8 @@ const ARC = PROFILE[PROFILE.length - 1].s;
 function zAt(y: number): number {
   for (let i = 1; i < PROFILE.length; i++) {
     if (PROFILE[i].y >= y) {
-      const a = PROFILE[i - 1], b = PROFILE[i];
+      const a = PROFILE[i - 1],
+        b = PROFILE[i];
       const f = (y - a.y) / (b.y - a.y || 1);
       return a.z + (b.z - a.z) * f;
     }
@@ -298,7 +326,8 @@ function zAt(y: number): number {
 function vAt(y: number): number {
   for (let i = 1; i < PROFILE.length; i++) {
     if (PROFILE[i].y >= y) {
-      const a = PROFILE[i - 1], b = PROFILE[i];
+      const a = PROFILE[i - 1],
+        b = PROFILE[i];
       const f = (y - a.y) / (b.y - a.y || 1);
       return (a.s + (b.s - a.s) * f) / ARC;
     }
@@ -312,23 +341,28 @@ function vAt(y: number): number {
 // across the reference photos in long curves instead of running dead level.
 const NX = 56;
 function beam(x: number): number {
-  const t = Math.abs(2 * x / TL - 1);   // 0 amidships → 1 at the ends
-  return 1 - 0.40 * Math.pow(t, 2.2);
+  const t = Math.abs((2 * x) / TL - 1); // 0 amidships → 1 at the ends
+  return 1 - 0.4 * Math.pow(t, 2.2);
 }
 
 // ── Side shell: the profile lofted along the tapered length ────
 // Indexed grid + computeVertexNormals, so the taper is shaded correctly
 // instead of needing hand-derived normals for a doubly-curved surface.
 function buildSideGeo(sign: 1 | -1): THREE.BufferGeometry {
-  const rows = PROFILE.length, cols = NX + 1;
+  const rows = PROFILE.length,
+    cols = NX + 1;
   const pos = new Float32Array(rows * cols * 3);
-  const uv  = new Float32Array(rows * cols * 2);
+  const uv = new Float32Array(rows * cols * 2);
   for (let i = 0; i < rows; i++) {
     const p = PROFILE[i];
     for (let j = 0; j < cols; j++) {
-      const x = (TL * j) / NX, k = i * cols + j;
-      pos[k*3] = x; pos[k*3+1] = p.y; pos[k*3+2] = sign * p.z * beam(x);
-      uv[k*2] = x / TL; uv[k*2+1] = p.s / ARC;
+      const x = (TL * j) / NX,
+        k = i * cols + j;
+      pos[k * 3] = x;
+      pos[k * 3 + 1] = p.y;
+      pos[k * 3 + 2] = sign * p.z * beam(x);
+      uv[k * 2] = x / TL;
+      uv[k * 2 + 1] = p.s / ARC;
     }
   }
   // Mirroring z flips handedness, so the port side needs reversed winding —
@@ -337,14 +371,17 @@ function buildSideGeo(sign: 1 | -1): THREE.BufferGeometry {
   const idx: number[] = [];
   for (let i = 0; i < rows - 1; i++) {
     for (let j = 0; j < cols - 1; j++) {
-      const a = i*cols + j, b = a + 1, c = a + cols, d = c + 1;
+      const a = i * cols + j,
+        b = a + 1,
+        c = a + cols,
+        d = c + 1;
       if (sign === 1) idx.push(a, b, d, a, d, c);
-      else            idx.push(a, d, b, a, c, d);
+      else idx.push(a, d, b, a, c, d);
     }
   }
   const geo = new THREE.BufferGeometry();
   geo.setAttribute("position", new THREE.BufferAttribute(pos, 3));
-  geo.setAttribute("uv",       new THREE.BufferAttribute(uv,  2));
+  geo.setAttribute("uv", new THREE.BufferAttribute(uv, 2));
   geo.setIndex(idx);
   geo.computeVertexNormals();
   return geo;
@@ -352,19 +389,25 @@ function buildSideGeo(sign: 1 | -1): THREE.BufferGeometry {
 
 // ── Tank top plating, tapered to match ────────────────────────
 function buildFloorGeo(): THREE.BufferGeometry {
-  const pos: number[] = [], uv: number[] = [], idx: number[] = [];
+  const pos: number[] = [],
+    uv: number[] = [],
+    idx: number[] = [];
   for (let j = 0; j <= NX; j++) {
-    const x = (TL * j) / NX, w = FHW * beam(x);
+    const x = (TL * j) / NX,
+      w = FHW * beam(x);
     pos.push(x, 0, -w, x, 0, w);
     uv.push(x / TL, 0, x / TL, 1);
   }
   for (let j = 0; j < NX; j++) {
-    const a = j*2, b = a + 1, c = a + 2, d = a + 3;
+    const a = j * 2,
+      b = a + 1,
+      c = a + 2,
+      d = a + 3;
     idx.push(a, c, d, a, d, b);
   }
   const geo = new THREE.BufferGeometry();
   geo.setAttribute("position", new THREE.Float32BufferAttribute(pos, 3));
-  geo.setAttribute("uv",       new THREE.Float32BufferAttribute(uv,  2));
+  geo.setAttribute("uv", new THREE.Float32BufferAttribute(uv, 2));
   geo.setIndex(idx);
   geo.computeVertexNormals();
   return geo;
@@ -372,18 +415,22 @@ function buildFloorGeo(): THREE.BufferGeometry {
 
 // ── Bulkhead: the same section, filled in ─────────────────────
 function buildEndWall(xPos: number, nx: number): THREE.BufferGeometry {
-  const pos: number[] = [], nor: number[] = [], uv: number[] = [];
+  const pos: number[] = [],
+    nor: number[] = [],
+    uv: number[] = [];
   const bw = beam(xPos);
   const addTri = (...vs: [number, number, number][]) => {
     for (const [px, py, pz] of vs) {
-      pos.push(px, py, pz); nor.push(nx, 0, 0);
+      pos.push(px, py, pz);
+      nor.push(nx, 0, 0);
       uv.push((pz + THW) / (THW * 2), py / TH);
     }
   };
   // Fan each side of the section back to the centreline
   for (const s of [1, -1] as const) {
     for (let i = 0; i < PROFILE.length - 1; i++) {
-      const a = PROFILE[i], b = PROFILE[i + 1];
+      const a = PROFILE[i],
+        b = PROFILE[i + 1];
       addTri([xPos, a.y, s * a.z * bw], [xPos, a.y, 0], [xPos, b.y, s * b.z * bw]);
       addTri([xPos, a.y, 0], [xPos, b.y, 0], [xPos, b.y, s * b.z * bw]);
     }
@@ -395,19 +442,19 @@ function buildEndWall(xPos: number, nx: number): THREE.BufferGeometry {
 
   const geo = new THREE.BufferGeometry();
   geo.setAttribute("position", new THREE.Float32BufferAttribute(pos, 3));
-  geo.setAttribute("normal",   new THREE.Float32BufferAttribute(nor, 3));
-  geo.setAttribute("uv",       new THREE.Float32BufferAttribute(uv,  2));
+  geo.setAttribute("normal", new THREE.Float32BufferAttribute(nor, 3));
+  geo.setAttribute("uv", new THREE.Float32BufferAttribute(uv, 2));
   return geo;
 }
 
 // ── Cargo Hold geometry + details ────────────────────────────────
 function CargoHold({ cutaway }: { cutaway: boolean }) {
   const mats = useMemo(() => getMats(), []);
-  const sideS = useMemo(() => buildSideGeo(1),  []);
+  const sideS = useMemo(() => buildSideGeo(1), []);
   const sideP = useMemo(() => buildSideGeo(-1), []);
   const floor = useMemo(() => buildFloorGeo(), []);
-  const front = useMemo(() => buildEndWall(0,   1), []);
-  const back  = useMemo(() => buildEndWall(TL, -1), []);
+  const front = useMemo(() => buildEndWall(0, 1), []);
+  const back = useMemo(() => buildEndWall(TL, -1), []);
 
   return (
     <group>
@@ -421,35 +468,35 @@ function CargoHold({ cutaway }: { cutaway: boolean }) {
 
       {/* ── Cut edge along the sectioned port side ── */}
       {cutaway && (
-        <mesh position={[TL/2, 0.11, -FHW]} material={mats.steel}>
+        <mesh position={[TL / 2, 0.11, -FHW]} material={mats.steel}>
           <boxGeometry args={[TL, 0.22, 0.3]} />
         </mesh>
       )}
 
       {/* ── End walls ── */}
       <mesh geometry={front} material={mats.bulkhead} />
-      <mesh geometry={back}  material={mats.bulkhead} />
+      <mesh geometry={back} material={mats.bulkhead} />
 
       {/* ── Deck transverses spanning the tank-top opening ──
              In cutaway they stop at the section plane instead of spanning fully. */}
-      {Array.from({ length: Math.floor(TL/5) - 1 }, (_, i) => (i+1)*5).map(x => (
-        <group key={x} position={[x, TH, cutaway ? (TTW - FHW)/2 : 0]}>
+      {Array.from({ length: Math.floor(TL / 5) - 1 }, (_, i) => (i + 1) * 5).map((x) => (
+        <group key={x} position={[x, TH, cutaway ? (TTW - FHW) / 2 : 0]}>
           <mesh material={mats.dark}>
-            <boxGeometry args={[0.5, 0.7, cutaway ? TTW + FHW : TTW*2]} />
+            <boxGeometry args={[0.5, 0.7, cutaway ? TTW + FHW : TTW * 2]} />
           </mesh>
           {/* I-beam flanges */}
           <mesh position={[0, -0.35, 0]} material={mats.steel}>
-            <boxGeometry args={[0.6, 0.12, (cutaway ? TTW + FHW : TTW*2) + 0.2]} />
+            <boxGeometry args={[0.6, 0.12, (cutaway ? TTW + FHW : TTW * 2) + 0.2]} />
           </mesh>
         </group>
       ))}
 
       {/* ── Hatch coaming rail along each top edge ── */}
-      <mesh position={[TL/2, TH - 0.1, TTW - 0.06]} material={mats.steel}>
+      <mesh position={[TL / 2, TH - 0.1, TTW - 0.06]} material={mats.steel}>
         <boxGeometry args={[TL, 0.2, 0.12]} />
       </mesh>
       {!cutaway && (
-        <mesh position={[TL/2, TH - 0.1, -TTW + 0.06]} material={mats.steel}>
+        <mesh position={[TL / 2, TH - 0.1, -TTW + 0.06]} material={mats.steel}>
           <boxGeometry args={[TL, 0.2, 0.12]} />
         </mesh>
       )}
@@ -467,7 +514,7 @@ function HoldDetails({ cutaway }: { cutaway: boolean }) {
     for (let x = 4; x <= TL - 4; x += 3) {
       const zw = zAt(DOT_Y) * beam(x) - 0.06;
       const red = Math.round(x / 3) % 2 === 0;
-      result.push({ x, z:  zw, red });
+      result.push({ x, z: zw, red });
       if (!cutaway) result.push({ x, z: -zw, red: !red });
     }
     return result;
@@ -478,7 +525,7 @@ function HoldDetails({ cutaway }: { cutaway: boolean }) {
     const result: { x: number; z: number }[] = [];
     for (let x = 7; x < TL; x += 7) {
       const zw = zAt(BRACKET_Y) * beam(x) - 0.1;
-      result.push({ x, z:  zw });
+      result.push({ x, z: zw });
       if (!cutaway) result.push({ x, z: -zw });
     }
     return result;
@@ -486,27 +533,25 @@ function HoldDetails({ cutaway }: { cutaway: boolean }) {
 
   // Ship wall text labels ("TUG", "OUT", "No.1", etc.) — starboard only in cutaway
   const allLabels = ["TUG", "OUT", "No.1", "TUG", "OUT", "No.2"];
-  const allLabelX  = [8, 18, 28, 38, 48, 55];
-  const labelIdx = allLabelX
-    .map((_, i) => i)
-    .filter(i => !cutaway || i % 2 === 1);
+  const allLabelX = [8, 18, 28, 38, 48, 55];
+  const labelIdx = allLabelX.map((_, i) => i).filter((i) => !cutaway || i % 2 === 1);
 
   return (
     <group>
       {/* Keel sump ball */}
-      <mesh position={[TL/2, 0.6, 0]} material={mats.keel}>
+      <mesh position={[TL / 2, 0.6, 0]} material={mats.keel}>
         <sphereGeometry args={[0.65, 20, 14]} />
       </mesh>
 
       {/* Floor center channel (dark strip) */}
-      <mesh rotation={[-Math.PI/2, 0, 0]} position={[TL/2, 0.006, 0]}>
+      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[TL / 2, 0.006, 0]}>
         <planeGeometry args={[TL, 1.2]} />
         <meshStandardMaterial color="#3a0808" roughness={0.98} />
       </mesh>
 
       {/* Floor hatch markings */}
-      {[10, 20, 30, 40, 50].map(x => (
-        <mesh key={x} rotation={[-Math.PI/2, 0, 0]} position={[x, 0.007, 0]}>
+      {[10, 20, 30, 40, 50].map((x) => (
+        <mesh key={x} rotation={[-Math.PI / 2, 0, 0]} position={[x, 0.007, 0]}>
           <planeGeometry args={[2.5, 1.8]} />
           <meshStandardMaterial color="#2a0606" roughness={0.97} />
         </mesh>
@@ -518,8 +563,10 @@ function HoldDetails({ cutaway }: { cutaway: boolean }) {
           <sphereGeometry args={[0.14, 10, 10]} />
           <meshStandardMaterial
             color={d.red ? "#cc1111" : "#dddddd"}
-            roughness={0.35} metalness={0.3}
-            emissive={d.red ? "#440000" : "#111111"} emissiveIntensity={0.2}
+            roughness={0.35}
+            metalness={0.3}
+            emissive={d.red ? "#440000" : "#111111"}
+            emissiveIntensity={0.2}
           />
         </mesh>
       ))}
@@ -541,10 +588,14 @@ function HoldDetails({ cutaway }: { cutaway: boolean }) {
       ))}
 
       {/* Wall text HTML labels */}
-      {labelIdx.map(i => (
+      {labelIdx.map((i) => (
         <Html
           key={i}
-          position={[allLabelX[i], LABEL_Y, (i % 2 === 0 ? -1 : 1) * (zAt(LABEL_Y) * beam(allLabelX[i]) - 0.2)]}
+          position={[
+            allLabelX[i],
+            LABEL_Y,
+            (i % 2 === 0 ? -1 : 1) * (zAt(LABEL_Y) * beam(allLabelX[i]) - 0.2),
+          ]}
           center
           style={{
             color: "rgba(255,255,255,0.55)",
@@ -560,17 +611,17 @@ function HoldDetails({ cutaway }: { cutaway: boolean }) {
       ))}
 
       {/* Manhole hatch ring at front bulkhead */}
-      <mesh position={[0.02, BH*0.6, 0]} rotation={[0, Math.PI/2, 0]}>
+      <mesh position={[0.02, BH * 0.6, 0]} rotation={[0, Math.PI / 2, 0]}>
         <ringGeometry args={[0.8, 1.3, 20]} />
         <meshStandardMaterial color="#2a2d35" roughness={0.75} metalness={0.5} />
       </mesh>
-      <mesh position={[0.01, BH*0.6, 0]} rotation={[0, Math.PI/2, 0]}>
+      <mesh position={[0.01, BH * 0.6, 0]} rotation={[0, Math.PI / 2, 0]}>
         <circleGeometry args={[0.78, 20]} />
         <meshStandardMaterial color="#090a0d" roughness={0.95} />
       </mesh>
 
       {/* Back bulkhead manhole */}
-      <mesh position={[TL - 0.02, BH*0.6, 0]} rotation={[0, -Math.PI/2, 0]}>
+      <mesh position={[TL - 0.02, BH * 0.6, 0]} rotation={[0, -Math.PI / 2, 0]}>
         <ringGeometry args={[0.8, 1.3, 20]} />
         <meshStandardMaterial color="#2a2d35" roughness={0.75} metalness={0.5} />
       </mesh>
@@ -639,15 +690,31 @@ const HAZARD_R = 3.0;
 function HazardZone({ level }: { level: AlertLevel }) {
   const color = LEVEL_COLOR[level];
   return (
-    <mesh rotation={[-Math.PI/2, 0, 0]} position={[0, 0.06, 0]}>
+    <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.06, 0]}>
       <ringGeometry args={[HAZARD_R - 0.18, HAZARD_R, 48]} />
-      <meshStandardMaterial color={color} transparent opacity={0.6}
-        emissive={color} emissiveIntensity={0.5} side={2} />
+      <meshStandardMaterial
+        color={color}
+        transparent
+        opacity={0.6}
+        emissive={color}
+        emissiveIntensity={0.5}
+        side={2}
+      />
     </mesh>
   );
 }
 
-function SensorMarker({ id, x, y, level }: { id: string; x: number; y: number; level: AlertLevel }) {
+function SensorMarker({
+  id,
+  x,
+  y,
+  level,
+}: {
+  id: string;
+  x: number;
+  y: number;
+  level: AlertLevel;
+}) {
   const color = LEVEL_COLOR[level];
   // 판정 불가는 위험이 아니다 (이슈 #165). 여기에 포함하면 임계값을 못 받은
   // 동안 전 노드가 위험처럼 맥동해서 진짜 경보를 구분할 수 없다.
@@ -655,26 +722,39 @@ function SensorMarker({ id, x, y, level }: { id: string; x: number; y: number; l
   const showHazard = level === "level2_warning" || level === "level3_critical";
   const groupRef = useRef<Group>(null);
   const [hov, setHov] = useState(false);
-  useFrame(s => {
+  useFrame((s) => {
     if (!groupRef.current || !isDanger) return;
     groupRef.current.scale.setScalar(1 + Math.sin(s.clock.getElapsedTime() * 4) * 0.12);
   });
   return (
     <group position={toThreeGroundPosition(x, y, 0.9)}>
       {showHazard && <HazardZone level={level} />}
-      <group ref={groupRef}
-        onPointerOver={e => { e.stopPropagation(); setHov(true); }}
-        onPointerOut={() => setHov(false)}>
+      <group
+        ref={groupRef}
+        onPointerOver={(e) => {
+          e.stopPropagation();
+          setHov(true);
+        }}
+        onPointerOut={() => setHov(false)}
+      >
         <mesh>
           <cylinderGeometry args={[0.22, 0.22, 1.7, 16]} />
-          <meshStandardMaterial color={color} emissive={color} emissiveIntensity={isDanger ? 0.7 : 0.25} />
+          <meshStandardMaterial
+            color={color}
+            emissive={color}
+            emissiveIntensity={isDanger ? 0.7 : 0.25}
+          />
         </mesh>
         <mesh position={[0, 1.15, 0]}>
           <sphereGeometry args={[hov ? 0.5 : 0.34, 16, 16]} />
           <meshStandardMaterial color={color} emissive={color} emissiveIntensity={0.8} />
         </mesh>
-        <pointLight position={[0, 1.15, 0]} color={color}
-          intensity={isDanger ? 6 : 2} distance={7} />
+        <pointLight
+          position={[0, 1.15, 0]}
+          color={color}
+          intensity={isDanger ? 6 : 2}
+          distance={7}
+        />
       </group>
       <Html position={[0, 2.4, 0]} center distanceFactor={30}>
         <div className={"twin-node-label twin-node-" + level}>
@@ -686,10 +766,20 @@ function SensorMarker({ id, x, y, level }: { id: string; x: number; y: number; l
   );
 }
 
-function WearableMarker({ x, y, z, fall_detected }: { x: number; y: number; z: number; fall_detected: boolean }) {
+function WearableMarker({
+  x,
+  y,
+  z,
+  fall_detected,
+}: {
+  x: number;
+  y: number;
+  z: number;
+  fall_detected: boolean;
+}) {
   const color = fall_detected ? "#ef4444" : "#06b6d4";
   const ref = useRef<Group>(null);
-  useFrame(s => {
+  useFrame((s) => {
     if (ref.current) ref.current.position.y = 1.7 + Math.sin(s.clock.getElapsedTime() * 2) * 0.2;
   });
   return (
@@ -700,7 +790,11 @@ function WearableMarker({ x, y, z, fall_detected }: { x: number; y: number; z: n
       </mesh>
       <pointLight color={color} intensity={fall_detected ? 12 : 5} distance={9} />
       <Html position={[0, 1.2, 0]} center distanceFactor={30}>
-        <div className={"twin-node-label " + (fall_detected ? "twin-node-level3_critical" : "twin-wearable")}>
+        <div
+          className={
+            "twin-node-label " + (fall_detected ? "twin-node-level3_critical" : "twin-wearable")
+          }
+        >
           <span className="twin-node-id">wearable</span>
           {fall_detected && <span className="twin-node-level">낙하</span>}
         </div>
@@ -714,8 +808,16 @@ function WearableMarker({ x, y, z, fall_detected }: { x: number; y: number; z: n
 // 검증할 수 없어서 실제로 미검증으로 남아 있었다.
 
 /** 한 구간을 원기둥으로 세운다. 사다리 구간은 z 만 변하므로 저절로 수직이 된다. */
-function RouteSegment({ a, b, color, radius = ROUTE_RADIUS }: {
-  a: THREE.Vector3; b: THREE.Vector3; color: string; radius?: number;
+function RouteSegment({
+  a,
+  b,
+  color,
+  radius = ROUTE_RADIUS,
+}: {
+  a: THREE.Vector3;
+  b: THREE.Vector3;
+  color: string;
+  radius?: number;
 }) {
   const placed = useMemo(() => segmentPlacement(a, b), [a, b]);
 
@@ -729,11 +831,17 @@ function RouteSegment({ a, b, color, radius = ROUTE_RADIUS }: {
 }
 
 /** 경로를 따라 흐르는 진행 방향 화살표. 어느 쪽으로 가라는 것인지가 색으로는 안 나온다. */
-function RouteArrows({ curve, color, count = 5 }: {
-  curve: THREE.CurvePath<THREE.Vector3>; color: string; count?: number;
+function RouteArrows({
+  curve,
+  color,
+  count = 5,
+}: {
+  curve: THREE.CurvePath<THREE.Vector3>;
+  color: string;
+  count?: number;
 }) {
   const refs = useRef<(Group | null)[]>([]);
-  useFrame(s => {
+  useFrame((s) => {
     // 실제 이동 속도가 아니라 방향을 읽히게 하는 속도다. 빠르면 시선을 뺏는다.
     const base = (s.clock.getElapsedTime() * 0.07) % 1;
     for (let i = 0; i < count; i++) {
@@ -747,7 +855,12 @@ function RouteArrows({ curve, color, count = 5 }: {
   return (
     <>
       {Array.from({ length: count }, (_, i) => (
-        <group key={i} ref={el => { refs.current[i] = el; }}>
+        <group
+          key={i}
+          ref={(el) => {
+            refs.current[i] = el;
+          }}
+        >
           <mesh>
             <coneGeometry args={[0.32, 0.8, 8]} />
             <meshStandardMaterial color={color} emissive={color} emissiveIntensity={0.9} />
@@ -809,7 +922,12 @@ function EscapeRoute({ route }: { route: RouteOverlay }) {
 
 // ── Scene content ──────────────────────────────────────────────
 function SceneContent({
-  nodes, wearable, heatmap, mode, interactive, escapeRoute,
+  nodes,
+  wearable,
+  heatmap,
+  mode,
+  interactive,
+  escapeRoute,
 }: {
   nodes: NonNullable<TwinSceneProps["nodes"]>;
   wearable: TwinSceneProps["wearable"];
@@ -835,23 +953,43 @@ function SceneContent({
       {/* Cutaway view: daylight spilling in across the sectioned side */}
       {cutaway && (
         <>
-          <directionalLight position={[TL*0.3, TH*2.2, -TH*2]} intensity={1.5} color="#e2e9ff" />
-          <directionalLight position={[TL*0.8, TH*1.2, TH*1.5]} intensity={0.45} color="#7d90c4" />
+          <directionalLight
+            position={[TL * 0.3, TH * 2.2, -TH * 2]}
+            intensity={1.5}
+            color="#e2e9ff"
+          />
+          <directionalLight
+            position={[TL * 0.8, TH * 1.2, TH * 1.5]}
+            intensity={0.45}
+            color="#7d90c4"
+          />
         </>
       )}
 
       {/* Working lights sitting low, as in the reference: the coating is lit
           from below so the topside blue falls off into darkness toward the
           tank top rather than being evenly washed. */}
-      {[8, 20, 32, 44, 56].map(x => (
-        <pointLight key={x} position={[x, BH * 1.35, 0]}
-          intensity={210} distance={28} decay={2} color="#cfd9f2" />
+      {[8, 20, 32, 44, 56].map((x) => (
+        <pointLight
+          key={x}
+          position={[x, BH * 1.35, 0]}
+          intensity={210}
+          distance={28}
+          decay={2}
+          color="#cfd9f2"
+        />
       ))}
 
       {/* Faint bounce off the coated walls, keeps corners from going pure black */}
-      {[12, 36].map(x => (
-        <pointLight key={x} position={[x, BH * 0.7, 0]}
-          intensity={55} distance={22} decay={2} color="#8f6153" />
+      {[12, 36].map((x) => (
+        <pointLight
+          key={x}
+          position={[x, BH * 0.7, 0]}
+          intensity={55}
+          distance={22}
+          decay={2}
+          color="#8f6153"
+        />
       ))}
 
       <CargoHold cutaway={cutaway} />
@@ -860,12 +998,16 @@ function SceneContent({
       {heatmap && heatmap.samples.length > 0 && (
         <Heatmap sensors={heatmap.samples} metric={heatmap.metric} />
       )}
-      {nodes.map(n => (
+      {nodes.map((n) => (
         <SensorMarker key={n.id} id={n.id} x={n.x} y={n.y} level={n.level} />
       ))}
       {wearable && (
-        <WearableMarker x={wearable.x} y={wearable.y} z={wearable.z}
-          fall_detected={!!wearable.fall_detected} />
+        <WearableMarker
+          x={wearable.x}
+          y={wearable.y}
+          z={wearable.z}
+          fall_detected={!!wearable.fall_detected}
+        />
       )}
       {escapeRoute && <EscapeRoute route={escapeRoute} />}
       {/* 고정 크롭에서는 조작을 막는다. 관제사가 실수로 시점을 돌려놓으면
@@ -926,7 +1068,7 @@ export function TwinScene({
     <div className="twin-canvas" style={{ position: "relative" }}>
       {showModeToggle && !modeProp && (
         <div className="twin-cam-toggle">
-          {(["overview", "inside"] as CamMode[]).map(m => (
+          {(["overview", "inside"] as CamMode[]).map((m) => (
             <button
               key={m}
               type="button"
@@ -946,9 +1088,14 @@ export function TwinScene({
         gl={{ antialias: true }}
       >
         <color attach="background" args={["#07090e"]} />
-        <SceneContent nodes={nodes} wearable={wearable}
-          heatmap={heatmap} mode={mode} interactive={interactive}
-          escapeRoute={escapeRoute} />
+        <SceneContent
+          nodes={nodes}
+          wearable={wearable}
+          heatmap={heatmap}
+          mode={mode}
+          interactive={interactive}
+          escapeRoute={escapeRoute}
+        />
       </Canvas>
     </div>
   );

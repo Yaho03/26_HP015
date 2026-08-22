@@ -18,8 +18,14 @@ const ROLE_LABEL: Record<AdminUser["role"], string> = {
 export function UserAdmin() {
   const [users, setUsers] = useState<AdminUser[]>([]);
   const [error, setError] = useState<string | null>(null);
-  const [tempPassword, setTempPassword] = useState<{ username: string; password: string } | null>(null);
-  const [form, setForm] = useState({ username: "", password: "", role: "viewer" as AdminUser["role"] });
+  const [tempPassword, setTempPassword] = useState<{ username: string; password: string } | null>(
+    null,
+  );
+  const [form, setForm] = useState({
+    username: "",
+    password: "",
+    role: "viewer" as AdminUser["role"],
+  });
 
   const reload = useCallback(async () => {
     try {
@@ -78,8 +84,8 @@ export function UserAdmin() {
     <section className="user-admin">
       <h3 className="user-admin-title">계정 관리</h3>
       <p className="user-admin-sub">
-        생성·역할 변경·비밀번호 초기화는 감사 로그에 기록됩니다. 임시 비밀번호는
-        초기화 직후 한 번만 표시됩니다.
+        생성·역할 변경·비밀번호 초기화는 감사 로그에 기록됩니다. 임시 비밀번호는 초기화 직후 한 번만
+        표시됩니다.
       </p>
 
       <form className="user-admin-form" onSubmit={onSubmit}>
@@ -109,13 +115,19 @@ export function UserAdmin() {
         <button type="submit">생성</button>
       </form>
 
-      {error && <p className="user-admin-error" role="alert">{error}</p>}
+      {error && (
+        <p className="user-admin-error" role="alert">
+          {error}
+        </p>
+      )}
 
       {tempPassword && (
         <div className="user-admin-temp" role="status">
           <strong>{tempPassword.username}</strong> 임시 비밀번호:{" "}
           <code>{tempPassword.password}</code>
-          <button type="button" onClick={() => setTempPassword(null)}>닫기</button>
+          <button type="button" onClick={() => setTempPassword(null)}>
+            닫기
+          </button>
         </div>
       )}
 

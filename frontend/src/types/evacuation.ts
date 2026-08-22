@@ -14,12 +14,7 @@ export interface NavLevel {
   height_m: number;
 }
 
-export type NavNodeKind =
-  | "floor"
-  | "scaffold_deck"
-  | "ladder_top"
-  | "ladder_bottom"
-  | "exit";
+export type NavNodeKind = "floor" | "scaffold_deck" | "ladder_top" | "ladder_bottom" | "exit";
 
 export interface NavNode {
   nav_node_id: string;

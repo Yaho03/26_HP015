@@ -24,8 +24,7 @@ export const useAuthStore = create<AuthStore>((set) => ({
   user: null,
   status: "booting",
 
-  setUser: (user) =>
-    set({ user, status: user ? "authenticated" : "unauthenticated" }),
+  setUser: (user) => set({ user, status: user ? "authenticated" : "unauthenticated" }),
 
   // 401/WS 1008 — 세션이 끊겼다. 사용자 정보를 지우고 로그인으로 되돌린다.
   expire: () => set({ user: null, status: "unauthenticated" }),

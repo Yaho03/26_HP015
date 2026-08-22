@@ -18,11 +18,7 @@ import type { WorkerExposureMessage } from "../types/ws";
 
 /** 목 데이터가 만들어내는 상태. 화면이 갈라지는 분기마다 하나씩 있다. */
 export type ExposureMockState =
-  | "normal"
-  | "warning"
-  | "exceeded"
-  | "uncalibrated"
-  | "limit_unverified";
+  "normal" | "warning" | "exceeded" | "uncalibrated" | "limit_unverified";
 
 export const EXPOSURE_MOCK_STATES: { key: ExposureMockState; label: string }[] = [
   { key: "normal", label: "정상" },
