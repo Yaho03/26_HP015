@@ -1,4 +1,5 @@
 import type { WSMessage } from "../types/ws";
+import { validateIncoming } from "./wsValidation";
 
 type MessageHandler = (msg: WSMessage) => void;
 type StatusHandler = (connected: boolean) => void;
@@ -60,17 +61,23 @@ export class WSClient {
   }
 
   private handleMessage(raw: string): void {
-    let parsed: WSMessage;
+    let parsed: unknown;
     try {
-      parsed = JSON.parse(raw) as WSMessage;
+      parsed = JSON.parse(raw);
     } catch {
       return;
     }
+    // 안전 메시지(worker_exposure/evacuation_route)는 런타임 검증을 통과해야
+    // 핸들러로 간다 (#208). 거부는 wsValidation 이 warn + 카운터로 남긴다.
+    const validated = validateIncoming(parsed);
+    if (validated === null) return;
     for (const h of this.messageHandlers) {
       try {
-        h(parsed);
-      } catch {
-        // handler 에러가 다른 handler 실행을 막지 않도록
+        h(validated);
+      } catch (err) {
+        // 핸들러 하나가 던져도 다른 핸들러는 돌아야 한다. 단 삼키지는 않는다 —
+        // 무음 실패가 되면 화면이 조용히 멈추고 원인을 알 수 없다 (#208).
+        console.error("[ws] message handler failed:", err);
       }
     }
   }

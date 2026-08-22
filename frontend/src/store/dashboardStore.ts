@@ -88,6 +88,9 @@ interface DashboardStore {
   setThresholds: (rows: ServerThreshold[]) => void;
   setWorkerExposure: (msg: WorkerExposureMessage) => void;
   setEvacuationRoute: (msg: EvacuationRouteMessage) => void;
+  /** 안전 슬라이스 정리 (#213) — 해제/재연결 시 stale 데이터가 "현재"처럼
+   * 남는 것을 막는다. node_id 생략 시 전체 초기화. */
+  clearSafetySlices: (node_id?: string) => void;
   hydrateSnapshot: (
     nodes: Record<string, Partial<SensorNodeState>>,
     alerts: Record<string, AlertState>,
@@ -268,22 +271,40 @@ export const useDashboardStore = create<DashboardStore>((set) => ({
       evacuation_route: { ...state.evacuation_route, [msg.node_id]: msg },
     })),
 
+  // 재배정·연결 끊김 뒤에도 노출량/경로가 "현재"처럼 남으면 작업자가 이미
+  // 나갔는데 화면이 위험하다고 오판하게 한다 (#213). 수신만으로 무한 증가하는
+  // Record<NodeId, ...> 의 유일한 감소 경로다.
+  clearSafetySlices: (node_id) =>
+    set((state) => {
+      if (node_id === undefined) {
+        return { worker_exposure: {}, evacuation_route: {} };
+      }
+      const worker_exposure = { ...state.worker_exposure };
+      const evacuation_route = { ...state.evacuation_route };
+      delete worker_exposure[node_id];
+      delete evacuation_route[node_id];
+      return { worker_exposure, evacuation_route };
+    }),
+
   // WS 연결 직후 snapshot 메시지로 현재 상태를 한 번에 채운다 (#106) — 이게
   // 없으면 새로고침할 때마다 경보가 다시 발생하기 전까지 화면이 비어 보인다.
   hydrateSnapshot: (nodes, alerts) =>
-    set((state) => {
-      const sensor_nodes = { ...state.sensor_nodes };
+    set(() => {
+      // snapshot 은 서버가 아는 "전체 현재 상태"다. 기존 클라이언트 상태와
+      // 병합하면 서버에서 이미 사라진 노드/경보가 화면에 남는다 (#213) —
+      // 재연결은 곧 재동기화다.
+      const sensor_nodes: Record<NodeId, SensorNodeState> = {};
       for (const [node_id, patch] of Object.entries(nodes)) {
-        const existing = sensor_nodes[node_id] ?? {
+        sensor_nodes[node_id] = {
           node_id,
           readings: {},
           battery_pct: null,
           wifi_rssi_dbm: null,
           connection_status: "online" as const,
           last_seen_at: null,
+          ...patch,
         };
-        sensor_nodes[node_id] = { ...existing, ...patch };
       }
-      return { sensor_nodes, active_alerts: { ...state.active_alerts, ...alerts } };
+      return { sensor_nodes, active_alerts: alerts };
     }),
 }));
