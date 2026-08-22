@@ -4,7 +4,12 @@ import { TwinScene } from "../components/TwinScene";
 import { useEvacuationTopology } from "../hooks/useEvacuationTopology";
 import { fetchRoute } from "../services/evacuationApi";
 import { useDashboardStore } from "../store/dashboardStore";
-import { MOCK_ROUTE_LABELS, MOCK_ROUTES, MOCK_TOPOLOGY, type MockRouteKey } from "../mocks/evacuation";
+import {
+  MOCK_ROUTE_LABELS,
+  MOCK_ROUTES,
+  MOCK_TOPOLOGY,
+  type MockRouteKey,
+} from "../mocks/evacuation";
 import type { MetricKey } from "../types";
 import type { RouteOverlay } from "../types/evacuation";
 import { nodeAlertLevel } from "../utils/alerts";
@@ -71,9 +76,16 @@ export function TwinPanel({
       .filter((mode): mode is "live" | "simulation" => Boolean(mode)),
   );
   if (wearable?.source_mode) sourceModes.add(wearable.source_mode);
-  const sourceLabel = sourceModes.size === 1
-    ? sourceModes.has("simulation") ? "SIM" : "LIVE"
-    : sourceModes.size > 1 ? "MIXED" : connectionStatus.websocket_connected ? "LIVE" : "대기";
+  const sourceLabel =
+    sourceModes.size === 1
+      ? sourceModes.has("simulation")
+        ? "SIM"
+        : "LIVE"
+      : sourceModes.size > 1
+        ? "MIXED"
+        : connectionStatus.websocket_connected
+          ? "LIVE"
+          : "대기";
   const sourceCoordinate = wearable?.source_coordinate_system ?? "demo-local";
   const isMapped = shouldMapToShip(wearable?.source_coordinate_system);
 
@@ -92,55 +104,54 @@ export function TwinPanel({
       .filter((s) => s.value > 0);
   }, [nodes]);
 
-  const heatmapData = heatmapSamples.length > 0
-    ? { samples: heatmapSamples, metric: HEATMAP_METRIC }
-    : null;
+  const heatmapData =
+    heatmapSamples.length > 0 ? { samples: heatmapSamples, metric: HEATMAP_METRIC } : null;
 
   return (
-      <section className={"panel twin-panel" + (compact ? " twin-panel--compact" : "")}>
-        {!compact && (
-          <div className="twin-heading">
-            <div>
-              <p className="twin-kicker">OPERATE / SHIP VISUAL MODEL</p>
-              <h2 className="panel-title">
-                3D Digital Twin <span className="twin-count">{sceneNodes.length} sensors</span>
-              </h2>
-            </div>
-            <div className="twin-state-line" aria-label="트윈 데이터 상태">
-              <span className="twin-state-label">DATA</span>
-              <span className="twin-state-badge twin-state-badge--data">{sourceLabel}</span>
-              {wearableMarker && <span className="twin-state-badge">WEARABLE TRACKING</span>}
-              {heatmapData && <span className="twin-state-badge">IDW ACTIVE</span>}
-            </div>
+    <section className={"panel twin-panel" + (compact ? " twin-panel--compact" : "")}>
+      {!compact && (
+        <div className="twin-heading">
+          <div>
+            <p className="twin-kicker">OPERATE / SHIP VISUAL MODEL</p>
+            <h2 className="panel-title">
+              3D Digital Twin <span className="twin-count">{sceneNodes.length} sensors</span>
+            </h2>
           </div>
-        )}
-        <div className="twin-coordinate-strip" aria-label="트윈 좌표 및 비율 매핑 상태">
-          <span className="twin-coordinate-item">
-            <span className="twin-coordinate-label">SOURCE</span>
-            <strong>{sourceCoordinate}</strong>
-          </span>
-          <span className="twin-coordinate-arrow" aria-hidden="true">→</span>
-          <span className="twin-coordinate-item twin-coordinate-item--target">
-            <span className="twin-coordinate-label">DISPLAY</span>
-            <strong>ship-visual</strong>
-          </span>
-          <span className="twin-mapping-badge">
-            {isMapped ? preset.label : "1:1 MODEL"}
-          </span>
+          <div className="twin-state-line" aria-label="트윈 데이터 상태">
+            <span className="twin-state-label">DATA</span>
+            <span className="twin-state-badge twin-state-badge--data">{sourceLabel}</span>
+            {wearableMarker && <span className="twin-state-badge">WEARABLE TRACKING</span>}
+            {heatmapData && <span className="twin-state-badge">IDW ACTIVE</span>}
+          </div>
         </div>
-        <TwinScene
-          nodes={sceneNodes}
-          wearable={wearableMarker}
-          heatmap={heatmapData}
-          escapeRoute={escapeRoute}
-        />
-        {!compact && (
-          <p className="twin-help">
-            마우스 드래그로 회전, 휠로 확대/축소. 센서 노드 색상=위험도, 청록 구체=웨어러블,
-            바닥 점=CO₂ 농도 IDW 보간. 표시 좌표는 실측값을 비율 매핑한 추정 위치다.
-          </p>
-        )}
-      </section>
+      )}
+      <div className="twin-coordinate-strip" aria-label="트윈 좌표 및 비율 매핑 상태">
+        <span className="twin-coordinate-item">
+          <span className="twin-coordinate-label">SOURCE</span>
+          <strong>{sourceCoordinate}</strong>
+        </span>
+        <span className="twin-coordinate-arrow" aria-hidden="true">
+          →
+        </span>
+        <span className="twin-coordinate-item twin-coordinate-item--target">
+          <span className="twin-coordinate-label">DISPLAY</span>
+          <strong>ship-visual</strong>
+        </span>
+        <span className="twin-mapping-badge">{isMapped ? preset.label : "1:1 MODEL"}</span>
+      </div>
+      <TwinScene
+        nodes={sceneNodes}
+        wearable={wearableMarker}
+        heatmap={heatmapData}
+        escapeRoute={escapeRoute}
+      />
+      {!compact && (
+        <p className="twin-help">
+          마우스 드래그로 회전, 휠로 확대/축소. 센서 노드 색상=위험도, 청록 구체=웨어러블, 바닥
+          점=CO₂ 농도 IDW 보간. 표시 좌표는 실측값을 비율 매핑한 추정 위치다.
+        </p>
+      )}
+    </section>
   );
 }
 

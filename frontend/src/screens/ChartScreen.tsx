@@ -41,10 +41,7 @@ function rangeLabel(rangeMin: number): string {
 }
 
 function downloadCsv(nodeId: string, metric: MetricKey, rows: SensorDataPoint[]): void {
-  const csv = [
-    "time,value",
-    ...rows.map((row) => `${row.time},${row.value}`),
-  ].join("\n");
+  const csv = ["time,value", ...rows.map((row) => `${row.time},${row.value}`)].join("\n");
   const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
   const url = URL.createObjectURL(blob);
   const link = document.createElement("a");
@@ -102,7 +99,10 @@ export function ChartScreen() {
         </div>
         <div className="chart-heading-meta" aria-label="차트 조회 상태">
           <span>{nodeId}</span>
-          <span>{metricLabel}{unit ? ` · ${unit}` : ""}</span>
+          <span>
+            {metricLabel}
+            {unit ? ` · ${unit}` : ""}
+          </span>
           <span>{rangeLabel(rangeMin)}</span>
         </div>
       </div>
@@ -112,7 +112,9 @@ export function ChartScreen() {
           <select value={nodeId} onChange={(e) => setNodeId(e.target.value)}>
             {nodeIds.length === 0 ? <option value={defaultNode}>{defaultNode}</option> : null}
             {nodeIds.map((id) => (
-              <option key={id} value={id}>{id}</option>
+              <option key={id} value={id}>
+                {id}
+              </option>
             ))}
           </select>
         </label>
@@ -120,27 +122,24 @@ export function ChartScreen() {
           <span className="control-label">METRIC</span>
           <select value={metric} onChange={(e) => setMetric(e.target.value as MetricKey)}>
             {METRICS.map((m) => (
-              <option key={m.key} value={m.key}>{m.label}</option>
+              <option key={m.key} value={m.key}>
+                {m.label}
+              </option>
             ))}
           </select>
         </label>
         <label className="control">
           <span className="control-label">RANGE</span>
-          <select
-            value={String(rangeMin)}
-            onChange={(e) => setRangeMin(Number(e.target.value))}
-          >
+          <select value={String(rangeMin)} onChange={(e) => setRangeMin(Number(e.target.value))}>
             {RANGES_MIN.map((m) => (
-              <option key={m} value={m}>{rangeLabel(m)}</option>
+              <option key={m} value={m}>
+                {rangeLabel(m)}
+              </option>
             ))}
           </select>
         </label>
         <label className="control control-checkbox">
-          <input
-            type="checkbox"
-            checked={use1min}
-            onChange={(e) => setUse1min(e.target.checked)}
-          />
+          <input type="checkbox" checked={use1min} onChange={(e) => setUse1min(e.target.checked)} />
           <span>1분 평균</span>
         </label>
         <div className="chart-actions">
@@ -168,28 +167,47 @@ export function ChartScreen() {
           <div>
             <p className="chart-kicker">MEASUREMENT TRACE</p>
             <h2 className="panel-title">
-              {metricLabel} · {nodeId} · 최근 {rangeLabel(rangeMin)}{use1min ? " · 1분 평균" : ""}
+              {metricLabel} · {nodeId} · 최근 {rangeLabel(rangeMin)}
+              {use1min ? " · 1분 평균" : ""}
             </h2>
           </div>
           <div className="chart-readout" aria-label="차트 데이터 요약">
-            <span><small>POINTS</small><strong>{data.length}</strong></span>
-            <span><small>LATEST</small><strong>{latest !== null ? `${latest.toFixed(1)}${unit ? ` ${unit}` : ""}` : "—"}</strong></span>
-            {selectedNode?.source_mode === "simulation" && <span className="chart-source-badge">SIM</span>}
+            <span>
+              <small>POINTS</small>
+              <strong>{data.length}</strong>
+            </span>
+            <span>
+              <small>LATEST</small>
+              <strong>
+                {latest !== null ? `${latest.toFixed(1)}${unit ? ` ${unit}` : ""}` : "—"}
+              </strong>
+            </span>
+            {selectedNode?.source_mode === "simulation" && (
+              <span className="chart-source-badge">SIM</span>
+            )}
           </div>
         </div>
         <div className="chart-threshold-strip" aria-label="임계값 기준선">
           <span className="chart-threshold-title">THRESHOLDS</span>
-          {thresholds.length > 0 ? thresholds.map((threshold) => (
-            <span key={threshold.level} className={"chart-threshold chart-threshold--" + threshold.level}>
-              {levelLabel(threshold.level)} ≥ {threshold.value}{unit ? ` ${unit}` : ""}
-            </span>
-          )) : <span className="chart-threshold-empty">기준선 없음</span>}
+          {thresholds.length > 0 ? (
+            thresholds.map((threshold) => (
+              <span
+                key={threshold.level}
+                className={"chart-threshold chart-threshold--" + threshold.level}
+              >
+                {levelLabel(threshold.level)} ≥ {threshold.value}
+                {unit ? ` ${unit}` : ""}
+              </span>
+            ))
+          ) : (
+            <span className="chart-threshold-empty">기준선 없음</span>
+          )}
         </div>
         {loading && <p className="panel-empty">불러오는 중…</p>}
-        {error && (
-          <p className="panel-empty panel-error">조회 실패: {error}</p>
+        {error && <p className="panel-empty panel-error">조회 실패: {error}</p>}
+        {!loading && !error && (
+          <MetricChart data={data} metric={metric} sourceMode={selectedNode?.source_mode} />
         )}
-        {!loading && !error && <MetricChart data={data} metric={metric} sourceMode={selectedNode?.source_mode} />}
       </section>
     </div>
   );

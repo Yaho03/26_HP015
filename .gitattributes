@@ -1,0 +1,18 @@
+# 모든 텍스트 파일의 줄 끝을 LF 로 고정한다 (이슈 #202).
+#
+# Windows 의 core.autocrlf=true 체크아웃이 CRLF 로 바꿔 Prettier(endOfLine=lf
+# 기본값)와 충돌해 format:check 가 어떤 환경에서도 통과하지 못했던 문제의
+# 두 번째 원인. 저장소가 정본이고 줄 끝을 강제한다.
+* text=auto eol=lf
+
+# Windows 전용 스크립트는 예외 (없지만 추가 시 아래에)
+*.bat text eol=crlf
+*.cmd text eol=crlf
+
+# 바이너리는 정규화에서 제외
+*.png binary
+*.jpg binary
+*.glb binary
+*.gltf binary
+*.woff binary
+*.woff2 binary

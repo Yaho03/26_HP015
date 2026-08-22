@@ -69,9 +69,7 @@ export function EvacuationTopologyPanel() {
       </div>
 
       <div className="evac__badges">
-        <span className="evac__badge evac__badge--provisional">
-          통행 구조 가정값 (실측 미반영)
-        </span>
+        <span className="evac__badge evac__badge--provisional">통행 구조 가정값 (실측 미반영)</span>
         <span className="evac__badge">{topology.coordinate_system}</span>
       </div>
 
@@ -82,8 +80,7 @@ export function EvacuationTopologyPanel() {
         <div className="evac__banner" role="alert">
           <strong>사용 가능한 출구가 {usableCount}개입니다</strong>
           <span>
-            마지막 출구까지 닫으면 모든 작업자에게 <code>no_safe_route</code> 경보가
-            발령됩니다.
+            마지막 출구까지 닫으면 모든 작업자에게 <code>no_safe_route</code> 경보가 발령됩니다.
           </span>
         </div>
       )}
@@ -109,11 +106,7 @@ export function EvacuationTopologyPanel() {
                 {exit.exit_id} · 우선순위 {exit.priority}
               </small>
             </span>
-            <span
-              className={
-                "evac__badge" + (exit.is_usable ? "" : " evac__badge--warn")
-              }
-            >
+            <span className={"evac__badge" + (exit.is_usable ? "" : " evac__badge--warn")}>
               {exit.is_usable ? "사용 가능" : "폐쇄"}
             </span>
             <button

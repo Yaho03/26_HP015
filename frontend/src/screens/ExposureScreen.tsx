@@ -155,7 +155,8 @@ function DoseRow({ label, metric }: { label: string; metric: ExposureDoseMetric 
         <td colSpan={5}>
           {metric?.reason ? (
             <>
-              <strong>{UNAVAILABLE_LABEL[metric.reason]}</strong> — {UNAVAILABLE_HINT[metric.reason]}
+              <strong>{UNAVAILABLE_LABEL[metric.reason]}</strong> —{" "}
+              {UNAVAILABLE_HINT[metric.reason]}
             </>
           ) : (
             "산출 불가"
@@ -247,11 +248,7 @@ function MockControls() {
   return (
     <div className="exposure__mock">
       <label className="exposure__mock-toggle">
-        <input
-          type="checkbox"
-          checked={enabled}
-          onChange={(e) => setEnabled(e.target.checked)}
-        />
+        <input type="checkbox" checked={enabled} onChange={(e) => setEnabled(e.target.checked)} />
         <span>목 데이터</span>
       </label>
       <div className="exposure__mock-states" role="group" aria-label="목 데이터 상태">

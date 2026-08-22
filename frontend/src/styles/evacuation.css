@@ -55,13 +55,28 @@
   text-transform: uppercase;
 }
 
-.evac__status--safe { color: var(--evac-safe); background: var(--normal-wash); }
-.evac__status--degraded { color: var(--evac-degraded); background: var(--l2-wash); }
-.evac__status--no_safe_route { color: var(--evac-blocked); background: var(--l3-wash); }
-.evac__status--unavailable { color: var(--evac-unavailable); background: var(--unknown-wash); }
+.evac__status--safe {
+  color: var(--evac-safe);
+  background: var(--normal-wash);
+}
+.evac__status--degraded {
+  color: var(--evac-degraded);
+  background: var(--l2-wash);
+}
+.evac__status--no_safe_route {
+  color: var(--evac-blocked);
+  background: var(--l3-wash);
+}
+.evac__status--unavailable {
+  color: var(--evac-unavailable);
+  background: var(--unknown-wash);
+}
 
 /* 색만으로 상태를 전달하지 않는다 — 마크가 형태로도 구분된다. */
-.evac__status-mark { font-size: 12px; line-height: 1; }
+.evac__status-mark {
+  font-size: 12px;
+  line-height: 1;
+}
 
 /* 배너 ------------------------------------------------------------------ */
 
@@ -81,8 +96,12 @@
   background: var(--unknown-wash);
 }
 
-.evac__banner strong { font-size: 13px; }
-.evac__banner span { color: var(--ink-2); }
+.evac__banner strong {
+  font-size: 13px;
+}
+.evac__banner span {
+  color: var(--ink-2);
+}
 
 /* 사실 나열 ------------------------------------------------------------- */
 
@@ -93,7 +112,11 @@
   margin: 0;
 }
 
-.evac__fact { display: flex; flex-direction: column; gap: 2px; }
+.evac__fact {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
 
 .evac__fact dt {
   font-size: 9px;
@@ -118,11 +141,17 @@
 }
 
 /* 값 없음은 0 이 아니다. 회색 대시로 비워 둔다. */
-.evac__fact dd.is-empty { color: var(--ink-3); }
+.evac__fact dd.is-empty {
+  color: var(--ink-3);
+}
 
 /* 배지 줄 --------------------------------------------------------------- */
 
-.evac__badges { display: flex; flex-wrap: wrap; gap: var(--s2); }
+.evac__badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s2);
+}
 
 .evac__badge {
   padding: 2px 8px;
@@ -155,7 +184,14 @@
 
 /* 차단 출구 목록 -------------------------------------------------------- */
 
-.evac__blocked { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: var(--s1); }
+.evac__blocked {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: var(--s1);
+}
 
 .evac__blocked li {
   display: flex;
@@ -172,11 +208,18 @@
   font-weight: 700;
 }
 
-.evac__blocked-reason { color: var(--ink-3); font-size: 11px; }
+.evac__blocked-reason {
+  color: var(--ink-3);
+  font-size: 11px;
+}
 
 /* 2D 평면도 ------------------------------------------------------------- */
 
-.evac-plan { display: flex; flex-direction: column; gap: var(--s2); }
+.evac-plan {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s2);
+}
 
 .evac-plan__svg {
   width: 100%;
@@ -185,14 +228,29 @@
   border: 1px solid var(--rule);
 }
 
-.evac-plan__hull { fill: none; stroke: var(--rule-strong); stroke-width: 0.28; }
+.evac-plan__hull {
+  fill: none;
+  stroke: var(--rule-strong);
+  stroke-width: 0.28;
+}
 
 /* nav graph 는 배경이다. 경로보다 눈에 띄면 안 된다. */
-.evac-plan__edge { stroke: var(--rule-strong); stroke-width: 0.22; fill: none; }
-.evac-plan__edge--ladder { stroke-dasharray: 0.9 0.7; }
-.evac-plan__edge--unusable { stroke: var(--ink-3); stroke-dasharray: 0.4 0.9; }
+.evac-plan__edge {
+  stroke: var(--rule-strong);
+  stroke-width: 0.22;
+  fill: none;
+}
+.evac-plan__edge--ladder {
+  stroke-dasharray: 0.9 0.7;
+}
+.evac-plan__edge--unusable {
+  stroke: var(--ink-3);
+  stroke-dasharray: 0.4 0.9;
+}
 
-.evac-plan__node { fill: var(--ink-3); }
+.evac-plan__node {
+  fill: var(--ink-3);
+}
 .evac-plan__node-label {
   fill: var(--ink-3);
   font-size: 1.15px;
@@ -200,18 +258,47 @@
   letter-spacing: 0.04px;
 }
 
-.evac-plan__route { fill: none; stroke-width: 0.85; stroke-linejoin: round; stroke-linecap: round; }
-.evac-plan__route--safe { stroke: var(--evac-safe); }
-.evac-plan__route--degraded { stroke: var(--evac-degraded); }
-.evac-plan__route--no_safe_route { stroke: var(--evac-blocked); stroke-dasharray: 2 1.4; }
+.evac-plan__route {
+  fill: none;
+  stroke-width: 0.85;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+}
+.evac-plan__route--safe {
+  stroke: var(--evac-safe);
+}
+.evac-plan__route--degraded {
+  stroke: var(--evac-degraded);
+}
+.evac-plan__route--no_safe_route {
+  stroke: var(--evac-blocked);
+  stroke-dasharray: 2 1.4;
+}
 
-.evac-plan__worker { fill: var(--info, #73cad6); stroke: var(--ground); stroke-width: 0.2; }
+.evac-plan__worker {
+  fill: var(--info, #73cad6);
+  stroke: var(--ground);
+  stroke-width: 0.2;
+}
 
-.evac-plan__exit { fill: none; stroke-width: 0.35; }
-.evac-plan__exit--open { stroke: var(--evac-safe); }
-.evac-plan__exit--target { stroke: var(--evac-safe); stroke-width: 0.55; }
-.evac-plan__exit--blocked { stroke: var(--evac-blocked); }
-.evac-plan__exit-cross { stroke: var(--evac-blocked); stroke-width: 0.4; }
+.evac-plan__exit {
+  fill: none;
+  stroke-width: 0.35;
+}
+.evac-plan__exit--open {
+  stroke: var(--evac-safe);
+}
+.evac-plan__exit--target {
+  stroke: var(--evac-safe);
+  stroke-width: 0.55;
+}
+.evac-plan__exit--blocked {
+  stroke: var(--evac-blocked);
+}
+.evac-plan__exit-cross {
+  stroke: var(--evac-blocked);
+  stroke-width: 0.4;
+}
 .evac-plan__exit-label {
   font-size: 1.3px;
   font-family: var(--font-mono);
@@ -227,8 +314,17 @@
   color: var(--ink-3);
 }
 
-.evac-plan__legend span { display: inline-flex; align-items: center; gap: 5px; }
-.evac-plan__legend i { width: 14px; height: 0; border-top: 2px solid currentColor; display: inline-block; }
+.evac-plan__legend span {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+.evac-plan__legend i {
+  width: 14px;
+  height: 0;
+  border-top: 2px solid currentColor;
+  display: inline-block;
+}
 
 /* 면책 ------------------------------------------------------------------ */
 
@@ -243,7 +339,12 @@
 
 /* 목 데이터 토글 (개발/리허설 전용) ------------------------------------- */
 
-.evac__mock { display: flex; align-items: center; gap: var(--s2); flex-wrap: wrap; }
+.evac__mock {
+  display: flex;
+  align-items: center;
+  gap: var(--s2);
+  flex-wrap: wrap;
+}
 
 .evac__mock-label {
   font-size: 9px;
@@ -271,7 +372,11 @@
 
 /* 설정 — 통행 구조 탭 --------------------------------------------------- */
 
-.evac__reason { display: flex; flex-direction: column; gap: var(--s1); }
+.evac__reason {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s1);
+}
 
 .evac__reason span {
   font-size: 10px;
@@ -289,7 +394,14 @@
   font-size: 13px;
 }
 
-.evac__exits { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: var(--s2); }
+.evac__exits {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: var(--s2);
+}
 
 .evac__exit-row {
   display: flex;
@@ -300,8 +412,24 @@
   background: var(--raise);
 }
 
-.evac__exit-name { display: flex; flex-direction: column; gap: 2px; flex: 1; min-width: 0; }
-.evac__exit-name strong { font-size: 13px; color: var(--ink-1); }
-.evac__exit-name small { font-family: var(--font-mono); font-size: 10px; color: var(--ink-3); }
+.evac__exit-name {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex: 1;
+  min-width: 0;
+}
+.evac__exit-name strong {
+  font-size: 13px;
+  color: var(--ink-1);
+}
+.evac__exit-name small {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--ink-3);
+}
 
-.evac__mock-btn:disabled { opacity: 0.55; cursor: progress; }
+.evac__mock-btn:disabled {
+  opacity: 0.55;
+  cursor: progress;
+}

@@ -1,17 +1,8 @@
 import { useEffect, useMemo, useRef } from "react";
 import type { BufferAttribute, BufferGeometry } from "three";
 import type { MetricKey } from "../types";
-import {
-  classifyValue,
-  idw,
-  LEVEL_RGB,
-  type SensorSample,
-} from "../utils/idw";
-import {
-  SHIP_FLOOR_HALF_WIDTH_M,
-  SHIP_SPACE,
-  toThreeGroundPosition,
-} from "../utils/coordinates";
+import { classifyValue, idw, LEVEL_RGB, type SensorSample } from "../utils/idw";
+import { SHIP_FLOOR_HALF_WIDTH_M, SHIP_SPACE, toThreeGroundPosition } from "../utils/coordinates";
 
 interface HeatmapProps {
   sensors: SensorSample[];
@@ -89,15 +80,8 @@ export function Heatmap({
   return (
     <points>
       <bufferGeometry ref={geomRef}>
-        <bufferAttribute
-          attach="attributes-position"
-          args={[positions, 3]}
-        />
-        <bufferAttribute
-          ref={colorAttrRef}
-          attach="attributes-color"
-          args={[colors, 3]}
-        />
+        <bufferAttribute attach="attributes-position" args={[positions, 3]} />
+        <bufferAttribute ref={colorAttrRef} attach="attributes-color" args={[colors, 3]} />
       </bufferGeometry>
       <pointsMaterial size={0.4} vertexColors sizeAttenuation transparent opacity={0.85} />
     </points>

@@ -78,7 +78,9 @@ interface DashboardStore {
     y: number,
     z: number,
     timestamp: string,
-    metadata?: Partial<Pick<WearableState, "position_raw" | "source_coordinate_system" | "source_mode">>,
+    metadata?: Partial<
+      Pick<WearableState, "position_raw" | "source_coordinate_system" | "source_mode">
+    >,
   ) => void;
   addAlert: (alert: AlertState) => void;
   resolveAlert: (alert_key: AlertKey) => void;
@@ -146,9 +148,10 @@ export const useDashboardStore = create<DashboardStore>((set) => ({
           ...state.sensor_trend,
           [node_id]: {
             ...nodeBuffers,
-            [metric]: next.length > SENSOR_TREND_MAX_POINTS
-              ? next.slice(next.length - SENSOR_TREND_MAX_POINTS)
-              : next,
+            [metric]:
+              next.length > SENSOR_TREND_MAX_POINTS
+                ? next.slice(next.length - SENSOR_TREND_MAX_POINTS)
+                : next,
           },
         },
       };

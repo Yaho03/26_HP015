@@ -55,19 +55,14 @@ describe("fetchWithAuth 401 인터셉터 (#138)", () => {
   });
 
   it("401 응답에 authStore 를 만료시킨다", async () => {
-    vi.stubGlobal(
-      "fetch",
-      vi.fn().mockResolvedValue(new Response(null, { status: 401 })),
-    );
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(null, { status: 401 })));
     await expect(fetchApi("/api/thresholds")).rejects.toBeInstanceOf(UnauthorizedError);
     expect(useAuthStore.getState().status).toBe("unauthenticated");
     vi.unstubAllGlobals();
   });
 
   it("모든 요청에 credentials: include 가 붙는다", async () => {
-    const fetchMock = vi.fn().mockResolvedValue(
-      new Response(JSON.stringify([]), { status: 200 }),
-    );
+    const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify([]), { status: 200 }));
     vi.stubGlobal("fetch", fetchMock);
     await fetchApi("/api/thresholds");
     const init = fetchMock.mock.calls[0][1] as RequestInit;
@@ -77,9 +72,7 @@ describe("fetchWithAuth 401 인터셉터 (#138)", () => {
 
   it("csrf: true 요청은 X-CSRF-Token 헤더를 쿠키에서 읽어 붙인다", async () => {
     vi.stubGlobal("document", { cookie: "hp015_csrf=test-csrf-token" });
-    const fetchMock = vi.fn().mockResolvedValue(
-      new Response("null", { status: 200 }),
-    );
+    const fetchMock = vi.fn().mockResolvedValue(new Response("null", { status: 200 }));
     vi.stubGlobal("fetch", fetchMock);
     await fetchApi("/api/auth/logout", { method: "POST", csrf: true });
     const init = fetchMock.mock.calls[0][1] as RequestInit;
@@ -98,9 +91,9 @@ describe("fetchWithAuth 401 인터셉터 (#138)", () => {
         }),
       ),
     );
-    await expect(
-      fetchApi("/api/auth/login", { method: "POST", body: "{}" }),
-    ).rejects.toThrow("Invalid username or password");
+    await expect(fetchApi("/api/auth/login", { method: "POST", body: "{}" })).rejects.toThrow(
+      "Invalid username or password",
+    );
     // expire() 는 상태를 unauthenticated 로 하는데 이미 그 상태다 —
     // booting 으로 시작해 unauthenticated 유지인지 확인하려면 상태 변화가 없어야 한다.
     expect(useAuthStore.getState().status).toBe("unauthenticated");

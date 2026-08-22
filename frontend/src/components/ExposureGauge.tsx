@@ -92,75 +92,75 @@ export const ExposureGauge = memo(function ExposureGauge({
       {/* 링과 캡션을 한 상자에 묶는다. 캡션을 음수 마진으로 끌어올리면 폰트
           높이가 바뀔 때마다 중심이 어긋난다 — 여기서는 inset:0 으로 정중앙이다. */}
       <div className="egauge__ring">
-      <svg className="egauge__svg" viewBox="0 0 100 100" role="img" aria-label={ariaLabel}>
-        <defs>
-          <pattern
-            id={hatchId}
-            width="6"
-            height="6"
-            patternUnits="userSpaceOnUse"
-            patternTransform="rotate(45)"
-          >
-            <rect width="3" height="6" fill="currentColor" opacity="0.55" />
-          </pattern>
-        </defs>
+        <svg className="egauge__svg" viewBox="0 0 100 100" role="img" aria-label={ariaLabel}>
+          <defs>
+            <pattern
+              id={hatchId}
+              width="6"
+              height="6"
+              patternUnits="userSpaceOnUse"
+              patternTransform="rotate(45)"
+            >
+              <rect width="3" height="6" fill="currentColor" opacity="0.55" />
+            </pattern>
+          </defs>
 
-        <path className="egauge__track" d={arc(R, START, START + SWEEP)} />
+          <path className="egauge__track" d={arc(R, START, START + SWEEP)} />
 
-        {/* 산출 불가는 빈 트랙이 아니라 빗금이다. 빈 트랙은 "여유 있음"으로 읽힌다. */}
-        {unavailable && (
-          <path
-            className="egauge__na-arc"
-            d={arc(R, START, START + SWEEP)}
-            stroke={`url(#${hatchId})`}
-          />
-        )}
-
-        {!unavailable && fraction !== null && fraction > 0 && (
-          <>
-            <path className="egauge__value" d={arc(R, START, mainTo)} />
-            {suspect && (
-              <path
-                className="egauge__suspect"
-                d={arc(R, START, mainTo)}
-                stroke={`url(#${hatchId})`}
-              />
-            )}
-          </>
-        )}
-
-        {exceeded && <path className="egauge__over" d={arc(R_OVER, START, overTo)} />}
-
-        {TICKS.map((t) => {
-          const deg = START + SWEEP * t;
-          const [x1, y1] = polar(R - 7, deg);
-          const [x2, y2] = polar(R + 5, deg);
-          return (
-            <line
-              key={t}
-              className={"egauge__tick" + (t === 1 ? " egauge__tick--limit" : "")}
-              x1={x1}
-              y1={y1}
-              x2={x2}
-              y2={y2}
+          {/* 산출 불가는 빈 트랙이 아니라 빗금이다. 빈 트랙은 "여유 있음"으로 읽힌다. */}
+          {unavailable && (
+            <path
+              className="egauge__na-arc"
+              d={arc(R, START, START + SWEEP)}
+              stroke={`url(#${hatchId})`}
             />
-          );
-        })}
-      </svg>
+          )}
 
-      <figcaption className="egauge__cap">
-        <span className="egauge__label">{label}</span>
-        {unavailable ? (
-          <strong
-            className="egauge__na-text"
-            title={reason ? UNAVAILABLE_HINT[reason] : undefined}
-          >
-            {reason ? UNAVAILABLE_LABEL[reason] : "산출 불가"}
-          </strong>
-        ) : (
-          <strong className="egauge__pct">{formatFraction(fraction ?? 0)}</strong>
-        )}
-      </figcaption>
+          {!unavailable && fraction !== null && fraction > 0 && (
+            <>
+              <path className="egauge__value" d={arc(R, START, mainTo)} />
+              {suspect && (
+                <path
+                  className="egauge__suspect"
+                  d={arc(R, START, mainTo)}
+                  stroke={`url(#${hatchId})`}
+                />
+              )}
+            </>
+          )}
+
+          {exceeded && <path className="egauge__over" d={arc(R_OVER, START, overTo)} />}
+
+          {TICKS.map((t) => {
+            const deg = START + SWEEP * t;
+            const [x1, y1] = polar(R - 7, deg);
+            const [x2, y2] = polar(R + 5, deg);
+            return (
+              <line
+                key={t}
+                className={"egauge__tick" + (t === 1 ? " egauge__tick--limit" : "")}
+                x1={x1}
+                y1={y1}
+                x2={x2}
+                y2={y2}
+              />
+            );
+          })}
+        </svg>
+
+        <figcaption className="egauge__cap">
+          <span className="egauge__label">{label}</span>
+          {unavailable ? (
+            <strong
+              className="egauge__na-text"
+              title={reason ? UNAVAILABLE_HINT[reason] : undefined}
+            >
+              {reason ? UNAVAILABLE_LABEL[reason] : "산출 불가"}
+            </strong>
+          ) : (
+            <strong className="egauge__pct">{formatFraction(fraction ?? 0)}</strong>
+          )}
+        </figcaption>
       </div>
 
       {exceeded && <span className="egauge__badge">기준 초과</span>}

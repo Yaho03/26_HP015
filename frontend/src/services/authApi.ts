@@ -31,10 +31,7 @@ export async function fetchMe(): Promise<AuthUser | null> {
   return user;
 }
 
-export async function changePassword(
-  currentPassword: string,
-  newPassword: string,
-): Promise<void> {
+export async function changePassword(currentPassword: string, newPassword: string): Promise<void> {
   await fetchApi("/api/auth/password", {
     method: "POST",
     csrf: true,

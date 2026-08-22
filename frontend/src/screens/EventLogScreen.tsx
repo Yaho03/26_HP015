@@ -109,11 +109,12 @@ export function EventLogScreen({ initialFilter }: { initialFilter?: EventLogFilt
   }, [nodeId, alertKey, status, dateRange, limit, refreshVersion]);
 
   const visibleEvents = useMemo(
-    () => events.filter((event) => {
-      if (level && event.level !== level) return false;
-      if (alertType && event.alert_type !== alertType) return false;
-      return true;
-    }),
+    () =>
+      events.filter((event) => {
+        if (level && event.level !== level) return false;
+        if (alertType && event.alert_type !== alertType) return false;
+        return true;
+      }),
     [events, level, alertType],
   );
   const activeCount = visibleEvents.filter((event) => event.status === "active").length;
@@ -126,8 +127,14 @@ export function EventLogScreen({ initialFilter }: { initialFilter?: EventLogFilt
           <h2 className="event-log-title">경보 이벤트 로그</h2>
         </div>
         <div className="event-log-meta" aria-label="이벤트 로그 요약">
-          <span><small>SHOWN</small><strong>{visibleEvents.length}</strong></span>
-          <span><small>ACTIVE</small><strong className={activeCount > 0 ? "event-meta-alert" : ""}>{activeCount}</strong></span>
+          <span>
+            <small>SHOWN</small>
+            <strong>{visibleEvents.length}</strong>
+          </span>
+          <span>
+            <small>ACTIVE</small>
+            <strong className={activeCount > 0 ? "event-meta-alert" : ""}>{activeCount}</strong>
+          </span>
           <button
             type="button"
             className="event-refresh"
@@ -142,9 +149,14 @@ export function EventLogScreen({ initialFilter }: { initialFilter?: EventLogFilt
       <section className="panel event-filters">
         <label className="control">
           <span className="control-label">DATE</span>
-          <select value={dateRange} onChange={(e) => setDateRange(e.target.value as typeof dateRange)}>
+          <select
+            value={dateRange}
+            onChange={(e) => setDateRange(e.target.value as typeof dateRange)}
+          >
             {DATE_OPTIONS.map((option) => (
-              <option key={option.value} value={option.value}>{option.label}</option>
+              <option key={option.value} value={option.value}>
+                {option.label}
+              </option>
             ))}
           </select>
         </label>
@@ -152,7 +164,9 @@ export function EventLogScreen({ initialFilter }: { initialFilter?: EventLogFilt
           <span className="control-label">LEVEL</span>
           <select value={level} onChange={(e) => setLevel(e.target.value)}>
             {LEVEL_OPTIONS.map((option) => (
-              <option key={option.value} value={option.value}>{option.label}</option>
+              <option key={option.value} value={option.value}>
+                {option.label}
+              </option>
             ))}
           </select>
         </label>
@@ -160,7 +174,9 @@ export function EventLogScreen({ initialFilter }: { initialFilter?: EventLogFilt
           <span className="control-label">NODE</span>
           <select value={nodeId} onChange={(e) => setNodeId(e.target.value)}>
             {NODE_OPTIONS.map((id) => (
-              <option key={id} value={id}>{id || "전체 노드"}</option>
+              <option key={id} value={id}>
+                {id || "전체 노드"}
+              </option>
             ))}
           </select>
         </label>
@@ -168,7 +184,9 @@ export function EventLogScreen({ initialFilter }: { initialFilter?: EventLogFilt
           <span className="control-label">TYPE</span>
           <select value={alertType} onChange={(e) => setAlertType(e.target.value)}>
             {TYPE_OPTIONS.map((option) => (
-              <option key={option.value} value={option.value}>{option.label}</option>
+              <option key={option.value} value={option.value}>
+                {option.label}
+              </option>
             ))}
           </select>
         </label>
@@ -176,7 +194,9 @@ export function EventLogScreen({ initialFilter }: { initialFilter?: EventLogFilt
           <span className="control-label">STATUS</span>
           <select value={status} onChange={(e) => setStatus(e.target.value as typeof status)}>
             {STATUS_OPTIONS.map((o) => (
-              <option key={o.value} value={o.value}>{o.label}</option>
+              <option key={o.value} value={o.value}>
+                {o.label}
+              </option>
             ))}
           </select>
         </label>
@@ -193,7 +213,9 @@ export function EventLogScreen({ initialFilter }: { initialFilter?: EventLogFilt
           <span className="control-label">LIMIT</span>
           <select value={String(limit)} onChange={(e) => setLimit(Number(e.target.value))}>
             {LIMIT_OPTIONS.map((n) => (
-              <option key={n} value={n}>{n}건</option>
+              <option key={n} value={n}>
+                {n}건
+              </option>
             ))}
           </select>
         </label>
@@ -205,7 +227,9 @@ export function EventLogScreen({ initialFilter }: { initialFilter?: EventLogFilt
             <p className="event-kicker">AUDIT TRAIL</p>
             <h2 className="panel-title">최근 경보 이력</h2>
           </div>
-          <span className="event-list-count">{loading ? "LOADING" : `${visibleEvents.length} EVENTS`}</span>
+          <span className="event-list-count">
+            {loading ? "LOADING" : `${visibleEvents.length} EVENTS`}
+          </span>
         </div>
         {error && <p className="panel-empty panel-error">조회 실패: {error}</p>}
         {!error && !loading && visibleEvents.length === 0 && (
@@ -229,7 +253,10 @@ export function EventLogScreen({ initialFilter }: { initialFilter?: EventLogFilt
               </thead>
               <tbody>
                 {visibleEvents.map((ev) => (
-                  <tr key={ev.message_id} className={ev.status === "active" ? "event-row-active" : ""}>
+                  <tr
+                    key={ev.message_id}
+                    className={ev.status === "active" ? "event-row-active" : ""}
+                  >
                     <td className="cell-time">{formatTime(ev.activated_at)}</td>
                     <td className="event-node">{ev.source_node_id}</td>
                     {/* 이슈 #136 — 지금 착용자가 아니라 이 경보가 났을 때의 착용자다.
@@ -248,12 +275,22 @@ export function EventLogScreen({ initialFilter }: { initialFilter?: EventLogFilt
                       <span className="event-type">{formatType(ev.alert_type)}</span>
                       <span className="event-key">{ev.alert_key}</span>
                     </td>
-                    <td><span className={levelClass(ev.level)}>{LEVEL_LABEL[ev.level] ?? ev.level}</span></td>
+                    <td>
+                      <span className={levelClass(ev.level)}>
+                        {LEVEL_LABEL[ev.level] ?? ev.level}
+                      </span>
+                    </td>
                     <td className="event-message">{ev.message || "—"}</td>
-                    <td><span className={"event-status event-status-" + ev.status}>{ev.status === "active" ? "활성" : "해제"}</span></td>
+                    <td>
+                      <span className={"event-status event-status-" + ev.status}>
+                        {ev.status === "active" ? "활성" : "해제"}
+                      </span>
+                    </td>
                     <td className="cell-num">
                       {ev.trigger_value !== null ? ev.trigger_value.toFixed(1) : "—"}
-                      {ev.threshold !== null && <span className="event-threshold"> / {ev.threshold}</span>}
+                      {ev.threshold !== null && (
+                        <span className="event-threshold"> / {ev.threshold}</span>
+                      )}
                     </td>
                     <td className="cell-time">{formatTime(ev.resolved_at)}</td>
                   </tr>

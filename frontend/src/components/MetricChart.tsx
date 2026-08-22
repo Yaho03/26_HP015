@@ -51,10 +51,7 @@ function formatTime(iso: string): string {
 export function MetricChart({ data, metric, sourceMode, height = 320 }: MetricChartProps) {
   const unit = METRIC_UNIT[metric] ?? "";
   const thresholds = useMemo(() => thresholdLinesFor(metric), [metric]);
-  const chartData = useMemo(
-    () => data.map((p) => ({ time: p.time, value: p.value })),
-    [data],
-  );
+  const chartData = useMemo(() => data.map((p) => ({ time: p.time, value: p.value })), [data]);
 
   if (chartData.length === 0) {
     return (
@@ -78,10 +75,19 @@ export function MetricChart({ data, metric, sourceMode, height = 320 }: MetricCh
           <YAxis
             stroke="#6b7280"
             tick={{ fontSize: 11 }}
-            label={unit ? { value: unit, angle: -90, position: "insideLeft", fill: "#6b7280", fontSize: 11 } : undefined}
+            label={
+              unit
+                ? { value: unit, angle: -90, position: "insideLeft", fill: "#6b7280", fontSize: 11 }
+                : undefined
+            }
           />
           <Tooltip
-            contentStyle={{ background: "#1f2633", border: "1px solid #2a3142", color: "#e6e9ef", fontSize: 12 }}
+            contentStyle={{
+              background: "#1f2633",
+              border: "1px solid #2a3142",
+              color: "#e6e9ef",
+              fontSize: 12,
+            }}
             labelFormatter={(label) => formatTime(typeof label === "string" ? label : "")}
             formatter={(value) => [`${value} ${unit}`, metric]}
           />
@@ -91,7 +97,12 @@ export function MetricChart({ data, metric, sourceMode, height = 320 }: MetricCh
               y={t.value}
               stroke={LEVEL_COLOR[t.level] ?? "#6b7280"}
               strokeDasharray="4 4"
-              label={{ value: LEVEL_SHORT_LABEL[t.level] ?? t.level, fill: LEVEL_COLOR[t.level] ?? "#6b7280", fontSize: 10, position: "right" }}
+              label={{
+                value: LEVEL_SHORT_LABEL[t.level] ?? t.level,
+                fill: LEVEL_COLOR[t.level] ?? "#6b7280",
+                fontSize: 10,
+                position: "right",
+              }}
             />
           ))}
           <Line

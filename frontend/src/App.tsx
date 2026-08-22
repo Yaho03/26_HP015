@@ -118,10 +118,7 @@ function App() {
         />
         <main className="app-content">
           {(screen === "monitoring" || screen === "event-log") && (
-            <SafetyWorkspace
-              activeView={screen as SafetyWorkspaceView}
-              onViewChange={setScreen}
-            />
+            <SafetyWorkspace activeView={screen as SafetyWorkspaceView} onViewChange={setScreen} />
           )}
           {screen === "twin" && <TwinScreen />}
           {screen === "chart" && <ChartScreen />}

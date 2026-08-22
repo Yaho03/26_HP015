@@ -100,7 +100,9 @@ export function MonitoringScreen({
     : null;
 
   const onlineCount = SENSOR_SLOTS.filter((id) => nodes[id]?.connection_status === "online").length;
-  const simulationCount = SENSOR_SLOTS.filter((id) => nodes[id]?.source_mode === "simulation").length;
+  const simulationCount = SENSOR_SLOTS.filter(
+    (id) => nodes[id]?.source_mode === "simulation",
+  ).length;
   const sourceLabel: "LIVE" | "SIM" | "대기" =
     simulationCount > 0 ? "SIM" : onlineCount > 0 ? "LIVE" : "대기";
 
@@ -120,8 +122,8 @@ export function MonitoringScreen({
         <div className="threshold-gap-banner" role="alert">
           <IconWarning size={15} />
           <span>
-            <strong>임계값을 불러오지 못해 등급을 판정할 수 없습니다.</strong>{" "}
-            표시된 값은 정상 여부가 확인되지 않은 상태입니다. 서버 연결을 확인하세요.
+            <strong>임계값을 불러오지 못해 등급을 판정할 수 없습니다.</strong> 표시된 값은 정상
+            여부가 확인되지 않은 상태입니다. 서버 연결을 확인하세요.
           </span>
         </div>
       )}
