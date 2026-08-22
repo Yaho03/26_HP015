@@ -15,11 +15,7 @@ export type WSMessageType =
  * types/index.ts 의 AlertLevel 과 달리 "unknown" 이 없다. "unknown" 은 프론트가
  * "아직 판정 불가"를 표현하려고 만든 값이고(이슈 #165), 서버는 보내지 않는다.
  */
-export type WireAlertLevel =
-  | "normal"
-  | "level1_caution"
-  | "level2_warning"
-  | "level3_critical";
+export type WireAlertLevel = "normal" | "level1_caution" | "level2_warning" | "level3_critical";
 
 export interface WSBaseMessage {
   type: WSMessageType;
@@ -89,11 +85,7 @@ export type ExposureTrustLevel = "high" | "medium" | "low";
 
 /** 값을 산출할 수 없는 이유. limit_unverified = 노출 기준값 원문 대조 전이라 미시드. */
 export type ExposureUnavailableReason =
-  | "uncalibrated"
-  | "limit_unverified"
-  | "no_position"
-  | "no_source_node"
-  | "sensor_error";
+  "uncalibrated" | "limit_unverified" | "no_position" | "no_source_node" | "sensor_error";
 
 /**
  * 지표별 노출량.
@@ -185,11 +177,7 @@ export interface WorkerExposureMessage extends WSBaseMessage {
 export type RouteStatus = "safe" | "degraded" | "no_safe_route" | "unavailable";
 
 export type RouteUnavailableReason =
-  | "stale_position"
-  | "no_position"
-  | "off_graph"
-  | "topology_invalid"
-  | "no_reachable_exit";
+  "stale_position" | "no_position" | "off_graph" | "topology_invalid" | "no_reachable_exit";
 
 export type NavEdgeKind = "walk" | "scaffold_plank" | "ladder" | "hatch";
 
@@ -247,12 +235,7 @@ export interface EvacuationRouteMessage extends WSBaseMessage {
   estimated_seconds?: number | null;
   hazard_multiplier_max?: number | null;
   switch_reason?:
-    | "initial"
-    | "position_moved"
-    | "hazard_changed"
-    | "topology_changed"
-    | "route_blocked"
-    | null;
+    "initial" | "position_moved" | "hazard_changed" | "topology_changed" | "route_blocked" | null;
   waypoints: RouteWaypoint[];
   blocked_exits?: BlockedExit[];
   warnings?: RouteWarning[];

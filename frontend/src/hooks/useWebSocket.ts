@@ -113,7 +113,13 @@ function handleMessage(msg: WSMessage): void {
     }
     const rawAlerts = msg.alerts as Record<
       string,
-      { node_id: string; level: AlertLevel; trigger_value: number; threshold: number; activated_at: string }
+      {
+        node_id: string;
+        level: AlertLevel;
+        trigger_value: number;
+        threshold: number;
+        activated_at: string;
+      }
     >;
     const alerts: Record<string, AlertState> = {};
     for (const [alert_key, a] of Object.entries(rawAlerts)) {

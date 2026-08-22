@@ -14,7 +14,12 @@ interface ToastStore {
   modal: { alert_key: string; level: AlertLevel; title: string; body?: string } | null;
   push: (toast: Omit<ToastItem, "id" | "created_at">) => void;
   dismiss: (id: string) => void;
-  openModal: (modal: { alert_key: string; level: AlertLevel; title: string; body?: string }) => void;
+  openModal: (modal: {
+    alert_key: string;
+    level: AlertLevel;
+    title: string;
+    body?: string;
+  }) => void;
   closeModal: () => void;
 }
 
@@ -29,8 +34,7 @@ export const useToastStore = create<ToastStore>((set) => ({
     set((s) => ({
       toasts: [...s.toasts, { ...toast, id: uid(), created_at: Date.now() }],
     })),
-  dismiss: (id) =>
-    set((s) => ({ toasts: s.toasts.filter((t) => t.id !== id) })),
+  dismiss: (id) => set((s) => ({ toasts: s.toasts.filter((t) => t.id !== id) })),
   openModal: (modal) => set({ modal }),
   closeModal: () => set({ modal: null }),
 }));

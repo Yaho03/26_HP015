@@ -43,8 +43,7 @@ export const UNAVAILABLE_LABEL: Record<ExposureUnavailableReason, string> = {
 
 /** 왜 못 구하는지, 그래서 이 화면을 어떻게 읽어야 하는지. */
 export const UNAVAILABLE_HINT: Record<ExposureUnavailableReason, string> = {
-  uncalibrated:
-    "MQ 센서 교정 전이라 ppm 으로 환산할 수 없습니다. 노출이 없다는 뜻이 아닙니다.",
+  uncalibrated: "MQ 센서 교정 전이라 ppm 으로 환산할 수 없습니다. 노출이 없다는 뜻이 아닙니다.",
   limit_unverified:
     "노출 기준값 원문 대조가 끝나지 않아 아직 시드하지 않았습니다. 검증되지 않은 숫자를 안전 기준으로 쓰지 않습니다.",
   no_position: "작업자 위치를 몰라 농도 출처 노드를 정할 수 없습니다.",
@@ -53,10 +52,7 @@ export const UNAVAILABLE_HINT: Record<ExposureUnavailableReason, string> = {
 };
 
 /** O₂ 쪽은 사유 집합이 좁다 (types/ws.ts 참고). */
-export const O2_UNAVAILABLE_LABEL: Record<
-  NonNullable<ExposureO2Metric["reason"]>,
-  string
-> = {
+export const O2_UNAVAILABLE_LABEL: Record<NonNullable<ExposureO2Metric["reason"]>, string> = {
   sensor_error: "센서 오류",
   not_connected: "미연결",
   no_position: "위치 없음",

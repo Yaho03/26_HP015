@@ -16,14 +16,7 @@ import {
   type ThresholdLevel,
 } from "../services/api";
 
-type SettingsTab =
-  | "thresholds"
-  | "workers"
-  | "hazards"
-  | "topology"
-  | "system"
-  | "demo"
-  | "users";
+type SettingsTab = "thresholds" | "workers" | "hazards" | "topology" | "system" | "demo" | "users";
 type RowStatus = { key: string; tone: "success" | "error"; message: string } | null;
 
 interface MetricMeta {
@@ -115,7 +108,12 @@ export function SettingsScreen() {
     if (thresholdResult.status === "fulfilled") {
       setThresholds(thresholdResult.value);
       setDrafts(
-        Object.fromEntries(thresholdResult.value.map((threshold) => [rowKey(threshold.metric, threshold.level), toDraft(threshold)])),
+        Object.fromEntries(
+          thresholdResult.value.map((threshold) => [
+            rowKey(threshold.metric, threshold.level),
+            toDraft(threshold),
+          ]),
+        ),
       );
     } else {
       setError("임계값을 불러오지 못했습니다. 백엔드 연결 상태를 확인하세요.");
@@ -135,13 +133,20 @@ export function SettingsScreen() {
       METRICS.map((metric) => ({
         metric,
         rows: LEVELS.map((level) =>
-          thresholds.find((threshold) => threshold.metric === metric.key && threshold.level === level.key),
+          thresholds.find(
+            (threshold) => threshold.metric === metric.key && threshold.level === level.key,
+          ),
         ).filter((threshold): threshold is Threshold => threshold !== undefined),
       })).filter(({ rows }) => rows.length > 0),
     [thresholds],
   );
 
-  function updateDraft(metric: string, level: ThresholdLevel, field: keyof ThresholdDraft, value: string) {
+  function updateDraft(
+    metric: string,
+    level: ThresholdLevel,
+    field: keyof ThresholdDraft,
+    value: string,
+  ) {
     const key = rowKey(metric, level);
     setDrafts((current) => ({ ...current, [key]: { ...current[key], [field]: value } }));
     setRowStatus(null);
@@ -179,7 +184,9 @@ export function SettingsScreen() {
         enter_for_ms: enterForMs,
         exit_for_ms: exitForMs,
       });
-      setThresholds((current) => current.map((item) => (rowKey(item.metric, item.level) === key ? saved : item)));
+      setThresholds((current) =>
+        current.map((item) => (rowKey(item.metric, item.level) === key ? saved : item)),
+      );
       setDrafts((current) => ({ ...current, [key]: toDraft(saved) }));
       // 대시보드 등급 판정도 새 값을 쓰게 한다 (이슈 #114). 이게 없으면 경보
       // 엔진만 바뀌고 화면 색은 옛 기준으로 남는다.
@@ -207,11 +214,20 @@ export function SettingsScreen() {
           <p className="settings-subtitle">경보 판정 기준과 시스템 상태를 확인합니다.</p>
         </div>
         <div className="settings-heading-actions">
-          <span className={health?.status === "ok" ? "settings-health settings-health--ok" : "settings-health"}>
+          <span
+            className={
+              health?.status === "ok" ? "settings-health settings-health--ok" : "settings-health"
+            }
+          >
             <span className="settings-health-dot" />
             {health?.status === "ok" ? "BACKEND READY" : "BACKEND CHECK"}
           </span>
-          <button type="button" className="settings-refresh" onClick={() => void loadSettings()} disabled={refreshing}>
+          <button
+            type="button"
+            className="settings-refresh"
+            onClick={() => void loadSettings()}
+            disabled={refreshing}
+          >
             {refreshing ? "확인 중…" : "↻ 새로고침"}
           </button>
         </div>
@@ -254,15 +270,22 @@ export function SettingsScreen() {
           {loading && <p className="settings-state">서버 임계값을 불러오는 중입니다…</p>}
           {!loading && error && <p className="settings-state settings-state--error">{error}</p>}
           {!loading && !error && thresholdGroups.length === 0 && (
-            <p className="settings-state">표시할 임계값이 없습니다. 백엔드 초기 데이터를 확인하세요.</p>
+            <p className="settings-state">
+              표시할 임계값이 없습니다. 백엔드 초기 데이터를 확인하세요.
+            </p>
           )}
           <div className="threshold-groups">
             {thresholdGroups.map(({ metric, rows }) => (
               <article className="threshold-group" key={metric.key}>
                 <header className="threshold-group-head">
                   <div>
-                    <h4>{metric.label} <span>{metric.description}</span></h4>
-                    <p>판정 방향: {rows[0]?.direction === "below" ? "기준값 이하 진입" : "기준값 이상 진입"}</p>
+                    <h4>
+                      {metric.label} <span>{metric.description}</span>
+                    </h4>
+                    <p>
+                      판정 방향:{" "}
+                      {rows[0]?.direction === "below" ? "기준값 이하 진입" : "기준값 이상 진입"}
+                    </p>
                   </div>
                   <span className="threshold-unit">{metric.unit}</span>
                 </header>
@@ -275,7 +298,9 @@ export function SettingsScreen() {
                         <th scope="col">진입 지속</th>
                         <th scope="col">해제값</th>
                         <th scope="col">해제 지속</th>
-                        <th scope="col"><span className="sr-only">행 작업</span></th>
+                        <th scope="col">
+                          <span className="sr-only">행 작업</span>
+                        </th>
                       </tr>
                     </thead>
                     <tbody>
@@ -285,15 +310,103 @@ export function SettingsScreen() {
                         const status = rowStatus?.key === key ? rowStatus : null;
                         return (
                           <tr key={key}>
-                            <th scope="row"><span className={`threshold-level threshold-level--${threshold.level}`}>{LEVELS.find((level) => level.key === threshold.level)?.label}</span></th>
-                            <td><input aria-label={`${metric.label} ${threshold.level} 진입값`} type="number" value={draft.enter_threshold} onChange={(event) => updateDraft(threshold.metric, threshold.level, "enter_threshold", event.target.value)} /></td>
-                            <td><input aria-label={`${metric.label} ${threshold.level} 진입 지속 시간`} type="number" min="0" step="1" value={draft.enter_for_ms} onChange={(event) => updateDraft(threshold.metric, threshold.level, "enter_for_ms", event.target.value)} /><span>ms</span></td>
-                            <td><input aria-label={`${metric.label} ${threshold.level} 해제값`} type="number" value={draft.exit_threshold} onChange={(event) => updateDraft(threshold.metric, threshold.level, "exit_threshold", event.target.value)} /></td>
-                            <td><input aria-label={`${metric.label} ${threshold.level} 해제 지속 시간`} type="number" min="0" step="1" value={draft.exit_for_ms} onChange={(event) => updateDraft(threshold.metric, threshold.level, "exit_for_ms", event.target.value)} /><span>ms</span></td>
+                            <th scope="row">
+                              <span
+                                className={`threshold-level threshold-level--${threshold.level}`}
+                              >
+                                {LEVELS.find((level) => level.key === threshold.level)?.label}
+                              </span>
+                            </th>
+                            <td>
+                              <input
+                                aria-label={`${metric.label} ${threshold.level} 진입값`}
+                                type="number"
+                                value={draft.enter_threshold}
+                                onChange={(event) =>
+                                  updateDraft(
+                                    threshold.metric,
+                                    threshold.level,
+                                    "enter_threshold",
+                                    event.target.value,
+                                  )
+                                }
+                              />
+                            </td>
+                            <td>
+                              <input
+                                aria-label={`${metric.label} ${threshold.level} 진입 지속 시간`}
+                                type="number"
+                                min="0"
+                                step="1"
+                                value={draft.enter_for_ms}
+                                onChange={(event) =>
+                                  updateDraft(
+                                    threshold.metric,
+                                    threshold.level,
+                                    "enter_for_ms",
+                                    event.target.value,
+                                  )
+                                }
+                              />
+                              <span>ms</span>
+                            </td>
+                            <td>
+                              <input
+                                aria-label={`${metric.label} ${threshold.level} 해제값`}
+                                type="number"
+                                value={draft.exit_threshold}
+                                onChange={(event) =>
+                                  updateDraft(
+                                    threshold.metric,
+                                    threshold.level,
+                                    "exit_threshold",
+                                    event.target.value,
+                                  )
+                                }
+                              />
+                            </td>
+                            <td>
+                              <input
+                                aria-label={`${metric.label} ${threshold.level} 해제 지속 시간`}
+                                type="number"
+                                min="0"
+                                step="1"
+                                value={draft.exit_for_ms}
+                                onChange={(event) =>
+                                  updateDraft(
+                                    threshold.metric,
+                                    threshold.level,
+                                    "exit_for_ms",
+                                    event.target.value,
+                                  )
+                                }
+                              />
+                              <span>ms</span>
+                            </td>
                             <td className="threshold-actions">
-                              <button type="button" className="threshold-save" onClick={() => void saveRow(threshold)} disabled={savingKey === key}>{savingKey === key ? "…" : "저장"}</button>
-                              <button type="button" className="threshold-reset" onClick={() => resetRow(threshold)} disabled={savingKey === key}>초기화</button>
-                              {status && <span className={`threshold-status threshold-status--${status.tone}`}>{status.message}</span>}
+                              <button
+                                type="button"
+                                className="threshold-save"
+                                onClick={() => void saveRow(threshold)}
+                                disabled={savingKey === key}
+                              >
+                                {savingKey === key ? "…" : "저장"}
+                              </button>
+                              <button
+                                type="button"
+                                className="threshold-reset"
+                                onClick={() => resetRow(threshold)}
+                                disabled={savingKey === key}
+                              >
+                                초기화
+                              </button>
+                              {status && (
+                                <span
+                                  className={`threshold-status threshold-status--${status.tone}`}
+                                >
+                                  {status.message}
+                                </span>
+                              )}
                             </td>
                           </tr>
                         );
@@ -301,7 +414,9 @@ export function SettingsScreen() {
                     </tbody>
                   </table>
                 </div>
-                <p className="threshold-updated">마지막 변경: {formatUpdatedAt(rows[0]?.updated_at ?? null)}</p>
+                <p className="threshold-updated">
+                  마지막 변경: {formatUpdatedAt(rows[0]?.updated_at ?? null)}
+                </p>
               </article>
             ))}
           </div>
@@ -324,12 +439,25 @@ export function SettingsScreen() {
           <div className="hazard-settings-grid">
             <label className="settings-field">
               <span>위험 구역 반경</span>
-              <div className="settings-input-with-unit"><input type="number" min="0.1" max="2" step="0.1" value={hazardRadius} onChange={(event) => setHazardRadius(event.target.value)} /><b>m</b></div>
+              <div className="settings-input-with-unit">
+                <input
+                  type="number"
+                  min="0.1"
+                  max="2"
+                  step="0.1"
+                  value={hazardRadius}
+                  onChange={(event) => setHazardRadius(event.target.value)}
+                />
+                <b>m</b>
+              </div>
               <small>0.1m ~ 2.0m · 기본 0.5m</small>
             </label>
             <label className="settings-field">
               <span>트리거 등급</span>
-              <select value={hazardLevel} onChange={(event) => setHazardLevel(event.target.value as ThresholdLevel)}>
+              <select
+                value={hazardLevel}
+                onChange={(event) => setHazardLevel(event.target.value as ThresholdLevel)}
+              >
                 <option value="level2_warning">Level 2 · 경고</option>
                 <option value="level3_critical">Level 3 · 위험</option>
               </select>
@@ -337,8 +465,15 @@ export function SettingsScreen() {
             </label>
           </div>
           <div className="hazard-preview">
-            <div className="hazard-preview-ring"><span>{hazardRadius}m</span></div>
-            <div><strong>{hazardLevel === "level2_warning" ? "Level 2 경고" : "Level 3 위험"} 구역</strong><p>활성 센서 노드를 중심으로 표시되는 원형 범위</p></div>
+            <div className="hazard-preview-ring">
+              <span>{hazardRadius}m</span>
+            </div>
+            <div>
+              <strong>
+                {hazardLevel === "level2_warning" ? "Level 2 경고" : "Level 3 위험"} 구역
+              </strong>
+              <p>활성 센서 노드를 중심으로 표시되는 원형 범위</p>
+            </div>
           </div>
         </section>
       )}
@@ -353,9 +488,24 @@ export function SettingsScreen() {
             <span className="settings-source">LIVE SNAPSHOT</span>
           </div>
           <div className="system-status-grid">
-            <div className="system-status-item"><span>Backend</span><strong className={health?.status === "ok" ? "is-ok" : "is-bad"}>{health?.status === "ok" ? "정상" : "확인 필요"}</strong></div>
-            <div className="system-status-item"><span>MQTT</span><strong className={health?.mqtt.connected ? "is-ok" : "is-bad"}>{health?.mqtt.connected ? "연결됨" : "연결 끊김"}</strong></div>
-            <div className="system-status-item"><span>Database</span><strong className={health?.db.pool_initialized ? "is-ok" : "is-bad"}>{health?.db.pool_initialized ? "초기화됨" : "대기 중"}</strong></div>
+            <div className="system-status-item">
+              <span>Backend</span>
+              <strong className={health?.status === "ok" ? "is-ok" : "is-bad"}>
+                {health?.status === "ok" ? "정상" : "확인 필요"}
+              </strong>
+            </div>
+            <div className="system-status-item">
+              <span>MQTT</span>
+              <strong className={health?.mqtt.connected ? "is-ok" : "is-bad"}>
+                {health?.mqtt.connected ? "연결됨" : "연결 끊김"}
+              </strong>
+            </div>
+            <div className="system-status-item">
+              <span>Database</span>
+              <strong className={health?.db.pool_initialized ? "is-ok" : "is-bad"}>
+                {health?.db.pool_initialized ? "초기화됨" : "대기 중"}
+              </strong>
+            </div>
           </div>
           <div className="system-metrics">
             {[
@@ -363,12 +513,26 @@ export function SettingsScreen() {
               ["alerts_published", "발행 경보"],
               ["alerts_resolved", "해제 경보"],
               ["messages_dropped_invalid", "무효 폐기"],
-            ].map(([key, label]) => <div className="system-metric" key={key}><span>{label}</span><strong>{metrics[key] ?? "—"}</strong></div>)}
+            ].map(([key, label]) => (
+              <div className="system-metric" key={key}>
+                <span>{label}</span>
+                <strong>{metrics[key] ?? "—"}</strong>
+              </div>
+            ))}
           </div>
           <dl className="system-details">
-            <div><dt>프론트엔드</dt><dd>{window.location.host}</dd></div>
-            <div><dt>임계값 데이터</dt><dd>GET /api/thresholds · PUT /api/thresholds/:metric/:level</dd></div>
-            <div><dt>스냅샷 시각</dt><dd>{new Date().toLocaleString("ko-KR", { hour12: false })}</dd></div>
+            <div>
+              <dt>프론트엔드</dt>
+              <dd>{window.location.host}</dd>
+            </div>
+            <div>
+              <dt>임계값 데이터</dt>
+              <dd>GET /api/thresholds · PUT /api/thresholds/:metric/:level</dd>
+            </div>
+            <div>
+              <dt>스냅샷 시각</dt>
+              <dd>{new Date().toLocaleString("ko-KR", { hour12: false })}</dd>
+            </div>
           </dl>
         </section>
       )}

@@ -59,7 +59,11 @@ export function LoginScreen({ overlay = false }: { overlay?: boolean }) {
           />
         </label>
 
-        {error && <p className="login-error" role="alert">{error}</p>}
+        {error && (
+          <p className="login-error" role="alert">
+            {error}
+          </p>
+        )}
 
         <button type="submit" className="login-submit" disabled={busy || !username || !password}>
           {busy ? "확인 중…" : "로그인"}

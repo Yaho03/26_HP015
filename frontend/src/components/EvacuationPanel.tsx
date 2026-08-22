@@ -98,9 +98,7 @@ function FeatureDisabledBanner({ reason }: { reason: string | null }) {
   return (
     <div className="evac__banner evac__banner--muted" role="status">
       <strong>탈출 경로 기능 비활성 — 통행 구조 미설정</strong>
-      <span>
-        {reason ?? "사유가 보고되지 않았다."} 센서 수집과 가스 경보는 정상 동작한다.
-      </span>
+      <span>{reason ?? "사유가 보고되지 않았다."} 센서 수집과 가스 경보는 정상 동작한다.</span>
     </div>
   );
 }
@@ -188,7 +186,9 @@ export function EvacuationPanel({ route, topology, mock = false, children }: Eva
           최하층 기준 · {route.assumed_level_id} 가정
         </span>
         {topology.is_provisional && (
-          <span className="evac__badge evac__badge--provisional">통행 구조 가정값 (실측 미반영)</span>
+          <span className="evac__badge evac__badge--provisional">
+            통행 구조 가정값 (실측 미반영)
+          </span>
         )}
         {warnings.map((w) => (
           <span key={w} className="evac__badge evac__badge--warn">
@@ -216,9 +216,7 @@ export function EvacuationPanel({ route, topology, mock = false, children }: Eva
                 ✕
               </span>
               <span>{exitLabelById.get(b.exit_id) ?? b.exit_id}</span>
-              <span className="evac__blocked-reason">
-                {BLOCKED_LABEL[b.reason] ?? b.reason}
-              </span>
+              <span className="evac__blocked-reason">{BLOCKED_LABEL[b.reason] ?? b.reason}</span>
             </li>
           ))}
         </ul>
@@ -226,8 +224,8 @@ export function EvacuationPanel({ route, topology, mock = false, children }: Eva
 
       {/* §1.1 면책 축약형 — 상시 표시한다. */}
       <p className="evac__disclaimer">
-        산출된 경로는 참고 정보이며 현장 판단과 정식 대피 절차를 대체하지 않는다. 사전 등록된
-        통행 구조에만 근거하며 임시 통로·구조물 변경·연기·시야·화재는 반영되지 않는다.
+        산출된 경로는 참고 정보이며 현장 판단과 정식 대피 절차를 대체하지 않는다. 사전 등록된 통행
+        구조에만 근거하며 임시 통로·구조물 변경·연기·시야·화재는 반영되지 않는다.
         {mock && " 현재 화면은 목 데이터다."}
       </p>
     </section>

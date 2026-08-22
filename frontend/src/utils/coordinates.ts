@@ -58,8 +58,10 @@ export const FILL_PRESET: MappingPreset = {
  * 형상비를 보존한다. 두 축에 같은 배율을 쓰므로 정사각 보행이 정사각으로 보인다.
  * 폭이 먼저 차서 배율이 결정되고(= 6.5배), 길이 방향은 남는 만큼 가운데 정렬한다.
  */
-export const UNIFORM_SCALE =
-  Math.min(SHIP_SPACE.length_m / DEMO_SPACE.length_m, SHIP_FLOOR_WIDTH_M / DEMO_SPACE.width_m);
+export const UNIFORM_SCALE = Math.min(
+  SHIP_SPACE.length_m / DEMO_SPACE.length_m,
+  SHIP_FLOOR_WIDTH_M / DEMO_SPACE.width_m,
+);
 
 const uniformWidth = DEMO_SPACE.length_m * UNIFORM_SCALE;
 const uniformDepth = DEMO_SPACE.width_m * UNIFORM_SCALE;

@@ -43,7 +43,9 @@ export function DemoControlPanel() {
   useEffect(() => {
     if (!scenarios) return;
     const id = setInterval(() => {
-      fetchDemoStatus().then(setState).catch(() => undefined);
+      fetchDemoStatus()
+        .then(setState)
+        .catch(() => undefined);
     }, POLL_MS);
     return () => clearInterval(id);
   }, [scenarios]);
@@ -67,8 +69,8 @@ export function DemoControlPanel() {
       <section className="panel settings-panel">
         <h3 className="settings-section-title">데모 제어</h3>
         <p className="settings-error">
-          백엔드에 연결하지 못했다. 서버가 떠 있는지, CORS 허용 오리진
-          (<code>CORS_ORIGINS</code>)에 이 주소가 포함돼 있는지 확인할 것.
+          백엔드에 연결하지 못했다. 서버가 떠 있는지, CORS 허용 오리진 (<code>CORS_ORIGINS</code>)에
+          이 주소가 포함돼 있는지 확인할 것.
           {error ? ` — ${error}` : ""}
         </p>
       </section>
@@ -83,9 +85,9 @@ export function DemoControlPanel() {
         <p className="settings-notice">
           <strong>비활성</strong>
           <span>
-            시뮬레이션 값을 원격 주입하는 기능이라 기본으로 꺼져 있다. 인증이 붙기 전
-            (#116) 열어두면 임의의 값이 안전 시스템에 들어올 수 있다. 시연 환경에서만
-            백엔드 환경변수 <code>DEMO_CONTROL_ENABLED=true</code> 로 켠다.
+            시뮬레이션 값을 원격 주입하는 기능이라 기본으로 꺼져 있다. 인증이 붙기 전 (#116)
+            열어두면 임의의 값이 안전 시스템에 들어올 수 있다. 시연 환경에서만 백엔드 환경변수{" "}
+            <code>DEMO_CONTROL_ENABLED=true</code> 로 켠다.
           </span>
         </p>
       </section>
@@ -105,9 +107,7 @@ export function DemoControlPanel() {
 
       <p className="settings-notice">
         <strong>주의</strong>
-        <span>
-          주입 중에는 화면의 수치가 실제 측정값이 아니다. 시연이 끝나면 반드시 중지한다.
-        </span>
+        <span>주입 중에는 화면의 수치가 실제 측정값이 아니다. 시연이 끝나면 반드시 중지한다.</span>
       </p>
 
       {error && <p className="settings-error">{error}</p>}

@@ -52,9 +52,7 @@ export function WorkerRoster() {
   const assignedNodeOf = (workerId: number) =>
     assignments.find((a) => a.worker_id === workerId)?.node_id ?? null;
 
-  const freeSlots = WEARABLE_SLOTS.filter(
-    (slot) => !assignments.some((a) => a.node_id === slot),
-  );
+  const freeSlots = WEARABLE_SLOTS.filter((slot) => !assignments.some((a) => a.node_id === slot));
 
   return (
     <section className="settings-section" aria-labelledby="workers-title">
@@ -69,9 +67,9 @@ export function WorkerRoster() {
       <div className="settings-notice">
         <strong>경보가 사람 이름을 부르게 합니다</strong>
         <span>
-          배정된 웨어러블에서 경보가 나면 <code>wearable-01</code> 대신 작업자 이름과
-          비상연락처가 표시됩니다. 배정 이력은 시각과 함께 남아, 과거 경보를 조회하면
-          그 시점의 착용자가 나옵니다.
+          배정된 웨어러블에서 경보가 나면 <code>wearable-01</code> 대신 작업자 이름과 비상연락처가
+          표시됩니다. 배정 이력은 시각과 함께 남아, 과거 경보를 조회하면 그 시점의 착용자가
+          나옵니다.
         </span>
       </div>
 

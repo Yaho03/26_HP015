@@ -4,13 +4,7 @@ import type { Role } from "../store/authStore";
 import { hasRole } from "../store/authStore";
 import { IconChart, IconClock, IconCube, IconGauge, IconList, IconSettings } from "./icons";
 
-export type ScreenKey =
-  | "monitoring"
-  | "twin"
-  | "chart"
-  | "event-log"
-  | "exposure"
-  | "settings";
+export type ScreenKey = "monitoring" | "twin" | "chart" | "event-log" | "exposure" | "settings";
 
 interface MenuItem {
   key: ScreenKey;
@@ -58,25 +52,25 @@ export function Sidebar({
           // 역할 게이팅 — 서버 권한이 정본, 이 필터는 UX 다 (AUTH-8).
           if (minRole && !hasRole(userRole, minRole)) return null;
           return (
-          <button
-            key={key}
-            type="button"
-            aria-label={label}
-            className={
-              "sidebar-item" +
-              (current === key ? " sidebar-item-active" : "") +
-              (critical && key === "monitoring" ? " sidebar-item-critical" : "")
-            }
-            onClick={() => onSelect(key)}
-          >
-            <span className="sidebar-item-icon">
-              <Icon size={16} />
-            </span>
-            <span className="sidebar-item-label">{label}</span>
-            {key === "monitoring" && active_alert_count > 0 && (
-              <span className="sidebar-badge">{active_alert_count}</span>
-            )}
-          </button>
+            <button
+              key={key}
+              type="button"
+              aria-label={label}
+              className={
+                "sidebar-item" +
+                (current === key ? " sidebar-item-active" : "") +
+                (critical && key === "monitoring" ? " sidebar-item-critical" : "")
+              }
+              onClick={() => onSelect(key)}
+            >
+              <span className="sidebar-item-icon">
+                <Icon size={16} />
+              </span>
+              <span className="sidebar-item-label">{label}</span>
+              {key === "monitoring" && active_alert_count > 0 && (
+                <span className="sidebar-badge">{active_alert_count}</span>
+              )}
+            </button>
           );
         })}
       </nav>
@@ -97,7 +91,9 @@ function StatusDot({ label, ok }: { label: string; ok: boolean }) {
     <div className="status-dot" aria-label={`${label} ${state}`}>
       <span className={"status-dot-mark " + (ok ? "status-ok" : "status-bad")} aria-hidden="true" />
       <span className="status-dot-label">{label}</span>
-      <span className={"status-dot-state " + (ok ? "status-ok-text" : "status-bad-text")}>{state}</span>
+      <span className={"status-dot-state " + (ok ? "status-ok-text" : "status-bad-text")}>
+        {state}
+      </span>
     </div>
   );
 }

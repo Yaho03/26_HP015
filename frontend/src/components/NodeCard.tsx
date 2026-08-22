@@ -71,13 +71,14 @@ export const NodeCard = memo(function NodeCard({ node }: NodeCardProps) {
   const calibrationEntries = Object.entries(calibrations).filter(([k]) => k in CALIB_LABEL);
 
   return (
-    <article className={"node-card " + (node.connection_status === "offline" ? "node-card-offline" : "")}>
+    <article
+      className={"node-card " + (node.connection_status === "offline" ? "node-card-offline" : "")}
+    >
       <header className="node-card-header">
         <span className="node-id">{node.node_id}</span>
         <span
           className={
-            "node-status " +
-            (node.connection_status === "online" ? "node-online" : "node-offline")
+            "node-status " + (node.connection_status === "online" ? "node-online" : "node-offline")
           }
         >
           {node.connection_status}
