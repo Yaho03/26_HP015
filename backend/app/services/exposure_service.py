@@ -221,6 +221,41 @@ async def stop() -> None:
                          settings.exposure_flush_interval_s)
 
 
+def status() -> dict:
+    """적산 기능 상태 (/health, 이슈 #207).
+
+    evacuation.status() 와 같은 계약 — enabled/reason/provisional. 적산이
+    멈춰 있으면 화면은 "노출 0%"가 아니라 "기능 비활성"을 그려야 한다
+    (이슈 #154 와 같은 무음 실패 패턴 방지). 전체 status(ok/degraded)에는
+    반영하지 않는다 — 노출 적산이 멈춰도 센서 수집·가스 경보는 정상이고
+    그쪽이 본체다.
+    """
+    from pydantic import BaseModel
+
+    class ExposureStatus(BaseModel):
+        enabled: bool
+        reason: str | None = None
+        provisional: bool = False
+
+    if _task is None or _task.done():
+        return ExposureStatus(enabled=False, reason="not_started").model_dump()
+    if not _sensor_nodes:
+        return ExposureStatus(
+            enabled=False,
+            reason="센서 노드 좌표(uwb_anchors)를 읽지 못해 최근접 노드 판정 불가",
+        ).model_dump()
+    unverified = [m for m in GAS_METRICS if m not in _limits]
+    return ExposureStatus(
+        enabled=True,
+        provisional=bool(unverified),
+        reason=(
+            f"기준값 미시드 metric={unverified} — limit_unverified 로 내려간다"
+            if unverified
+            else None
+        ),
+    ).model_dump()
+
+
 async def _recover() -> None:
     """기동 시 열려 있던 윈도우를 메모리로 되살린다 (§4.5).
 

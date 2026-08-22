@@ -221,6 +221,15 @@ def get_active_route(node_id: str) -> ActiveRoute | None:
     return _routes.get(node_id)
 
 
+def active_route_nodes() -> list[str]:
+    """활성 경로가 있는 노드 목록 (WS snapshot hydration, 이슈 #209).
+
+    경로는 route_id 가 바뀔 때만 발행되므로, 재연결 시 snapshot 없이는 안정
+    상태의 현재 경로를 화면이 영영 못 받는다.
+    """
+    return sorted(_routes)
+
+
 def _now() -> datetime:
     return datetime.now(timezone.utc)
 

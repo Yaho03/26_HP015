@@ -291,4 +291,111 @@ def test_snapshot_falls_back_to_empty_on_db_error(monkeypatch):
     import asyncio
     asyncio.run(ws_manager.manager._send_snapshot(FakeWS()))
 
-    assert sent == [{"type": "snapshot", "nodes": {}, "alerts": {}}]
+    # 이슈 #209 — 안전 슬라이스 필드도 항상 존재한다 (값은 빈 상태).
+    assert sent == [{
+        "type": "snapshot", "nodes": {}, "alerts": {},
+        "worker_exposures": [], "evacuation_routes": {},
+    }]
+
+
+# ============================================================
+# 이슈 #209 — snapshot에 worker_exposure / evacuation_route 포함
+# ============================================================
+
+def test_snapshot_hydrates_exposure_and_evacuation(monkeypatch):
+    """재연결 시 안전 슬라이스 초기 상태. 경로는 route_id가 바뀔 때만 발행되므로
+    snapshot이 없으면 안정 상태의 현재 경로를 화면이 영역 못 받는다."""
+    from datetime import datetime, timezone
+    from app.services import ws_manager
+    from app.services import exposure_service, evacuation_service
+
+    class FakeConn:
+        async def fetch(self, sql, *args):
+            return []
+
+    class FakePool:
+        class _Acquired:
+            async def __aenter__(self):
+                return FakeConn()
+
+            async def __aexit__(self, *exc):
+                return False
+
+        def acquire(self):
+            return self._Acquired()
+
+    monkeypatch.setattr("app.db.get_pool", lambda: FakePool())
+    monkeypatch.setattr(
+        exposure_service, "snapshot_all",
+        lambda: [{"type": "worker_exposure", "node_id": "wearable-01"}],
+    )
+
+    class _FakeRoute:
+        pass
+
+    def fake_to_message(node_id, active):
+        return {"type": "evacuation_route", "node_id": node_id}
+
+    monkeypatch.setattr(
+        evacuation_service, "active_route_nodes", lambda: ["wearable-01"]
+    )
+    monkeypatch.setattr(
+        evacuation_service, "get_active_route", lambda node_id: _FakeRoute()
+    )
+    monkeypatch.setattr(evacuation_service, "to_message", fake_to_message)
+
+    sent: list[dict] = []
+
+    class FakeWS:
+        async def send_json(self, msg):
+            sent.append(msg)
+
+    import asyncio
+    asyncio.run(ws_manager.manager._send_snapshot(FakeWS()))
+
+    snapshot = sent[0]
+    assert snapshot["worker_exposures"] == [
+        {"type": "worker_exposure", "node_id": "wearable-01"}
+    ]
+    assert snapshot["evacuation_routes"]["wearable-01"]["type"] == "evacuation_route"
+
+
+def test_snapshot_service_failure_hydrates_empty_not_crash(monkeypatch):
+    """서비스 헬퍼가 던져도(구버전 모듈 등) snapshot 자체는 발송된다."""
+    from app.services import ws_manager
+    from app.services import exposure_service, evacuation_service
+
+    class FakeConn:
+        async def fetch(self, sql, *args):
+            return []
+
+    class FakePool:
+        class _Acquired:
+            async def __aenter__(self):
+                return FakeConn()
+
+            async def __aexit__(self, *exc):
+                return False
+
+        def acquire(self):
+            return self._Acquired()
+
+    monkeypatch.setattr("app.db.get_pool", lambda: FakePool())
+
+    def boom():
+        raise RuntimeError("service unavailable")
+
+    monkeypatch.setattr(exposure_service, "snapshot_all", boom)
+    monkeypatch.setattr(evacuation_service, "active_route_nodes", boom)
+
+    sent: list[dict] = []
+
+    class FakeWS:
+        async def send_json(self, msg):
+            sent.append(msg)
+
+    import asyncio
+    asyncio.run(ws_manager.manager._send_snapshot(FakeWS()))
+
+    assert sent[0]["worker_exposures"] == []
+    assert sent[0]["evacuation_routes"] == {}

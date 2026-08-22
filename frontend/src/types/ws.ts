@@ -25,6 +25,13 @@ export interface SnapshotMessage extends WSBaseMessage {
   type: "snapshot";
   nodes: Record<string, unknown>;
   alerts: Record<string, unknown>;
+  /**
+   * 재연결/새로고침 시 초기 상태 (#209). 경로는 route_id가 바뀔 때만 발행되므로
+   * snapshot이 없으면 안정 상태의 현재 경로를 영영 못 받는다. 구버전 백엔드
+   * 호환을 위해 optional.
+   */
+  worker_exposures?: WorkerExposureMessage[];
+  evacuation_routes?: Record<string, EvacuationRouteMessage>;
 }
 
 export interface AlertMessage extends WSBaseMessage {

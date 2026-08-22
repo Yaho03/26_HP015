@@ -135,6 +135,13 @@ function handleMessage(msg: WSMessage): void {
       };
     }
     store.hydrateSnapshot(nodes, alerts);
+    // 안전 슬라이스 초기 상태 (#209) — 구버전 백엔드는 필드가 없다(optional).
+    for (const exposure of msg.worker_exposures ?? []) {
+      store.setWorkerExposure(exposure);
+    }
+    for (const route of Object.values(msg.evacuation_routes ?? {})) {
+      store.setEvacuationRoute(route);
+    }
   }
 }
 
