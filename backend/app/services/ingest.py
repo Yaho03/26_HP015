@@ -25,6 +25,7 @@ _ranging_callback = None
 _reading_callback = None
 _status_callback = None
 _connection_recovery_callback = None
+_exposure_callback = None
 
 
 def set_alert_callback(callback) -> None:
@@ -40,6 +41,18 @@ def set_reading_callback(callback) -> None:
     대시보드가 실시간 값을 받아야 하므로 alert_callback과는 별개로 항상 호출된다."""
     global _reading_callback
     _reading_callback = callback
+
+
+def set_exposure_callback(callback) -> None:
+    """누적 노출량 적산 콜백 주입 (FR-701). ingest_telemetry 가 각 metric 저장 후
+    호출한다. exposure_service.init() 에서 등록한다.
+
+    reading_callback 을 나눠 쓰지 않고 슬롯을 따로 둔 이유는 두 가지다. 하나는
+    이미 sensor_broadcast 가 그 슬롯을 쓰고 있어서(단일 슬롯) 덮어쓰면 대시보드
+    실시간 값이 끊긴다. 다른 하나는 실패 격리다 — 적산이 예외를 내도 브로드캐스트는
+    계속 나가야 하고, 그 반대도 마찬가지다."""
+    global _exposure_callback
+    _exposure_callback = callback
 
 
 def set_status_callback(callback) -> None:
@@ -228,6 +241,17 @@ async def ingest_telemetry(payload: bytes) -> None:
                     except Exception:
                         logger.exception(
                             "reading broadcast failed (node=%s metric=%s value=%s)",
+                            node_id, metric, value,
+                        )
+                if _exposure_callback is not None:
+                    try:
+                        await _exposure_callback(node_id, metric, value, sampled_at)
+                    except Exception:
+                        # 적산 실패가 경보 판정과 브로드캐스트를 막으면 안 된다.
+                        # 노출량은 누적 지표라 한 샘플을 놓쳐도 다음 샘플에서
+                        # 이어지지만, 순간값 경보는 그 샘플을 놓치면 끝이다.
+                        logger.exception(
+                            "exposure accumulation failed (node=%s metric=%s value=%s)",
                             node_id, metric, value,
                         )
 
