@@ -1,4 +1,5 @@
 import type { MetricKey } from "../types";
+import type { WorkerExposureMessage } from "../types/ws";
 import { ApiError, fetchApi } from "./fetchWithAuth";
 
 export interface SensorDataPoint {
@@ -173,6 +174,19 @@ export async function releaseNode(nodeId: string): Promise<void> {
     method: "POST",
     csrf: true,
   });
+}
+
+// ── 누적 노출량 (FR-701~708, 11_EXPOSURE_DOSE_SPEC §6.2) ────────────────
+
+/**
+ * 활성 노출 윈도우 전체.
+ *
+ * 초기 로드 전용이다. 이후 갱신은 WebSocket 의 `worker_exposure` 가 맡는다 (§6.1).
+ * REST 가 필요한 이유는 새로고침 직후다 — WS 는 다음 브로드캐스트(최대 5초)까지
+ * 아무것도 보내지 않아서, 그동안 화면이 "노출량 데이터 없음"으로 보인다.
+ */
+export async function fetchExposureCurrent(): Promise<WorkerExposureMessage[]> {
+  return fetchApi<WorkerExposureMessage[]>("/api/exposure/current");
 }
 
 export async function fetchHealth(): Promise<HealthStatus> {

@@ -36,9 +36,36 @@ _ALERT_TYPE_MAP = {
     "o2_high": "o2_high",
 }
 
+#: 누적 노출량 경보의 alert_key (11_EXPOSURE_DOSE_SPEC.md §5.3). 전부
+#: alert_type "exposure_dose" 로 묶인다.
+#:
+#: 이 alert_type 이 필요한 이유는 **해제 규칙이 다르기** 때문이다. 가스 농도 경보는
+#: 값이 내려가면 Hysteresis 로 해제되지만, 누적값은 줄어들지 않으므로 노출량 경보에는
+#: exit_threshold 개념 자체가 없다 (§5.2). 소비자(대시보드·MQTT 구독자)가 두 종류를
+#: 구분하지 못하면 "왜 값이 정상인데 경보가 안 꺼지나"를 고장으로 오해한다.
+EXPOSURE_ALERT_KEYS = frozenset({
+    "exposure_co2", "exposure_co", "exposure_h2s", "o2_deficiency_time",
+})
 
-def _alert_type_for(metric: str) -> str:
-    return _ALERT_TYPE_MAP.get(metric, "gas_threshold")
+
+def _alert_type_for(alert_key: str) -> str:
+    if alert_key in EXPOSURE_ALERT_KEYS:
+        return "exposure_dose"
+    return _ALERT_TYPE_MAP.get(alert_key, "gas_threshold")
+
+
+def _key_of(transition: AlertTransition) -> Tuple[str, str]:
+    """활성 경보 추적 키 — metric 이 아니라 **alert_key** 다.
+
+    이 파일 상단의 alert_id 정책이 원래 "(node_id, alert_key)"라고 적고 있었는데
+    코드는 metric 을 쓰고 있었다. 기존 경보는 alert_key == metric 이라 차이가 없었다.
+
+    누적 노출량에서는 달라진다. 시간 누적 O2 경보(alert_key `o2_deficiency_time`)와
+    순간값 경보(`o2_low`)는 **둘 다 metric 이 o2_pct** 라, metric 으로 키를 잡으면
+    한쪽이 다른 쪽의 alert_id 를 가져가고 해제까지 서로 덮어쓴다. §5.4 가 "두 경보는
+    독립적으로 동작하며 서로 대체하지 않는다"고 못박은 바로 그 충돌이다.
+    """
+    return (transition.node_id, transition.alert_key or transition.metric)
 
 
 class AlertEventPublisher:
@@ -56,7 +83,7 @@ class AlertEventPublisher:
         # 여기서 "진짜 해제할 active 경보가 있었는지"를 최종적으로 걸러줘야 한다.
         # 이 가드는 connection_lost뿐 아니라 모든 metric의 resolved-only 오발행을
         # 막아준다 (active_alert_ids에 없으면 애초에 해제할 게 없다는 뜻이므로).
-        key = (transition.node_id, transition.metric)
+        key = _key_of(transition)
         if transition.to_level == AlertLevel.NORMAL and key not in self._active_alert_ids:
             logger.debug(
                 "skipping resolved-only publish, no active alert tracked for %s", key
@@ -101,7 +128,7 @@ class AlertEventPublisher:
             return None
 
     def _build_event(self, transition: AlertTransition, worker=None) -> dict:
-        key = (transition.node_id, transition.metric)
+        key = _key_of(transition)
         now = datetime.now(timezone.utc)
 
         if transition.to_level == AlertLevel.NORMAL:
@@ -125,8 +152,8 @@ class AlertEventPublisher:
             "message_id": str(ULID()),
             "alert_id": alert_id,
             "source_node_id": transition.node_id,
-            "alert_key": transition.metric,
-            "alert_type": _alert_type_for(transition.metric),
+            "alert_key": transition.alert_key or transition.metric,
+            "alert_type": _alert_type_for(transition.alert_key or transition.metric),
             "level": level,
             "trigger_value": transition.value,
             "threshold": transition.threshold,

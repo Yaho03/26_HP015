@@ -55,3 +55,12 @@ class AlertTransition(BaseModel):
     value: float
     threshold: float
     timestamp: datetime
+    #: alert_key 를 metric 과 다르게 둘 때만 채운다. 비우면 metric 이 곧 alert_key 다
+    #: (기존 가스·O2 경보의 동작 그대로).
+    #:
+    #: 누적 노출량이 이 필드를 쓴다 (11_EXPOSURE_DOSE_SPEC.md §5.3) — alert_key 는
+    #: `exposure_co2` 인데 metric 은 `co2_ppm` 이어야 한다. 둘을 같게 두면 노출량
+    #: 경보가 순간값 경보와 같은 키를 써서 서로를 덮어쓴다. O2 는 그 충돌이 실제로
+    #: 일어난다: 순간값 o2_low 와 시간 누적 o2_deficiency_time 은 §5.4 가 명시적으로
+    #: "독립적으로 동작하며 서로 대체하지 않는다"고 못박은 별개 경보다.
+    alert_key: str | None = None

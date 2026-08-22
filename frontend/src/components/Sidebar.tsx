@@ -2,9 +2,15 @@ import type { ComponentType } from "react";
 import type { AlertLevel, ConnectionStatus } from "../types";
 import type { Role } from "../store/authStore";
 import { hasRole } from "../store/authStore";
-import { IconChart, IconCube, IconGauge, IconList, IconSettings } from "./icons";
+import { IconChart, IconClock, IconCube, IconGauge, IconList, IconSettings } from "./icons";
 
-export type ScreenKey = "monitoring" | "twin" | "chart" | "event-log" | "settings";
+export type ScreenKey =
+  | "monitoring"
+  | "twin"
+  | "chart"
+  | "event-log"
+  | "exposure"
+  | "settings";
 
 interface MenuItem {
   key: ScreenKey;
@@ -18,6 +24,8 @@ const MENU: MenuItem[] = [
   { key: "twin", label: "3D 트윈", Icon: IconCube },
   { key: "chart", label: "차트", Icon: IconChart },
   { key: "event-log", label: "이벤트 로그", Icon: IconList },
+  // 시계 아이콘을 쓰는 이유 — 노출량은 농도가 아니라 농도 × **시간**이다.
+  { key: "exposure", label: "노출량", Icon: IconClock },
   { key: "settings", label: "설정", Icon: IconSettings },
 ];
 
