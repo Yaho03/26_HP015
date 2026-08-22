@@ -50,7 +50,13 @@ function handleMessage(msg: WSMessage): void {
         resolved_at: null,
       });
       const title = ALERT_TITLES[msg.metric] ?? msg.metric;
-      const body = `${msg.node_id} · ${msg.value.toFixed(1)} / 임계값 ${msg.threshold}`;
+      // 수신 값은 신뢰 경계 밖이다 (#243). toFixed 가 숫자 아닌 값에서 throw
+      // 하면 이 경보의 모달·토스트 자체가 억제된다 — 형식화는 값 이후의 문제.
+      const valueText = Number.isFinite(msg.value) ? msg.value.toFixed(1) : String(msg.value);
+      const thresholdText = Number.isFinite(msg.threshold)
+        ? msg.threshold.toFixed(1)
+        : String(msg.threshold);
+      const body = `${msg.node_id} · ${valueText} / 임계값 ${thresholdText}`;
       if (msg.to_level === "level3_critical") {
         toastStore.openModal({ alert_key: key, level: "level3_critical", title, body });
       } else {
@@ -149,8 +155,21 @@ export function useWebSocket(url: string): void {
   const clientRef = useRef<WSClient | null>(null);
   const setConnectionStatus = useDashboardStore((s) => s.setConnectionStatus);
   const expire = useAuthStore((s) => s.expire);
+  const authStatus = useAuthStore((s) => s.status);
 
   useEffect(() => {
+    // 인증된 세션에서만 연결한다 (#242). 세션 만료(WS 1008) → unauthenticated
+    // 로 전환되면 클라이언트를 정리하고, 재로그인(authenticated)으로 돌아오면
+    // **새 클라이언트**를 만들어 새 세션 쿠키로 재연결한다 — 1008 에서 멈춘
+    // 옛 클라이언트는 재연결 플래그가 꺼져 있어 재사용하면 영영 붙지 않는다.
+    if (authStatus !== "authenticated") {
+      if (clientRef.current) {
+        clientRef.current.disconnect();
+        clientRef.current = null;
+        setConnectionStatus({ websocket_connected: false });
+      }
+      return;
+    }
     const client = new WSClient(url);
     clientRef.current = client;
     const offMessage = client.onMessage(handleMessage);
@@ -167,5 +186,5 @@ export function useWebSocket(url: string): void {
       client.disconnect();
       clientRef.current = null;
     };
-  }, [url, setConnectionStatus, expire]);
+  }, [url, setConnectionStatus, expire, authStatus]);
 }
