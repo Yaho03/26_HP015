@@ -305,7 +305,7 @@ high    : 그 외 (exposure_source == "wearable_direct" 는 항상 high)
 
 > 전 엔드포인트는 `enforce_authentication` 게이트 아래에 있다 (AUTH-3). 신규 경로를 `PUBLIC_PATHS`에 넣지 않는다.
 
-### 6.3 DB 스키마 (`008_exposure.sql`)
+### 6.3 DB 스키마 (`009_exposure.sql`)
 
 ```sql
 -- 노출 기준값 (thresholds 테이블과 같은 철학: 코드가 아니라 DB가 소스)

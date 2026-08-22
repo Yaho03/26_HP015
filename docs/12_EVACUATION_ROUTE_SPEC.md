@@ -291,7 +291,7 @@ edge_cost = length_m × traverse_factor × hazard_multiplier
 | PATCH | `/api/evacuation/exits/{exit_id}` | supervisor+ | `is_usable` 토글. 감사 로그 필수 |
 | GET | `/api/evacuation/history` | viewer+ | 과거 경로 이력 (사고 조사) |
 
-### 4.3 DB 스키마 (`009_evacuation.sql`)
+### 4.3 DB 스키마 (`010_evacuation.sql`)
 
 ```sql
 CREATE TABLE IF NOT EXISTS nav_nodes (
