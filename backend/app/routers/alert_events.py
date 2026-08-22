@@ -4,7 +4,7 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Literal, Optional
 
-from fastapi import APIRouter, Query
+from fastapi import APIRouter, HTTPException, Query
 
 from app.repositories import alert_events_repository
 
@@ -14,7 +14,16 @@ router = APIRouter(prefix="/api/alert-events", tags=["alert-events"])
 def _parse_dt(value: Optional[str]) -> Optional[datetime]:
     if value is None:
         return None
-    return datetime.fromisoformat(value.replace("Z", "+00:00"))
+    # 형식 오류는 사용자 입력 문제 → 422 (#245). sensor_data(#120) 와 같은
+    # 계약이다. ValueError 를 그대로 두면 500 이 되어 호출자가 자기 요청을
+    # 고칠 수 있다는 신호를 잃는다.
+    try:
+        return datetime.fromisoformat(value.replace("Z", "+00:00"))
+    except (ValueError, AttributeError):
+        raise HTTPException(
+            status_code=422,
+            detail=f"ISO8601 형식이어야 합니다 (예: 2026-08-16T00:00:00Z). 받은 값: {value!r}",
+        )
 
 
 def _serialize(row: dict) -> dict:

@@ -157,7 +157,10 @@ class ConnectionManager:
             except asyncio.TimeoutError:
                 logger.warning("ws send timed out after %.1fs, dropping client", BROADCAST_TIMEOUT_S)
                 return False
-            except Exception:
+            except Exception as exc:
+                # 실패를 세지 않으면 죽은 클라이언트가 왜 사라졌는지 아무도 모른다
+                # (#250). 경보 브로드캐스트라면 이 로그가 유일한 실패 흔적이다.
+                logger.warning("ws send failed (%s), dropping client: %s", type(exc).__name__, exc)
                 return False
 
         results = await asyncio.gather(

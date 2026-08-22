@@ -15,6 +15,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import re
+import os
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
@@ -218,14 +219,14 @@ async def run(req: RunRequest, _csrf: None = Depends(verify_csrf)) -> RunState:
     await _terminate()
 
     # 셸을 쓰지 않는다 — argv 배열이라 인자가 셸 문법으로 해석되지 않는다.
+    # MQTT 자격증명은 argv 에 두지 않는다 (#247): ps/procfs 에 노출된다.
+    # inject CLI 가 읽는 환경변수(MQTT_USERNAME/MQTT_PASSWORD)로 전달한다.
     argv = [
         sys.executable, "-m", "experiments.inject.cli",
         "--scenario", info.name,
         "--node-id", ",".join(nodes),
         "--host", settings.mqtt_host,
         "--port", str(settings.mqtt_port),
-        "--username", settings.mqtt_username,
-        "--password", settings.mqtt_password,
     ]
     if duration is not None:
         argv += ["--duration", str(duration)]
@@ -235,6 +236,8 @@ async def run(req: RunRequest, _csrf: None = Depends(verify_csrf)) -> RunState:
         _process = await asyncio.create_subprocess_exec(
             *argv,
             cwd=str(_inject_cwd()),
+            env={**os.environ, "MQTT_USERNAME": settings.mqtt_username,
+                 "MQTT_PASSWORD": settings.mqtt_password},
             stdout=asyncio.subprocess.DEVNULL,
             stderr=asyncio.subprocess.DEVNULL,
         )

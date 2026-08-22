@@ -6,6 +6,7 @@
 from __future__ import annotations
 
 import csv
+import re
 import io
 from datetime import datetime, timedelta
 from typing import Iterator, Literal
@@ -58,6 +59,16 @@ def _validated_range(start: str, end: str) -> tuple[datetime, datetime]:
 
 def _iso(value) -> str:
     return value.isoformat() if hasattr(value, "isoformat") else str(value)
+
+
+# Content-Disposition filename 에 쓸 수 없는 문자 제거 (#244). node_id/metric 은
+# 사용자 입력이라 CR/LF·따옴표가 들어오면 헤더 인젝션·파싱 파괴가 된다.
+_FILENAME_SAFE = re.compile(r"[^A-Za-z0-9._-]+")
+
+
+def _safe_filename_part(value: str) -> str:
+    cleaned = _FILENAME_SAFE.sub("_", value).strip("._") or "data"
+    return cleaned[:64]
 
 
 @router.get("")
@@ -118,6 +129,8 @@ async def export_sensor_data(
         lines(),
         media_type="text/csv",
         headers={
-            "Content-Disposition": f'attachment; filename="sensor_data_{node_id}_{metric}.csv"'
+            "Content-Disposition": (
+                f'attachment; filename="sensor_data_{_safe_filename_part(node_id)}_{_safe_filename_part(metric)}.csv"'
+            )
         },
     )
