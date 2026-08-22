@@ -157,3 +157,52 @@ class TestDbConnectGuard:
         monkeypatch.setattr(cfg, "timescale_url", "")
         with pytest.raises(RuntimeError, match="TIMESCALE_URL"):
             await db.connect()
+
+
+# ============================================================
+# exposure 섹션 (이슈 #207) — 적산이 멈춰 있으면 숨기지 않는다
+# ============================================================
+
+def test_health_reports_exposure_not_started(client, all_good):
+    """init() 전/실패 후 — enabled=false + 사유. status 에는 반영하지 않는다."""
+    from app.services import exposure_service
+
+    body = client.get("/health").json()
+    assert body["exposure"]["enabled"] is False
+    assert body["exposure"]["reason"] == "not_started"
+    # 노출 적산이 멈춰도 센서 수집·가스 경보는 정상 — 전체 status 는 유지된다.
+    assert body["status"] == "ok"
+    _ = exposure_service
+
+
+def test_health_reports_exposure_running(client, all_good, monkeypatch):
+    from app.services import exposure_service
+
+    class _FakeTask:
+        done = lambda self: False  # noqa: E731
+
+    monkeypatch.setattr(exposure_service, "_task", _FakeTask())
+    monkeypatch.setattr(
+        exposure_service, "_sensor_nodes", {"sensor-01": (0.0, 3.25)}
+    )
+    monkeypatch.setattr(exposure_service, "_limits", {})
+
+    body = client.get("/health").json()
+    assert body["exposure"]["enabled"] is True
+    # 기준값 미시드 — provisional 로 내려간다 (고시 대조 전 상태).
+    assert body["exposure"]["provisional"] is True
+    assert "기준값 미시드" in body["exposure"]["reason"]
+
+
+def test_health_reports_exposure_no_sensor_nodes(client, all_good, monkeypatch):
+    from app.services import exposure_service
+
+    class _FakeTask:
+        done = lambda self: False  # noqa: E731
+
+    monkeypatch.setattr(exposure_service, "_task", _FakeTask())
+    monkeypatch.setattr(exposure_service, "_sensor_nodes", {})
+
+    body = client.get("/health").json()
+    assert body["exposure"]["enabled"] is False
+    assert "uwb_anchors" in body["exposure"]["reason"]

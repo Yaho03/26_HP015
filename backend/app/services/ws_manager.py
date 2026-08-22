@@ -113,7 +113,32 @@ class ConnectionManager:
             logger.exception("snapshot query failed, sending empty snapshot")
             nodes, alerts = {}, {}
 
-        await ws.send_json({"type": "snapshot", "nodes": nodes, "alerts": alerts})
+        # worker_exposure / evacuation_route 초기 상태 (이슈 #209). 새로고침·
+        # 재연결 직후 화면이 비는 것을 막는다 — 경로는 route_id 가 바뀔 때만
+        # 발행되므로, snapshot 이 없으면 안정 상태의 현재 경로가 영영 안 보인다.
+        # 각 서비스의 snapshot_* 헬퍼는 DB 장애 시 빈 값을 돌려준다.
+        exposures: list = []
+        routes: dict = {}
+        try:
+            from app.services import exposure_service
+            exposures = exposure_service.snapshot_all()
+        except Exception:
+            logger.exception("exposure snapshot failed, hydrating empty")
+        try:
+            from app.services import evacuation_service
+            for node_id in evacuation_service.active_route_nodes():
+                message = evacuation_service.to_message(node_id, evacuation_service.get_active_route(node_id))
+                routes[node_id] = message
+        except Exception:
+            logger.exception("evacuation snapshot failed, hydrating empty")
+
+        await ws.send_json({
+            "type": "snapshot",
+            "nodes": nodes,
+            "alerts": alerts,
+            "worker_exposures": exposures,
+            "evacuation_routes": routes,
+        })
 
     async def broadcast(self, message: dict) -> None:
         """모든 클라이언트에 동시에 보낸다.
