@@ -65,6 +65,9 @@ export class WSClient {
     try {
       parsed = JSON.parse(raw);
     } catch {
+      // 파싱 실패도 관측 가능해야 한다 (#246) — 무음 return 는 프레임 드롭을
+      // 아무도 모르게 한다. 백엔드는 JSON 만 보내므로 실패는 이상 상태다.
+      console.warn("[ws] non-JSON frame dropped:", raw.slice(0, 120));
       return;
     }
     // 안전 메시지(worker_exposure/evacuation_route)는 런타임 검증을 통과해야

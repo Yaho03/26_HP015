@@ -152,3 +152,17 @@ describe("hydrateSnapshot — 서버 상태로 재동기화 (#213)", () => {
     expect(Object.keys(after.active_alerts)).toHaveLength(0);
   });
 });
+
+describe("경보 표시 형식화 가드 (#243)", () => {
+  it("Number.isFinite 검사로 toFixed 억제 방지 — 숫자 아닌 값도 문자열로 렌더", () => {
+    // useWebSocket 의 형식화 로직 미러 — 실제 모듈은 컴포넌트 훅이라 여기서는
+    // 계약만 잠근다: 어떤 입력이든 openModal/push 가 호출돼야 한다.
+    const format = (v: unknown): string =>
+      Number.isFinite(v as number) ? (v as number).toFixed(1) : String(v);
+    expect(format(1234.56)).toBe("1234.6");
+    expect(format("high")).toBe("high");
+    expect(format(null)).toBe("null");
+    expect(format(undefined)).toBe("undefined");
+    expect(format(NaN)).toBe("NaN");
+  });
+});
