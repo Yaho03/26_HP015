@@ -62,13 +62,18 @@ def _enqueue_retry(topic: str, payload: bytes) -> None:
     global _overflow_dropped_count
     if len(_retry_queue) >= _retry_queue.maxlen:
         _overflow_dropped_count += 1
-        logger.warning(
-            "retry queue full (maxlen=%d) — oldest queued message will be evicted "
-            "(topic=%s, total overflow-dropped=%d)",
-            _retry_queue.maxlen,
-            topic,
-            _overflow_dropped_count,
-        )
+        # 메모리 큐는 최신 우선(dqdrop-oldest) — 안전 시스템에서 오래된 샘플보다
+        # 최신 샘플이 중요하다. 단 유실 자체는 숨기지 않는다 (#241): 카운터로
+        # 노출하고, 상태가 바뀔 때만 로그를 남긴다(건당 로그는 장애 중 홍수).
+        metrics.increment("messages_dropped_retry_overflow")
+        if _overflow_dropped_count == 1 or _overflow_dropped_count % 100 == 0:
+            logger.warning(
+                "retry queue full (maxlen=%d) — oldest queued message evicted "
+                "(topic=%s, total overflow-dropped=%d)",
+                _retry_queue.maxlen,
+                topic,
+                _overflow_dropped_count,
+            )
     _retry_queue.append((topic, payload))
 
 

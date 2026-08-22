@@ -163,3 +163,111 @@ async def test_message_without_numeric_metrics_still_counts(counters, monkeypatc
 
 def test_metrics_written_is_exposed():
     assert "metrics_written" in metrics.snapshot()
+
+
+# ============================================================
+# 안전 경로 실패 관측 (#236, #237, #239, #240, #241)
+# ============================================================
+
+@pytest.mark.asyncio
+async def test_callbacks_run_after_transaction_commit(counters, monkeypatch):
+    """#237 — 경보/브로드캐스트 콜백은 DB 트랜잭션 커밋 이후에 실행된다.
+
+    트랜잭션 안에서 await 하면 WS broadcast 타임아웃(2초)만큼 커넥션을
+    붙잡아 풀을 고갈시킨다.
+    """
+    events: list[str] = []
+    transaction_open = False
+
+    class _Tx:
+        async def __aenter__(self):
+            nonlocal transaction_open
+            transaction_open = True
+            events.append("tx-begin")
+            return self
+
+        async def __aexit__(self, *exc):
+            nonlocal transaction_open
+            transaction_open = False
+            events.append("tx-commit")
+            return False
+
+    class _Conn:
+        def transaction(self):
+            return _Tx()
+
+        async def fetchrow(self, sql, *args):
+            return {"message_id": args[0]}
+
+        async def executemany(self, sql, rows):
+            events.append("insert")
+
+    class _Pool:
+        class _A:
+            def __init__(self, conn):
+                self._conn = conn
+
+            async def __aenter__(self):
+                return self._conn
+
+            async def __aexit__(self, *e):
+                return False
+
+        def acquire(self):
+            return _Pool._A(_Conn())
+
+    async def _alert_cb(node_id, metric, value, sampled_at):
+        assert not transaction_open, "콜백이 트랜잭션 내부에서 실행되고 있다 (#237)"
+        events.append("alert-cb")
+
+    monkeypatch.setattr(ingest, "get_pool", lambda: _Pool())
+    monkeypatch.setattr(ingest, "_alert_callback", _alert_cb)
+    monkeypatch.setattr(ingest, "_reading_callback", None)
+    monkeypatch.setattr(ingest, "_exposure_callback", None)
+    monkeypatch.setattr(ingest, "_location_callback", None)
+
+    await ingest.ingest_telemetry(gas_payload())
+    # 지표 4개 → 콜백 4회. 전부 커밋 이후(트랜잭션 밖)인지 순서로 검증.
+    assert events[:3] == ["tx-begin", "insert", "tx-commit"]
+    assert events.count("alert-cb") == 4
+    assert events.index("alert-cb") > events.index("tx-commit")
+
+
+@pytest.mark.asyncio
+async def test_alert_callback_failure_counted(counters, monkeypatch):
+    """#236 — 콜백 실패는 로그만이 아니라 카운터로 노출된다."""
+    monkeypatch.setattr(ingest, "get_pool", lambda: FakePool(FakeConn()))
+
+    async def _boom(node_id, metric, value, sampled_at):
+        raise RuntimeError("evaluator down")
+
+    monkeypatch.setattr(ingest, "_alert_callback", _boom)
+    monkeypatch.setattr(ingest, "_reading_callback", None)
+    monkeypatch.setattr(ingest, "_exposure_callback", None)
+    monkeypatch.setattr(ingest, "_location_callback", None)
+
+    await ingest.ingest_telemetry(gas_payload())
+    assert counters.snapshot()["alert_callback_failures"] >= 1
+
+
+def test_mqtt_publish_failure_counted(monkeypatch):
+    """#239 — QoS1 publish 의 rc 가 실패면 카운터가 오른다."""
+    import paho.mqtt.client as mqtt
+
+    from app.observability import metrics
+    from app.services import alert_publisher as ap
+
+    class _FailInfo:
+        rc = mqtt.MQTT_ERR_NO_CONN
+
+    class _FailClient:
+        def publish(self, topic, payload, qos=0, retain=False):
+            return _FailInfo()
+
+    for name, value in metrics.snapshot().items():
+        setattr(metrics, name, type(value)())
+
+    publisher = ap.AlertEventPublisher(mqtt_client=_FailClient())
+    publisher._publish_mqtt("alerts/events/sensor-01", {"a": 1}, retain=False)
+
+    assert metrics.snapshot()["alerts_publish_failed"] == 1

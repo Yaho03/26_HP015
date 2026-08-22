@@ -314,7 +314,17 @@ class AlertEventPublisher:
         import paho.mqtt.client as mqtt
         qos = 1
         info = self._mqtt.publish(topic, json.dumps(payload), qos=qos, retain=retain)
-        logger.debug("MQTT publish topic=%s qos=%d retain=%s rc=%s", topic, qos, retain, info.rc)
+        # QoS1 은 '큐에 넣음'이지 '전달됨'이 아니다 (#239). rc 가 실패면(브로커
+        # 미연결 등) 메시지는 가지 않았는데 예전엔 debug 로그 한 줄로 끝나 — 경보
+        # 전달 실패가 은폐됐다. 실패는 error 로그 + 카운터로 노출한다.
+        if info.rc != mqtt.MQTT_ERR_SUCCESS:
+            metrics.increment("alerts_publish_failed")
+            logger.error(
+                "MQTT publish FAILED (topic=%s qos=%d retain=%s rc=%d) — 경보가 웨어러블/구독자에게 전달되지 않았다",
+                topic, qos, retain, info.rc,
+            )
+        else:
+            logger.debug("MQTT publish topic=%s qos=%d retain=%s rc=%s", topic, qos, retain, info.rc)
 
 
 _publisher: Optional[AlertEventPublisher] = None
