@@ -62,10 +62,24 @@ export interface ThresholdUpdate {
   exit_for_ms: number;
 }
 
+/** 탈출 경로 기능 가용성 (FR-806). 통행 구조 검증에 실패하면 경로 기능만 꺼지고
+ *  사유가 여기 실린다. optional 인 이유는 이 필드가 없는 구버전 백엔드에 붙어도
+ *  화면이 깨지지 않아야 해서다. */
+export interface EvacuationHealth {
+  enabled: boolean;
+  reason: string | null;
+  /** 통행 구조가 실측 도면이 아니라 가정값인가 (OQ-V5). */
+  provisional: boolean;
+  node_count: number;
+  edge_count: number;
+  exit_count: number;
+}
+
 export interface HealthStatus {
   status: string;
   mqtt: { connected: boolean };
   db: { pool_initialized: boolean };
+  evacuation?: EvacuationHealth;
 }
 
 export async function fetchSensorData(

@@ -24,6 +24,26 @@ _filter = LocationFilter(
 )
 _callback_registered = False
 
+# 필터링된 위치를 함께 받고 싶은 다른 서비스들.
+#
+# ingest.set_location_callback 은 콜백을 하나만 받는다. 그 자리를 이미 이 서비스가
+# 쓰고 있어서, 탈출 경로처럼 위치가 필요한 기능이 늘 때마다 여기에 import 를 박으면
+# 이 모듈이 하위 기능들을 알게 된다. 관심 있는 쪽이 등록하게 뒤집는다.
+_observers: list = []
+
+
+def add_observer(callback) -> None:
+    """위치 갱신을 함께 받는다. 콜백은 async 여야 한다.
+
+    중복 등록을 막는다 — init() 이 두 번 불려도 같은 콜백이 두 번 돌면 안 된다.
+    """
+    if callback not in _observers:
+        _observers.append(callback)
+
+
+def clear_observers_for_test() -> None:
+    _observers.clear()
+
 
 def init() -> None:
     global _callback_registered
@@ -44,6 +64,14 @@ async def _on_location_ingested(
     if filtered is None:
         return
     await _broadcast(filtered)
+
+    # 관찰자 하나가 실패해도 나머지와 위치 브로드캐스트는 계속돼야 한다.
+    # 위치 표시는 경로보다 더 기본적인 기능이다.
+    for observer in _observers:
+        try:
+            await observer(filtered)
+        except Exception:
+            logger.exception("location observer 실패 (node=%s)", filtered.node_id)
 
 
 async def _broadcast(pos: FilteredPosition) -> None:

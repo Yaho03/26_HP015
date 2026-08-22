@@ -34,6 +34,10 @@ logger = logging.getLogger(__name__)
 _ALERT_TYPE_MAP = {
     "o2_low": "o2_low",
     "o2_high": "o2_high",
+    # 가스 임계값이 아니라 상황 자체가 경보다 — 안전한 대피 경로가 사라졌다
+    # (FR-803, 12_EVACUATION_ROUTE_SPEC §3.5). gas_threshold 로 분류되면
+    # 대시보드가 센서 경보와 섞어 보여준다.
+    "no_safe_route": "evacuation",
 }
 
 #: 누적 노출량 경보의 alert_key (11_EXPOSURE_DOSE_SPEC.md §5.3). 전부

@@ -5,7 +5,7 @@ from fastapi import APIRouter, Depends
 
 from app import db
 from app.dependencies.auth import require_role
-from app.services import mqtt_subscriber
+from app.services import evacuation_service, mqtt_subscriber
 
 router = APIRouter()
 
@@ -23,10 +23,18 @@ async def health():
     """
     mqtt_ok = mqtt_subscriber.is_healthy()
     db_ok = await db.ping()
+    evacuation = evacuation_service.status()
     return {
+        # 경로 기능은 status 에 반영하지 않는다. 통행 구조가 없어도 센서 수집과
+        # 가스 경보는 정상이고, 그쪽이 이 시스템의 본체다. 경로가 꺼진 것을
+        # degraded 로 올리면 컨테이너 헬스체크가 재시작 루프를 돈다
+        # (12_EVACUATION_ROUTE_SPEC §6.3).
         "status": "ok" if (mqtt_ok and db_ok) else "degraded",
         "mqtt": {"connected": mqtt_ok},
         "db": {"pool_initialized": db_ok},
+        # 꺼져 있으면 왜 꺼졌는지까지 싣는다. 대시보드가 이 사유를 그대로 배너에
+        # 띄운다 — 조용히 사라지지 않게 하는 것이 요점이다 (이슈 #154 의 교훈).
+        "evacuation": evacuation.model_dump(),
     }
 
 

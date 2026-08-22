@@ -12,6 +12,7 @@ from app.routers import (
     audit_log,
     auth,
     demo,
+    evacuation,
     exposure,
     health,
     sensor_data,
@@ -128,6 +129,7 @@ app.include_router(thresholds.router)
 app.include_router(sensor_data.router)
 app.include_router(alert_events.router)
 app.include_router(workers.router)
+app.include_router(evacuation.router)
 app.include_router(exposure.router)
 app.include_router(websocket.router)
 # 기본 비활성. settings.demo_control_enabled 가 false 면 모든 경로가 404 다.

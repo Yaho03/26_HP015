@@ -48,6 +48,10 @@ export function TwinHeatmapPanel({
           nodes={nodes}
           wearable={wearable}
           heatmap={insufficient ? null : { samples, metric }}
+          // 이 칸은 FILL 프리셋(x 24배 / y 6.5배)이라 축마다 배율이 다르다.
+          // 경로를 그리면 형상이 실제와 달라지고, 왜곡된 그림에서 "가장 가까운
+          // 출구"를 눈으로 고르면 틀린 답이 나온다. 경로는 TRUE SCALE 인 3D
+          // 트윈 화면과 2D 평면도에서만 본다 (ADR-010, 12_EVACUATION §2.4).
           escapeRoute={null}
         />
 

@@ -60,6 +60,10 @@ services:
       # 첫 로그인 후 비밀번호 변경을 강제한다.
       BOOTSTRAP_ADMIN_USERNAME: ${BOOTSTRAP_ADMIN_USERNAME:-}
       BOOTSTRAP_ADMIN_PASSWORD: ${BOOTSTRAP_ADMIN_PASSWORD:-}
+    volumes:
+      # 경로 토폴로지는 마이그레이션이 아니라 운영 중 교체 가능한 설정 파일이다.
+      # 컨테이너의 기본 경로(/config/space_topology.yaml)에 읽기 전용으로 제공한다.
+      - ../config:/config:ro
     # 호스트에 포트를 노출하지 않는다 (이슈 #105 수정안, 코드리뷰 반영) — 프론트엔드는
     # nginx(frontend 컨테이너)가 /api, /ws를 backend:8000으로 내부 프록시하므로 필요 없고,
     # 호스트에 열어두면 CORS 우회 경로가 하나 더 생기는 셈이라 배포 스택에선 막는 게 맞다.

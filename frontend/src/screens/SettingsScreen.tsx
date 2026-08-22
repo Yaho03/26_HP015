@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { DemoControlPanel } from "../components/DemoControlPanel";
+import { EvacuationTopologyPanel } from "../components/EvacuationTopologyPanel";
 import { WorkerRoster } from "../components/WorkerRoster";
 import { UserAdmin } from "../components/UserAdmin";
 import { hasRole, useAuthStore, type Role } from "../store/authStore";
@@ -15,7 +16,14 @@ import {
   type ThresholdLevel,
 } from "../services/api";
 
-type SettingsTab = "thresholds" | "workers" | "hazards" | "system" | "demo" | "users";
+type SettingsTab =
+  | "thresholds"
+  | "workers"
+  | "hazards"
+  | "topology"
+  | "system"
+  | "demo"
+  | "users";
 type RowStatus = { key: string; tone: "success" | "error"; message: string } | null;
 
 interface MetricMeta {
@@ -54,6 +62,7 @@ const TAB_ITEMS: { key: SettingsTab; label: string; hint: string; minRole?: Role
   // 서버가 403 으로 막지만 권한 없는 사용자에게 메뉴를 보여줄 이유가 없다.
   { key: "workers", label: "작업자", hint: "WORKER REGISTRY", minRole: "supervisor" },
   { key: "hazards", label: "위험 구역", hint: "ZONE PROFILE" },
+  { key: "topology", label: "통행 구조", hint: "EGRESS TOPOLOGY" },
   { key: "system", label: "시스템", hint: "HEALTH & METRICS" },
   { key: "users", label: "사용자", hint: "ACCOUNTS", minRole: "admin" },
   { key: "demo", label: "데모 제어", hint: "SCENARIO INJECTION", minRole: "admin" },
@@ -226,6 +235,8 @@ export function SettingsScreen() {
           );
         })}
       </div>
+
+      {tab === "topology" && <EvacuationTopologyPanel />}
 
       {tab === "thresholds" && (
         <section className="settings-section" aria-labelledby="thresholds-title">
