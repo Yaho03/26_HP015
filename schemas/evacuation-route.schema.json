@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://hp015.local/schemas/evacuation-route.schema.json",
   "title": "Evacuation Route Message",
-  "description": "WebSocket message carrying a hazard-weighted evacuation route for one worker. Coordinates are in the physical coordinate system (model-local, Z-up); display-coordinate mapping is done by the frontend at render time. See docs/12_EVACUATION_ROUTE_SPEC.md and ADR-009.",
+  "description": "WebSocket message carrying a hazard-weighted evacuation route for one worker. Coordinates are in the ship-visual system (Z-up, 60m x 20m x 14m true scale, see the coordinate_system property and ADR-010); the frontend applies only the Z-up to Y-up axis swap at render time. See docs/12_EVACUATION_ROUTE_SPEC.md and ADR-009.",
   "type": "object",
   "required": [
     "type",
@@ -82,7 +82,6 @@
     },
     "waypoints": {
       "type": "array",
-      "minItems": 0,
       "description": "Ordered path. seq 0 is the worker's actual measured position, not a graph node.",
       "items": {
         "type": "object",
@@ -136,5 +135,28 @@
         ]
       }
     }
-  }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": { "route_status": { "const": "unavailable" } }
+      },
+      "then": {
+        "required": ["unavailable_reason"]
+      }
+    },
+    {
+      "if": {
+        "not": {
+          "properties": { "route_status": { "const": "unavailable" } }
+        }
+      },
+      "then": {
+        "description": "safe/degraded/no_safe_route all carry a renderable path. no_safe_route still returns the minimum-risk path — never hide it (spec 3.3).",
+        "properties": {
+          "waypoints": { "minItems": 1 }
+        }
+      }
+    }
+  ]
 }
