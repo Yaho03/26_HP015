@@ -137,6 +137,21 @@
         "peak_ppm": { "type": ["number", "null"], "minimum": 0 },
         "peak_at": { "type": ["string", "null"], "format": "date-time" },
         "alert_level": { "$ref": "#/$defs/alertLevel" }
+      },
+      "if": { "properties": { "status": { "const": "unavailable" } } },
+      "then": {
+        "required": ["reason"],
+        "not": {
+          "anyOf": [
+            { "required": ["dose_ppm_min"] },
+            { "required": ["dose_fraction"] },
+            { "required": ["twa_8h_ppm"] },
+            { "required": ["twa_15min_ppm"] },
+            { "required": ["peak_ppm"] },
+            { "required": ["dose_worst_case_ppm_min"] },
+            { "required": ["stel_exceeded"] }
+          ]
+        }
       }
     },
     "o2Metric": {
@@ -169,6 +184,18 @@
         },
         "o2_min_pct": { "type": ["number", "null"] },
         "alert_level": { "$ref": "#/$defs/alertLevel" }
+      },
+      "if": { "properties": { "status": { "const": "unavailable" } } },
+      "then": {
+        "required": ["reason"],
+        "not": {
+          "anyOf": [
+            { "required": ["o2_deficient_s"] },
+            { "required": ["o2_severe_s"] },
+            { "required": ["o2_enriched_s"] },
+            { "required": ["o2_min_pct"] }
+          ]
+        }
       }
     }
   }
