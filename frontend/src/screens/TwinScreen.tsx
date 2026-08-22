@@ -1,7 +1,12 @@
-import { useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { EvacuationPanel } from "../components/EvacuationPanel";
 import { TwinScene } from "../components/TwinScene";
+import { useEvacuationTopology } from "../hooks/useEvacuationTopology";
+import { fetchRoute } from "../services/evacuationApi";
 import { useDashboardStore } from "../store/dashboardStore";
+import { MOCK_ROUTE_LABELS, MOCK_ROUTES, MOCK_TOPOLOGY, type MockRouteKey } from "../mocks/evacuation";
 import type { MetricKey } from "../types";
+import type { RouteOverlay } from "../types/evacuation";
 import { nodeAlertLevel } from "../utils/alerts";
 import type { SensorSample } from "../utils/idw";
 import {
@@ -17,10 +22,16 @@ const HEATMAP_METRIC: MetricKey = "co2_ppm";
 export function TwinPanel({
   preset = UNIFORM_PRESET,
   compact = false,
+  escapeRoute = null,
 }: {
   preset?: MappingPreset;
   /** 모니터링 화면에 곁들이는 축소 표시. 제목·도움말을 접고 캔버스를 낮춘다. */
   compact?: boolean;
+  /**
+   * 탈출 경로 (FR-804). **TRUE SCALE 프리셋에서만 넘긴다** — FILL 은 축마다
+   * 배율이 달라 경로 형상이 왜곡된다 (ADR-010, §2.4).
+   */
+  escapeRoute?: RouteOverlay | null;
 }) {
   const nodes = useDashboardStore((s) => s.sensor_nodes);
   const wearable = useDashboardStore((s) => s.wearable);
@@ -117,7 +128,12 @@ export function TwinPanel({
             {isMapped ? preset.label : "1:1 MODEL"}
           </span>
         </div>
-        <TwinScene nodes={sceneNodes} wearable={wearableMarker} heatmap={heatmapData} />
+        <TwinScene
+          nodes={sceneNodes}
+          wearable={wearableMarker}
+          heatmap={heatmapData}
+          escapeRoute={escapeRoute}
+        />
         {!compact && (
           <p className="twin-help">
             마우스 드래그로 회전, 휠로 확대/축소. 센서 노드 색상=위험도, 청록 구체=웨어러블,
@@ -128,11 +144,102 @@ export function TwinPanel({
   );
 }
 
+/**
+ * 목 데이터 토글.
+ *
+ * 개발 빌드에서만 뜬다. 백엔드 없이 UI 를 확인하는 경로가 있어야 시연 리허설과
+ * 디버깅이 되고, 시연 직전에 백엔드가 죽어도 화면은 계속 보여줄 수 있다 (B4).
+ */
+function MockRouteToggle({
+  value,
+  onChange,
+}: {
+  value: MockRouteKey | null;
+  onChange: (next: MockRouteKey | null) => void;
+}) {
+  const keys: (MockRouteKey | null)[] = [null, "safe", "degraded", "no_safe_route", "unavailable"];
+  return (
+    <div className="evac__mock">
+      <span className="evac__mock-label">MOCK</span>
+      {keys.map((k) => (
+        <button
+          key={k ?? "live"}
+          type="button"
+          className="evac__mock-btn"
+          aria-pressed={value === k}
+          onClick={() => onChange(k)}
+        >
+          {k === null ? "라이브" : MOCK_ROUTE_LABELS[k]}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+/** MVP 는 작업자 1명이다 (§7 한계 #5). 여러 명으로 늘면 선택 UI 가 필요해진다. */
+const PRIMARY_WEARABLE = "wearable-01";
+
 export function TwinScreen() {
+  const routes = useDashboardStore((s) => s.evacuation_route);
+  const setEvacuationRoute = useDashboardStore((s) => s.setEvacuationRoute);
+  const { topology: liveTopology, reload: reloadTopology } = useEvacuationTopology();
+
+  // 기본은 **라이브**다. 목은 백엔드 없이 화면을 확인하거나 시연 리허설을 돌릴 때
+  // 개발 빌드에서만 켠다.
+  const [mockKey, setMockKey] = useState<MockRouteKey | null>(null);
+
+  // 초기 1회는 REST 로 받는다. WebSocket 은 그 이후 갱신만 담당하므로, 이게 없으면
+  // 작업자가 움직이기 전까지 화면이 비어 있다.
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      try {
+        const initial = await fetchRoute(PRIMARY_WEARABLE);
+        if (!cancelled && initial) setEvacuationRoute(initial);
+      } catch {
+        // 백엔드가 없는 개발 환경이 정상 경로다. 목 토글로 확인한다.
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [setEvacuationRoute]);
+
+  const liveRoute = routes[PRIMARY_WEARABLE] ?? Object.values(routes)[0] ?? null;
+  const route = mockKey ? MOCK_ROUTES[mockKey] : liveRoute;
+
+  // 통행 구조를 못 받았으면 목으로 그린다. 평면도가 통째로 비면 경로가 어디를
+  // 지나는지 읽을 수 없다 — 기능이 꺼진 사실은 배너가 따로 말한다.
+  const topology = liveTopology ?? MOCK_TOPOLOGY;
+
+  const overlay: RouteOverlay | null = route
+    ? {
+        route_status: route.route_status,
+        waypoints: route.waypoints,
+        target_exit_id: route.target_exit_id,
+      }
+    : null;
+
   return (
     <div className="screen twin-screen">
-      {/* 상세 화면은 형상비를 보존한다. 정사각 보행이 정사각으로 보여야 한다. */}
-      <TwinPanel preset={UNIFORM_PRESET} />
+      {/* 상세 화면은 형상비를 보존한다. 정사각 보행이 정사각으로 보여야 한다.
+          경로도 이 프리셋에서만 그린다 (§2.4). */}
+      <TwinPanel preset={UNIFORM_PRESET} escapeRoute={overlay} />
+      <EvacuationPanel
+        route={route}
+        topology={topology}
+        mock={mockKey !== null || liveTopology === null}
+      >
+        {import.meta.env.DEV && (
+          <MockRouteToggle
+            value={mockKey}
+            onChange={(next) => {
+              setMockKey(next);
+              if (next === null) reloadTopology();
+            }}
+          />
+        )}
+      </EvacuationPanel>
     </div>
   );
 }
