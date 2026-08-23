@@ -294,3 +294,12 @@ def test_put_topology_rejects_an_invalid_graph(client, topology):
     assert "출구" in json.dumps(resp.json(), ensure_ascii=False)
     # 거부됐으므로 메모리의 그래프는 그대로여야 한다.
     assert len(evacuation_service.get_topology().exits) == 2
+
+
+def test_topology_endpoint_carries_is_provisional(client, topology):
+    """프론트 NavTopology.is_provisional 은 필수 필드다 — 응답에 없으면 배지가
+    라이브 모드에서 절대 뜨지 않는다 (#225, 목 모드에서만 동작하던 잠복 버그)."""
+    evacuation_service.set_topology(topology)
+    body = client.get("/api/evacuation/topology").json()
+    assert "is_provisional" in body
+    assert body["is_provisional"] is True

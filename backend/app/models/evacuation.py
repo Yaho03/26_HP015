@@ -36,8 +36,9 @@ class NavEdgeKind(str, Enum):
         """이동 난이도 기본값 (§3.2).
 
         설정 파일이 값을 주면 그것이 우선이고, 이 값은 누락 시 폴백이다.
-        사다리 2.5 는 수직 이동이 느리고 손이 막혀 위험하다는 판단이다 —
-        근거 문헌은 아직 확보되지 않았다 (OQ-V3).
+        유도 근거는 IMO MSC.1/Circ.1533 §1.3 (복도 대비 계단 하강 1.2배·상승
+        1.5배) 와 NIST TN 1839 — 상세 유도는 12_EVACUATION_ROUTE_SPEC §3.2
+        (OQ-V3, 2026-08-22 확보).
         """
         return {
             NavEdgeKind.WALK: 1.0,
@@ -114,6 +115,11 @@ class NavTopology(BaseModel):
     # ship-visual 만 허용한다. FILL 프리셋 좌표가 들어오면 거리가 왜곡되어
     # 최근접 출구가 실제와 다르게 나온다 (ADR-010).
     coordinate_system: str = "ship-visual"
+    # 실측 여부는 데이터가 말한다 (OQ-V5) — 코드에 박히지 않는다. 실측이
+    # 끝나면 YAML 에서 false 로 뒤집는다. /health 와 /api/evacuation/topology,
+    # 화면 배지가 모두 이 값을 따른다. 프론트 types/evacuation.ts 의
+    # is_provisional (필수 필드) 와 계약이 같다.
+    is_provisional: bool = True
     levels: list[NavLevel] = Field(default_factory=list)
     nav_nodes: list[NavNode] = Field(default_factory=list)
     nav_edges: list[NavEdge] = Field(default_factory=list)

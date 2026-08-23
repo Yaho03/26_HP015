@@ -326,3 +326,64 @@ def test_health_reports_evacuation_status(monkeypatch):
     # 경로가 꺼진 것이 전체 상태를 degraded 로 만들면 안 된다. 컨테이너
     # 헬스체크가 재시작 루프를 돈다.
     assert body["status"] == "ok"
+
+
+# ============================================================
+# is_provisional — 실측 여부는 데이터가 말한다 (OQ-V5, 이슈 #225)
+# ============================================================
+
+@pytest.mark.asyncio
+async def test_provisional_defaults_to_true(tmp_path, monkeypatch, raw):
+    """명시 없으면 가정값이다 — 실측이라고 말하는 건 데이터의 몫이다."""
+    evacuation_service.reset_for_test()
+    raw.pop("is_provisional", None)
+    good = tmp_path / "p1.yaml"
+    good.write_text(yaml.safe_dump(raw, allow_unicode=True), encoding="utf-8")
+    monkeypatch.setattr(evacuation_topology, "topology_path", lambda: good)
+
+    async def fake_replace(topology: NavTopology) -> None:
+        pass
+
+    monkeypatch.setattr(evacuation_service.nav_repository, "replace_topology", fake_replace)
+    await evacuation_service.init()
+
+    assert evacuation_service.status().provisional is True
+    assert evacuation_service.get_topology().is_provisional is True
+
+
+@pytest.mark.asyncio
+async def test_provisional_false_flows_to_status(tmp_path, monkeypatch, raw):
+    """실측 완료 후 YAML 한 줄(is_provisional: false)로 배너·health 가 전환된다.
+
+    코드 수정이 필요한 설계라면 실측 반영이 배포까지 몰리게 된다 — 이 테스트가
+    그 회귀(하드코딩 복원)를 잡는다.
+    """
+    evacuation_service.reset_for_test()
+    raw["is_provisional"] = False
+    measured = tmp_path / "p2.yaml"
+    measured.write_text(yaml.safe_dump(raw, allow_unicode=True), encoding="utf-8")
+    monkeypatch.setattr(evacuation_topology, "topology_path", lambda: measured)
+
+    async def fake_replace(topology: NavTopology) -> None:
+        pass
+
+    monkeypatch.setattr(evacuation_service.nav_repository, "replace_topology", fake_replace)
+    await evacuation_service.init()
+
+    assert evacuation_service.status().provisional is False
+    assert evacuation_service.get_topology().is_provisional is False
+
+
+def test_repo_yaml_still_declares_itself_provisional():
+    """저장소 골격은 서명 전까지 반드시 가정값이어야 한다 (OQ-V5).
+
+    워크시트 서명 없이 false 로 뒤집히는 사고를 잡는 파수꾼이다.
+    """
+    import yaml as _yaml
+    from app.services import evacuation_topology as et
+
+    data = _yaml.safe_load(et.topology_path().read_text(encoding="utf-8"))
+    assert data.get("is_provisional") is True, (
+        "config/space_topology.yaml 이 가정값이 아니다 — 워크시트 서명(OQ-V5) 없이"
+        " 실측으로 표기할 수 없다"
+    )
