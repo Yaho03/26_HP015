@@ -21,6 +21,156 @@ import type { NavTopology } from "../types/evacuation";
  * **회피**를, 사다리는 traverse_factor 2.5 가 비용에 실리는 것을 드러낸다.
  * 출구가 하나뿐이면 이 기능의 핵심이 화면에 전혀 나타나지 않는다 (§2.3).
  */
+// 실측 데모 구역 노드/엣지 (이슈 #225) — config/space_topology.yaml 과 동일 값을
+// 유지한다 (backend/tests/test_topology_mock_sync.py 가 어긋나면 실패한다).
+const ZONE_NODES: NavTopology["nav_nodes"] = [
+  {
+    nav_node_id: "nav.zone.fwd.port",
+    kind: "floor",
+    x_m: 24.0,
+    y_m: -3.75,
+    z_m: 0.0,
+    level_id: "L0",
+    label: "실측 구역 전방 좌현",
+  },
+  {
+    nav_node_id: "nav.zone.fwd.stbd",
+    kind: "floor",
+    x_m: 24.0,
+    y_m: 3.75,
+    z_m: 0.0,
+    level_id: "L0",
+    label: "실측 구역 전방 우현",
+  },
+  {
+    nav_node_id: "nav.zone.mid.port",
+    kind: "floor",
+    x_m: 30.0,
+    y_m: -3.75,
+    z_m: 0.0,
+    level_id: "L0",
+    label: "실측 구역 중앙 좌현",
+  },
+  {
+    nav_node_id: "nav.zone.mid.stbd",
+    kind: "floor",
+    x_m: 30.0,
+    y_m: 3.75,
+    z_m: 0.0,
+    level_id: "L0",
+    label: "실측 구역 중앙 우현",
+  },
+  {
+    nav_node_id: "nav.zone.aft.port",
+    kind: "floor",
+    x_m: 36.0,
+    y_m: -3.75,
+    z_m: 0.0,
+    level_id: "L0",
+    label: "실측 구역 후방 좌현",
+  },
+  {
+    nav_node_id: "nav.zone.aft.stbd",
+    kind: "floor",
+    x_m: 36.0,
+    y_m: 3.75,
+    z_m: 0.0,
+    level_id: "L0",
+    label: "실측 구역 후방 우현",
+  },
+];
+
+const ZONE_EDGES: NavTopology["nav_edges"] = [
+  {
+    edge_id: "e009",
+    from_node_id: "nav.zone.fwd.port",
+    to_node_id: "nav.zone.mid.port",
+    kind: "walk",
+    length_m: 6.0,
+    traverse_factor: 1.0,
+    bidirectional: true,
+    width_m: 1.0,
+    is_usable: true,
+  },
+  {
+    edge_id: "e010",
+    from_node_id: "nav.zone.fwd.stbd",
+    to_node_id: "nav.zone.mid.stbd",
+    kind: "walk",
+    length_m: 6.0,
+    traverse_factor: 1.0,
+    bidirectional: true,
+    width_m: 1.0,
+    is_usable: true,
+  },
+  {
+    edge_id: "e011",
+    from_node_id: "nav.zone.mid.port",
+    to_node_id: "nav.zone.aft.port",
+    kind: "walk",
+    length_m: 6.0,
+    traverse_factor: 1.0,
+    bidirectional: true,
+    width_m: 1.0,
+    is_usable: true,
+  },
+  {
+    edge_id: "e012",
+    from_node_id: "nav.zone.mid.stbd",
+    to_node_id: "nav.zone.aft.stbd",
+    kind: "walk",
+    length_m: 6.0,
+    traverse_factor: 1.0,
+    bidirectional: true,
+    width_m: 1.0,
+    is_usable: true,
+  },
+  {
+    edge_id: "e013",
+    from_node_id: "nav.zone.mid.port",
+    to_node_id: "nav.floor.mid",
+    kind: "walk",
+    length_m: 3.75,
+    traverse_factor: 1.0,
+    bidirectional: true,
+    width_m: 1.0,
+    is_usable: true,
+  },
+  {
+    edge_id: "e014",
+    from_node_id: "nav.zone.mid.stbd",
+    to_node_id: "nav.floor.mid",
+    kind: "walk",
+    length_m: 3.75,
+    traverse_factor: 1.0,
+    bidirectional: true,
+    width_m: 1.0,
+    is_usable: true,
+  },
+  {
+    edge_id: "e015",
+    from_node_id: "nav.zone.fwd.port",
+    to_node_id: "nav.zone.fwd.stbd",
+    kind: "walk",
+    length_m: 7.5,
+    traverse_factor: 1.0,
+    bidirectional: true,
+    width_m: 1.0,
+    is_usable: true,
+  },
+  {
+    edge_id: "e016",
+    from_node_id: "nav.zone.aft.port",
+    to_node_id: "nav.zone.aft.stbd",
+    kind: "walk",
+    length_m: 7.5,
+    traverse_factor: 1.0,
+    bidirectional: true,
+    width_m: 1.0,
+    is_usable: true,
+  },
+];
+
 export const MOCK_TOPOLOGY: NavTopology = {
   version: 1,
   coordinate_system: "ship-visual",
@@ -106,6 +256,10 @@ export const MOCK_TOPOLOGY: NavTopology = {
       level_id: "L1",
       label: "후방 접근 트렁크",
     },
+    // 실측 데모 구역 (이슈 #225) — UWB 실측 공간(2.5x2.0m)이 균일 배율 6.5로
+    // 매핑되는 스트립(x 21.875~38.125, y ±6.5)을 덮는다. config/space_topology.yaml
+    // 의 주석과 같은 유도 — 실물 UWB 위치 어디서든 스냅이 성공해야 한다.
+    ...ZONE_NODES,
   ],
   nav_edges: [
     {
@@ -196,6 +350,7 @@ export const MOCK_TOPOLOGY: NavTopology = {
       width_m: 0.6,
       is_usable: true,
     },
+    ...ZONE_EDGES,
   ],
   exits: [
     {

@@ -259,7 +259,10 @@ def test_closed_exit_changes_the_route(topology):
 def test_topology_endpoint_returns_the_graph(client, topology):
     evacuation_service.set_topology(topology)
     body = client.get("/api/evacuation/topology").json()
-    assert len(body["nav_nodes"]) == 8
+    # 8(골격) + 6(실측 데모 구역, 이슈 #225) — 커버리지 불변식은
+    # test_topology_coverage.py 가 잠근다.
+    assert len(body["nav_nodes"]) == 14
+    assert len(body["nav_edges"]) == 16
     assert len(body["exits"]) == 2
 
 

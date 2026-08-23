@@ -48,8 +48,10 @@ def test_repo_topology_has_the_documented_skeleton():
     화면에 전혀 드러나지 않는다. 사람이 YAML 을 줄이다 이걸 깨는 것을 막는다.
     """
     topology = load_topology_file()
-    assert len(topology.nav_nodes) == 8
-    assert len(topology.nav_edges) == 8
+    # 8 = §2.5 골격, +6 = 실측 데모 구역(이슈 #225, test_topology_coverage.py
+    # 가 커버리지 불변식을 잠근다). 골격 구성(출구 2·우회로·사다리 2)은 아래가 잠근다.
+    assert len(topology.nav_nodes) == 14
+    assert len(topology.nav_edges) == 16
     assert len(topology.exits) == 2
     assert sum(1 for e in topology.nav_edges if e.kind.value == "ladder") == 2
     # 프론트엔드 목 데이터(frontend/src/mocks/evacuation.ts)와 같은 그래프여야

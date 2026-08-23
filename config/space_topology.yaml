@@ -47,6 +47,21 @@ nav_nodes:
   # 후방 접근 트렁크 (사다리)
   - { nav_node_id: nav.ladder.aft.bottom, kind: ladder_bottom, x_m: 58.0, y_m: 0.0, z_m:  0.0, level_id: L0, label: "후방 트렁크 하단" }
   - { nav_node_id: nav.exit.trunk-aft,    kind: exit,          x_m: 58.0, y_m: 0.0, z_m: 14.0, level_id: L1, label: "후방 접근 트렁크" }
+  # 실측 데모 구역 (이슈 #225) — 이 그래프에서 유일하게 '측정에서 유도된' 부분.
+  #   UWB 앵커로 실측한 축소 데모 공간(2.5 x 2.0m, 2026-08-19 세션)이 균일 배율
+  #   6.5 로 매핑되면 x∈[21.875, 38.125], y∈[-6.5, 6.5] 스트립이 된다
+  #   (evacuation_coordinates.demo_to_ship). 작업자의 실측 위치는 이 스트립 안에만
+  #   존재한다 — 통로 노드(fwd/mid/aft)만으로는 스트립 가장자리가 스냅 한계(5m)를
+  #   벗어나 실물 UWB 시연에서 경로가 unavailable 이 되는 구멍이 있었다.
+  #   구역 노드 6개는 스트립을 완전히 덮으며, 링+스포크 구조라 기존 어떤 노드 쌍 사이에도
+  #   새 지름길을 만들지 않는다 (EXP-8 손계산 63.0/103.25 불변).
+  #   demo-local 원본 좌표: x 0.33/1.25/2.17m, y 0.42/1.58m.
+  - { nav_node_id: nav.zone.fwd.port, kind: floor, x_m: 24.0, y_m: -3.75, z_m: 0.0, level_id: L0, label: "실측 구역 전방 좌현" }
+  - { nav_node_id: nav.zone.fwd.stbd, kind: floor, x_m: 24.0, y_m:  3.75, z_m: 0.0, level_id: L0, label: "실측 구역 전방 우현" }
+  - { nav_node_id: nav.zone.mid.port, kind: floor, x_m: 30.0, y_m: -3.75, z_m: 0.0, level_id: L0, label: "실측 구역 중앙 좌현" }
+  - { nav_node_id: nav.zone.mid.stbd, kind: floor, x_m: 30.0, y_m:  3.75, z_m: 0.0, level_id: L0, label: "실측 구역 중앙 우현" }
+  - { nav_node_id: nav.zone.aft.port, kind: floor, x_m: 36.0, y_m: -3.75, z_m: 0.0, level_id: L0, label: "실측 구역 후방 좌현" }
+  - { nav_node_id: nav.zone.aft.stbd, kind: floor, x_m: 36.0, y_m:  3.75, z_m: 0.0, level_id: L0, label: "실측 구역 후방 우현" }
 
 # length_m 은 좌표 직선거리와 다를 수 있다 — 우회 통로는 양 끝점이 가까워도 실제로는
 # 돌아가야 한다. 비용 계산은 좌표가 아니라 이 값을 쓴다.
@@ -64,6 +79,17 @@ nav_edges:
   - { edge_id: e006, from_node_id: nav.ladder.fwd.bottom, to_node_id: nav.exit.trunk-fwd, kind: ladder, length_m: 14.0, traverse_factor: 2.5, bidirectional: true, width_m: 0.6, is_usable: true }
   - { edge_id: e007, from_node_id: nav.floor.aft,  to_node_id: nav.ladder.aft.bottom, kind: walk,   length_m:  2.0, traverse_factor: 1.0, bidirectional: true, width_m: 0.8, is_usable: true }
   - { edge_id: e008, from_node_id: nav.ladder.aft.bottom, to_node_id: nav.exit.trunk-aft, kind: ladder, length_m: 14.0, traverse_factor: 2.5, bidirectional: true, width_m: 0.6, is_usable: true }
+  # 실측 데모 구역 링 — 좌/우현 측면 통로 + 중앙 통로로의 스포크 2개.
+  # 스포크은 nav.zone.mid.* → nav.floor.mid 실거리(3.75). 링 경로(fwd→mid 9.75)가
+  # 직접 스포크(7.08)보다 길어 기존 통로 비용 구조를 바꾸지 않는다.
+  - { edge_id: e009, from_node_id: nav.zone.fwd.port, to_node_id: nav.zone.mid.port,  kind: walk, length_m: 6.0, traverse_factor: 1.0, bidirectional: true, width_m: 1.0, is_usable: true }
+  - { edge_id: e010, from_node_id: nav.zone.fwd.stbd, to_node_id: nav.zone.mid.stbd,  kind: walk, length_m: 6.0, traverse_factor: 1.0, bidirectional: true, width_m: 1.0, is_usable: true }
+  - { edge_id: e011, from_node_id: nav.zone.mid.port, to_node_id: nav.zone.aft.port,  kind: walk, length_m: 6.0, traverse_factor: 1.0, bidirectional: true, width_m: 1.0, is_usable: true }
+  - { edge_id: e012, from_node_id: nav.zone.mid.stbd, to_node_id: nav.zone.aft.stbd,  kind: walk, length_m: 6.0, traverse_factor: 1.0, bidirectional: true, width_m: 1.0, is_usable: true }
+  - { edge_id: e013, from_node_id: nav.zone.mid.port, to_node_id: nav.floor.mid,      kind: walk, length_m: 3.75, traverse_factor: 1.0, bidirectional: true, width_m: 1.0, is_usable: true }
+  - { edge_id: e014, from_node_id: nav.zone.mid.stbd, to_node_id: nav.floor.mid,      kind: walk, length_m: 3.75, traverse_factor: 1.0, bidirectional: true, width_m: 1.0, is_usable: true }
+  - { edge_id: e015, from_node_id: nav.zone.fwd.port, to_node_id: nav.zone.fwd.stbd,  kind: walk, length_m: 7.5, traverse_factor: 1.0, bidirectional: true, width_m: 1.0, is_usable: true }
+  - { edge_id: e016, from_node_id: nav.zone.aft.port, to_node_id: nav.zone.aft.stbd,  kind: walk, length_m: 7.5, traverse_factor: 1.0, bidirectional: true, width_m: 1.0, is_usable: true }
 
 # priority 는 비용이 같을 때의 tie-break 다. 중앙 통로(nav.floor.mid)에서 두 출구는
 # 비용이 정확히 63.0 으로 동점이라(26 + 2 + 14x2.5), 이게 없으면 재계산할 때마다
