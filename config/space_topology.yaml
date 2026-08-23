@@ -23,6 +23,13 @@ version: 1
 # 다른 출구로 나온다 (ADR-010, §2.4).
 coordinate_system: ship-visual
 
+# 실측 미반영 여부 (OQ-V5). false 로 뒤집는 조건은 둘뿐이다:
+#   1. 워크시트(config/space_topology.WORKSHEET.md) 측정표가 실측으로 채워지고
+#   2. 데이터 오너가 서명했을 때
+# 그 전까지 /health · /api/evacuation/topology · 화면 배지가 전부 이 값을
+# 따르며, 안전 판단 기준 제시가 금지된다 (08_SAFETY §3.5.3).
+is_provisional: true
+
 levels:
   - { level_id: L0, name: "화물창 바닥", height_m: 0.0 }
   - { level_id: L1, name: "1단 비계",   height_m: 3.5 }
@@ -45,8 +52,9 @@ nav_nodes:
 # 돌아가야 한다. 비용 계산은 좌표가 아니라 이 값을 쓴다.
 #
 # traverse_factor 기본값 (§3.2): walk 1.0 / scaffold_plank 1.3 / ladder 2.5 / hatch 1.8.
-# 사다리 2.5 는 수직 이동이 느리고 손이 막혀 위험하기 때문이다. 근거 문헌은 아직
-# 확보되지 않았다 (OQ-V3).
+# 유도 근거는 IMO MSC.1/Circ.1533 §1.3 Table 1.3 (복도 1.2 / 계단 하강 1.0 /
+# 상승 0.8 m/s) 의 복도 대비 비율 — 상세 유도와 NIST TN 1839 보조 근거는
+# docs/12_EVACUATION_ROUTE_SPEC.md §3.2 (OQ-V3, 2026-08-22 확보).
 nav_edges:
   - { edge_id: e001, from_node_id: nav.floor.fwd,  to_node_id: nav.floor.mid,  kind: walk, length_m: 26.0, traverse_factor: 1.0, bidirectional: true, width_m: 1.2, is_usable: true }
   - { edge_id: e002, from_node_id: nav.floor.mid,  to_node_id: nav.floor.aft,  kind: walk, length_m: 26.0, traverse_factor: 1.0, bidirectional: true, width_m: 1.2, is_usable: true }

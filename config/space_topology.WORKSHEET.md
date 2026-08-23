@@ -47,8 +47,9 @@
 
 > length_m 은 **좌표 직선거리가 아니라 실제 걷는 거리**다. 우회 통로는 양
 > 끝이 가까워도 돌아가야 하므로 실측값을 적는다. 종류별 traverse_factor
-> 기본값: walk 1.0 / scaffold_plank 1.3 / ladder 2.5 / hatch 1.8 (OQ-V3 에서
-> 근거 확보 전까지 기본값 유지).
+> 기본값: walk 1.0 / scaffold_plank 1.3 / ladder 2.5 / hatch 1.8 — IMO
+> MSC.1/Circ.1533·NIST TN 1839 파생 근거(사양 §3.2). 밀폐공간 PPE 실측이
+> 아니므로 실측 시 재조정한다.
 
 | edge_id | from → to | 종류 | length_m (실측) | 폭 width_m (실측) | 비고 |
 |---|---|---|---|---|---|
@@ -81,8 +82,9 @@ YAML 반영 후 아래를 실행한다:
 ```
 
 - [ ] `scripts/topology_check.py` PASS 확인
-- [ ] 화면 배지가 "통행 구조 가정값" 에서 실측 상태로 전환됐는지 확인
-      (YAML 상단 가정값 경고 블록 주석 삭제 + `/health` 의 `provisional` 참조 제거)
+- [ ] YAML 의 `is_provisional: true` 를 `false` 로 변경 — `/health`·
+      `/api/evacuation/topology`·화면 배지가 데이터로 함께 전환된다 (코드 수정 불요)
+- [ ] YAML 상단의 "실측 미반영" 경고 블록 주석을 삭제
 
 **데이터 오너 서명** — 이 값들이 데모 placeholder 가 아닌 실측/도면 기반임을 확인한다:
 
