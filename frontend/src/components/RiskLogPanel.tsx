@@ -28,6 +28,15 @@ const FETCH_LIMIT = 200;
 const TIMELINE_WINDOW_MS = 24 * 3_600_000;
 const REFRESH_MS = 30_000;
 
+/**
+ * 이 칸에 실제로 그리는 행 수.
+ *
+ * 스크롤을 두지 않는다 — 관제 화면에서 스크롤 막대는 "아래에 뭔가 더 있다" 는
+ * 사실만 알리고 그게 무엇인지는 안 알려준다. 등급순으로 세워 두었으므로 위쪽
+ * 몇 줄이 언제나 가장 위험한 건이고, 나머지는 건수로만 밝히고 전체 로그로 넘긴다.
+ */
+const VISIBLE_ROWS = 3;
+
 /** 등급 내림차순, 같은 등급이면 최신순. */
 function bySeverityThenRecency(a: AlertEvent, b: AlertEvent): number {
   const rank = LEVEL_RANK[b.level as AlertLevel] - LEVEL_RANK[a.level as AlertLevel];
@@ -73,6 +82,9 @@ export function RiskLogPanel({ onOpenEventLog }: RiskLogPanelProps) {
     };
   }, []);
 
+  const sorted = [...events].sort(bySeverityThenRecency);
+  const hidden = Math.max(0, sorted.length - VISIBLE_ROWS);
+
   return (
     <section className="panel-4" aria-label="최근 위험 로그">
       <header className="panel-4__head">
@@ -98,7 +110,7 @@ export function RiskLogPanel({ onOpenEventLog }: RiskLogPanelProps) {
               </tr>
             </thead>
             <tbody>
-              {[...events].sort(bySeverityThenRecency).map((e) => (
+              {sorted.slice(0, VISIBLE_ROWS).map((e) => (
                 <tr
                   key={e.message_id}
                   className={e.status === "active" ? "risk-log__row--active" : ""}
@@ -141,6 +153,18 @@ export function RiskLogPanel({ onOpenEventLog }: RiskLogPanelProps) {
               ))}
             </tbody>
           </table>
+        )}
+
+        {hidden > 0 && (
+          // 잘린 건수를 숨기지 않는다. 스크롤 막대를 없앤 대신 "더 있다" 는
+          // 사실과 그 개수를 글자로 말한다.
+          <button
+            type="button"
+            className="risk-log__more"
+            onClick={() => onOpenEventLog?.({})}
+          >
+            외 {hidden}건 · 전체 로그
+          </button>
         )}
       </div>
 

@@ -3858,7 +3858,7 @@ body {
   /* ⑤ 는 노드 표(6종 × 4노드) 아래에 웨어러블 줄과 누적 노출량 4칸까지 얹는다.
      46:54 로는 노드 셀이 23px 씩 잘려 마지막 지표(가스저항)가 사라졌다 —
      잘린 지표는 없는 지표와 같다. 트윈에서 그만큼 넘겨받는다. */
-  grid-template-rows: minmax(0, 42fr) minmax(0, 58fr);
+  grid-template-rows: minmax(0, 58fr) minmax(0, 42fr);
   gap: 14px;
   min-height: 0;
 }
@@ -4899,7 +4899,9 @@ body {
       auto
       var(--panel2-share, 15fr)
       var(--panel3-share, 85fr)
-      180px;
+      /* 머리글 + 세 행 + "외 N건" 줄 + 24시간 띠가 잘리지 않는 최소 높이.
+         줄이면 스크롤이 다시 생기고, 늘리면 ③ 카드가 눌린다. */
+      206px;
   }
   .panel-5 {
     padding: 8px;
@@ -6210,4 +6212,71 @@ body {
   grid-template-columns: repeat(4, minmax(0, 1fr));
   grid-template-rows: minmax(0, 1fr);
   gap: 8px;
+}
+
+/* ⑤ 는 이제 작업자 목록만 담는다 (센서 노드 표는 ③ 소관).
+   블록이 사람 수만큼 쌓이고, 남는 세로는 위에서부터 채운다 — 두 명이 있을 때와
+   한 명일 때 블록 높이가 달라지면 같은 값이 매번 다른 자리에 보인다. */
+.console__left .panel-5 {
+  gap: 0;
+  padding: 10px;
+  overflow: hidden;
+}
+.console__left .panel-5 .wstrip {
+  flex: none;
+}
+.console__left .panel-5 .dose-row {
+  flex: none;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   ③ 센서 카드는 절대 스크롤하지 않는다
+   ───────────────────────────────────────────────────────────────────────────
+   카드 높이를 내용에 맡기면 칸이 조금만 줄어도 아래 두 장이 스크롤 밖으로
+   밀린다 — 그리고 이 칸은 주의 이상 노드가 생길 때마다 실제로 줄어든다
+   (RISK_SPLIT). 밀려난 카드는 없는 카드와 같다.
+
+   그래서 2×2 격자의 행을 1fr 로 고정하고 넘침을 잘라 낸다. 칸이 좁아지면
+   카드가 같이 낮아질 뿐, 네 장은 언제나 화면에 있다. 스크롤 막대가 사라지는
+   것이 아니라 스크롤할 이유가 사라지는 것이다.
+   ═══════════════════════════════════════════════════════════════════════════ */
+.panel-3__grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-rows: repeat(2, minmax(0, 1fr));
+  align-content: stretch;
+  overflow: hidden;
+}
+.console__right .scard {
+  min-height: 0;
+  overflow: hidden;
+}
+/* 칸이 낮아질 때 먼저 줄어드는 것은 여백이고, 마지막까지 남는 것은 수치다. */
+.console__right .scard__chips {
+  min-height: 0;
+  overflow: hidden;
+}
+
+/* ④ 도 스크롤하지 않는다. 등급순으로 세워 두었으므로 위쪽 세 줄이 언제나 가장
+   위험한 건이고, 나머지는 건수로만 밝힌다 — 스크롤 막대는 "아래에 뭔가 더 있다"
+   는 사실만 알리고 그게 무엇인지는 안 알려준다. */
+.panel-4__body {
+  overflow: hidden;
+}
+.risk-log__more {
+  display: block;
+  width: 100%;
+  margin-top: 3px;
+  padding: 3px 8px;
+  border: 0;
+  border-top: 1px solid var(--rule);
+  background: transparent;
+  color: var(--ink-3);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.06em;
+  text-align: left;
+  cursor: pointer;
+}
+.risk-log__more:hover {
+  color: var(--ink-1);
 }

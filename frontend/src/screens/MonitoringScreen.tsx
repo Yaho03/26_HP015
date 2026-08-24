@@ -1,6 +1,5 @@
 import { useMemo } from "react";
 import { useDashboardStore } from "../store/dashboardStore";
-import { NodeMetricsGrid } from "../components/NodeMetricsGrid";
 import { RiskDetailPanel } from "../components/RiskDetailPanel";
 import { RiskLogPanel } from "../components/RiskLogPanel";
 import { SensorSummaryPanel } from "../components/SensorSummaryPanel";
@@ -201,8 +200,10 @@ export function MonitoringScreen({
             mapped={shouldMapToShip(primaryWearable?.source_coordinate_system)}
           />
 
-          <section className="panel-5" aria-label="노드별 센서 데이터">
-            <NodeMetricsGrid />
+          {/* ⑤ 는 작업자 칸이다. 센서 노드 표를 여기 같이 두면 ③ 이 이미 보여주는
+              것을 한 번 더 그리면서 작업자 블록이 들어갈 세로를 전부 먹는다.
+              온도·습도·가스저항은 ③ 카드의 "6종 전체" 를 펼쳐서 본다. */}
+          <section className="panel-5" aria-label="작업자">
             {WEARABLE_SLOTS.map((slot) => (
               <WearableStrip
                 key={slot}
