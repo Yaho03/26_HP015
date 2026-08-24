@@ -1,4 +1,4 @@
-import type { CoordinateSystem, Position3D } from "./index";
+import type { AiAnomalyStatus, AiContributor, CoordinateSystem, Position3D } from "./index";
 
 export type WSMessageType =
   | "snapshot"
@@ -6,6 +6,7 @@ export type WSMessageType =
   | "sensor_reading"
   | "node_status"
   | "location"
+  | "ai_anomaly"
   | "worker_exposure"
   | "evacuation_route";
 
@@ -248,7 +249,28 @@ export interface EvacuationRouteMessage extends WSBaseMessage {
   warnings?: RouteWarning[];
 }
 
+/** AI 이상징후 판정 결과 (연구용, §9.3).
+ *
+ *  AlertMessage 와 별도 타입인 것이 요점이다. 같은 타입에 필드를 얹으면
+ *  기존 경보 처리 코드가 이 메시지도 경보로 다루게 된다. */
+export interface AiAnomalyMessage extends WSBaseMessage {
+  type: "ai_anomaly";
+  node_id: string;
+  evaluated_at: string;
+  status: AiAnomalyStatus;
+  /** 판단 불가일 때 null. */
+  score: number | null;
+  threshold: number | null;
+  consecutive_exceedances: number;
+  top_contributors: AiContributor[];
+  model_version: string | null;
+  is_research_only: boolean;
+  source_mode?: "live" | "simulation" | null;
+  missing_features?: string[];
+}
+
 export type WSMessage =
+  | AiAnomalyMessage
   | SnapshotMessage
   | AlertMessage
   | LocationMessage

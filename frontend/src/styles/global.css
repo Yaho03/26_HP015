@@ -3896,7 +3896,11 @@ body {
    값이 튀지 않도록 fr 단위로 두고 전환에 시간을 준다. */
 .console__right {
   display: grid;
-  grid-template-rows: var(--panel2-share, 15fr) var(--panel3-share, 85fr) 180px;
+  /* 마지막 두 행은 고정이다: 위험 로그 180px, AI 이상징후 210px.
+     앞의 두 행이 fr 이라 남는 높이를 흡수한다 — 새 패널을 끼울 때 이 템플릿을
+     함께 늘리지 않으면 새 패널이 로그 자리를 뺏고 로그는 암묵 행으로 밀려
+     두 패널이 겹쳐 보인다 (실제로 그렇게 깨졌다). */
+  grid-template-rows: var(--panel2-share, 15fr) var(--panel3-share, 85fr) 180px 210px;
   gap: 14px;
   min-height: 0;
   transition: grid-template-rows 260ms ease;
@@ -5529,4 +5533,201 @@ body {
   color: #e8b34b;
   border: 1px solid #e8b34b55;
   border-radius: 999px;
+}
+
+/* ============================================================
+   AI 이상징후 (연구용) — §10.3
+   기존 경보 등급과 시각적으로 완전히 분리한다.
+   - L1/L2/L3 색 토큰(--l1/--l2/--l3)을 쓰지 않는다. 관리자가 두 체계를
+     같은 위험 축으로 읽으면, 검증되지 않은 참고 지표가 안전 판단 근거가 된다.
+   - 상태를 색만으로 전달하지 않는다. 글리프(≈ / ≠ / ·)와 텍스트 라벨을 항상 함께 낸다.
+   - 채도를 낮게 유지한다. 이 패널이 경보보다 눈에 띄면 안 된다.
+   ============================================================ */
+
+:root {
+  /* 경보 팔레트와 겹치지 않는 청보라 계열. 위험 축이 아니라 '분석' 축이다. */
+  --ai-ink: #9aa7d4;
+  --ai-line: rgba(154, 167, 212, 0.28);
+  --ai-wash: rgba(154, 167, 212, 0.08);
+  --ai-flag: #c9a2e8;
+  --ai-flag-wash: rgba(201, 162, 232, 0.12);
+}
+
+:root[data-theme="light"] {
+  --ai-ink: #4a5691;
+  --ai-line: rgba(74, 86, 145, 0.3);
+  --ai-wash: rgba(74, 86, 145, 0.06);
+  --ai-flag: #7a45a8;
+  --ai-flag-wash: rgba(122, 69, 168, 0.1);
+}
+
+.ai-grid__head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.ai-grid__kicker {
+  margin: 0 0 2px;
+  font-size: 10px;
+  letter-spacing: 0.14em;
+  color: var(--ai-ink);
+}
+
+/* 이 배지는 장식이 아니라 요구사항이다 (§10.2). 화면 어디서 잘라 찍어도
+   "안전 경보 아님" 이 함께 보여야 한다. */
+.ai-grid__badge {
+  flex: none;
+  padding: 3px 8px;
+  border: 1px solid var(--ai-line);
+  border-radius: 3px;
+  background: var(--ai-wash);
+  color: var(--ai-ink);
+  font-size: 10px;
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+}
+
+.ai-grid__note {
+  margin: 8px 0 12px;
+  color: var(--ink-3);
+  font-size: 11px;
+  line-height: 1.5;
+}
+
+.ai-grid__cards {
+  display: grid;
+  gap: 10px;
+}
+
+.ai-grid__node {
+  display: block;
+  margin-bottom: 4px;
+  color: var(--ink-2);
+  font-size: 11px;
+  letter-spacing: 0.06em;
+}
+
+.ai-panel {
+  border: 1px solid var(--ai-line);
+  border-radius: 4px;
+  background: var(--ai-wash);
+  padding: 8px 10px;
+}
+
+.ai-panel__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+
+.ai-panel__kicker {
+  color: var(--ai-ink);
+  font-size: 9px;
+  letter-spacing: 0.12em;
+}
+
+.ai-panel__state {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  color: var(--ink-2);
+  font-size: 11px;
+}
+
+.ai-panel__glyph {
+  font-size: 13px;
+  line-height: 1;
+  color: var(--ai-ink);
+}
+
+/* 이상 상태만 강조한다. 판단 불가(데이터 부족 등)는 강조하지 않되,
+   "정상" 과 같은 색으로 그리지도 않는다 — 흐린 회색으로 남긴다. */
+.ai-panel.is-anomaly {
+  border-color: var(--ai-flag);
+  background: var(--ai-flag-wash);
+}
+
+.ai-panel.is-anomaly .ai-panel__state,
+.ai-panel.is-anomaly .ai-panel__glyph {
+  color: var(--ai-flag);
+}
+
+.ai-panel.is-anomaly_candidate .ai-panel__state {
+  color: var(--ai-ink);
+}
+
+.ai-panel.is-model_not_ready .ai-panel__state,
+.ai-panel.is-insufficient_data .ai-panel__state,
+.ai-panel.is-stale_data .ai-panel__state,
+.ai-panel.is-feature_mismatch .ai-panel__state {
+  color: var(--ink-3);
+}
+
+.ai-panel__body {
+  display: grid;
+  gap: 3px;
+}
+
+.ai-panel__row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  font-size: 11px;
+}
+
+.ai-panel__key {
+  color: var(--ink-3);
+}
+
+.ai-panel__val {
+  color: var(--ink-1);
+  text-align: right;
+}
+
+.ai-panel__val--mono {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 10px;
+  color: var(--ink-2);
+}
+
+.ai-panel__disclaimer {
+  margin: 6px 0 0;
+  padding-top: 5px;
+  border-top: 1px solid var(--ai-line);
+  color: var(--ink-3);
+  font-size: 10px;
+  letter-spacing: 0.02em;
+}
+
+/* AI 패널은 고정 높이 행 안에 산다. 노드가 늘어도 레이아웃을 밀지 않도록
+   카드 영역만 내부 스크롤한다 — 바깥으로 넘치면 아래 패널과 겹친다. */
+.ai-grid {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.ai-grid__cards {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  overflow-y: auto;
+  min-height: 0;
+  flex: 1;
+}
+
+/* 좁은 화면에서는 스택 모드라 칸이 내용만큼 늘어난다. 거기서 내부 스크롤을
+   또 만들면 스크롤 컨테이너가 겹쳐 조작이 엉킨다 (기존 패널들과 같은 규칙). */
+@media (max-width: 1100px) {
+  .ai-grid {
+    overflow: visible;
+  }
+  .ai-grid__cards {
+    grid-template-columns: 1fr;
+    overflow-y: visible;
+  }
 }

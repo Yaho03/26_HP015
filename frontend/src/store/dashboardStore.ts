@@ -1,6 +1,7 @@
 import { create } from "zustand";
 import { setThresholdTable, type ServerThreshold } from "../utils/alerts";
 import type {
+  AiAnomalyState,
   AlertKey,
   AlertState,
   ConnectionStatus,
@@ -48,6 +49,10 @@ interface DashboardStore {
   sensor_trend: Record<NodeId, Partial<Record<TrendMetric, TrendPoint[]>>>;
   wearable: WearableState | null;
   active_alerts: Record<AlertKey, AlertState>;
+  /** AI 이상징후 (연구용). **active_alerts 와 별도 슬라이스다.**
+   *  같은 딕셔너리에 넣으면 경보 배너·토스트·집계가 AI 결과까지 세게 되고,
+   *  연구용 참고 지표가 산업안전 경보로 화면에 올라간다. */
+  ai_anomalies: Record<NodeId, AiAnomalyState>;
   connection_status: ConnectionStatus;
   /** 서버 임계값 (PRD FR-204). 비어 있으면 아직 못 받은 것. */
   thresholds: ServerThreshold[];
@@ -83,6 +88,7 @@ interface DashboardStore {
     >,
   ) => void;
   addAlert: (alert: AlertState) => void;
+  setAiAnomaly: (state: AiAnomalyState) => void;
   resolveAlert: (alert_key: AlertKey) => void;
   setConnectionStatus: (patch: Partial<ConnectionStatus>) => void;
   setThresholds: (rows: ServerThreshold[]) => void;
@@ -108,6 +114,7 @@ export const useDashboardStore = create<DashboardStore>((set) => ({
   sensor_trend: {},
   wearable: null,
   active_alerts: {},
+  ai_anomalies: {},
   connection_status: initial_connection_status,
   thresholds: [],
   worker_exposure: {},
@@ -222,6 +229,11 @@ export const useDashboardStore = create<DashboardStore>((set) => ({
         },
       };
     }),
+
+  // AI 결과는 노드당 최신 1건만 들고 있는다. 경보처럼 "활성/해제" 를 추적하지
+  // 않는 이유는, 이것이 이벤트가 아니라 10초마다 갱신되는 상태값이기 때문이다.
+  setAiAnomaly: (state) =>
+    set((s) => ({ ai_anomalies: { ...s.ai_anomalies, [state.node_id]: state } })),
 
   addAlert: (alert) =>
     set((state) => ({
