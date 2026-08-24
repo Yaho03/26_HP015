@@ -49,12 +49,33 @@ def _rate_limited(ip: str) -> bool:
     if len(window) >= LOGIN_RATE_LIMIT_PER_MIN:
         return True
     window.append(now)
+    # 만료돼 텅 빈 다른 IP 의 키가 영구히 쌓이지 않게 가끔 치운다. ip 자신은
+    # 방금 append 했으므로 살아남는다 — pop 후 append 하면 카운트가 유실된다.
+    if len(_login_attempts) > 128:
+        for stale in [k for k, v in _login_attempts.items() if not v]:
+            _login_attempts.pop(stale, None)
     return False
+
+
+def _client_ip(request: Request) -> str:
+    """레이트리밋용 클라이언트 IP.
+
+    배포 스택에서는 모든 HTTP 가 frontend 컨테이너의 nginx 를 거친다
+    (backend 포트는 호스트에 노출하지 않는다, #151). request.client.host 는
+    항상 nginx 컨테이너 IP 라 **전 사용자가 하나의 10회/분 버킷을 공유**하게
+    된다 — 관리자 3명이 1분 안에 로그인하면 429. nginx 가 심는 X-Real-IP 를
+    신뢰해 쓴다. 스푸핑은 compose 내부망 접근이 필요해 실질적으로 폐쇄망
+    경계 안의 위험이다.
+    """
+    forwarded = request.headers.get("X-Real-IP")
+    if forwarded:
+        return forwarded
+    return request.client.host if request.client else "unknown"
 
 
 @router.post("/login", response_model=SessionInfo)
 async def login(payload: LoginRequest, response: Response, request: Request):
-    ip = request.client.host if request.client else "unknown"
+    ip = _client_ip(request)
     if _rate_limited(ip):
         raise HTTPException(
             status_code=status.HTTP_429_TOO_MANY_REQUESTS,

@@ -77,6 +77,18 @@ class _Repo:
     async def load_active_states(self):
         return []
 
+    async def active_state_for(self, node_id, metric):
+        # 고립 회수 테스트용: open 이 거부된 (node, metric) 의 행을 돌려준다.
+        # 실제 repo 는 DB 를 보지만 대역은 refuse_open 플래그와 쌍으로 동작한다.
+        if self.refuse_open and (node_id, metric) in self.opened:
+            return ExposureStateRow(
+                exposure_id="01J6X3R8K7VQ2NTP5Z9MA4HWBC",
+                worker_id=1, node_id=node_id, metric=metric,
+                window_start=datetime.now(timezone.utc),
+                window_source="assignment",
+            )
+        return None
+
     async def open_window(self, exposure_id, worker_id, node_id, metric, start, source):
         self.opened.append((node_id, metric))
         if self.refuse_open:
@@ -557,3 +569,33 @@ async def test_downtime_becomes_data_gap_not_dose(env):
     window = svc._windows[("wearable-01", "co2_ppm")]
     assert window.state.dose_ppm_min == pytest.approx(1000.0), "3시간이 통째로 적산됐다"
     assert window.state.data_gap_s == pytest.approx(3 * 3600 - 60)
+
+
+# ============================================================
+# 고립 윈도우 회수 (코드 리뷰 2026-08-22) — close 실패 후에도 적산이 살아난다
+# ============================================================
+
+@pytest.mark.asyncio
+async def test_reconcile_adopts_orphaned_db_window(env, monkeypatch):
+    """_close 가 DB 확정에 실패해 _windows 에서만 pop 된 윈도우는 다음 조정에서
+    메모리로 되찾아와야 한다 — 그대로 두면 프로세스 수명 동안 적산·브로드캐스트가
+    조용히 멈춘다 (#154 패턴)."""
+    from app.models.exposure import ExposureStateRow
+
+    # 1) 정상 윈도우 하나 연다
+    await svc._reconcile()
+    key = ("wearable-01", "co2_ppm")
+    assert key in svc._windows
+
+    # 2) 고립 재현: close 가 DB 실패해 메모리에서만 사라진 상태. DB 활성 행이
+    #    남아 있으므로 open_window 는 유니크 제약으로 None 을 돌려준다.
+    popped = svc._windows.pop(key)
+    env["repo"].refuse_open = True
+
+    # 3) 다음 조정 — 회수 경로가 살아야 한다
+    await svc._reconcile()
+    recovered = svc._windows.get(key)
+    assert recovered is not None, "DB 활성 윈도우를 메모리로 회수하지 못했다 (고립)"
+    assert recovered.row.node_id == popped.row.node_id
+    assert recovered.row.metric == "co2_ppm"
+    _ = ExposureStateRow

@@ -70,3 +70,63 @@ def test_session_cookie_attributes_are_hardened():
     assert attrs["secure"] == settings.cookie_secure
     # max_age 는 절대 만료와 일치해야 쿠키가 세션보다 먼저 죽지 않는다.
     assert attrs["max_age"] == int(settings.session_absolute_ttl_hours * 3600)
+
+
+# ============================================================
+# 로그인 레이트리밋 — 프록시 IP 분리 + 카운트 보존 (코드 리뷰 2026-08-22)
+# ============================================================
+
+def _request_with(real_ip: str | None, client_host: str = "10.0.0.1"):
+    from fastapi import Request
+
+    scope = {
+        "type": "http",
+        "method": "POST",
+        "path": "/api/auth/login",
+        "headers": ([(b"x-real-ip", real_ip.encode())] if real_ip else []),
+        "query_string": b"",
+        "client": (client_host, 12345),
+    }
+    return Request(scope)
+
+
+def test_client_ip_prefers_nginx_real_ip():
+    """배포 스택의 모든 HTTP 는 nginx 를 거친다 — client.host 는 죄다 nginx IP 다.
+    X-Real-IP 를 안 쓰면 전 사용자가 하나의 10회/분 버킷을 공유한다."""
+    from app.routers.auth import _client_ip
+
+    assert _client_ip(_request_with("192.168.1.42")) == "192.168.1.42"
+    assert _client_ip(_request_with(None)) == "10.0.0.1"
+
+
+def test_rate_limit_buckets_are_per_ip():
+    from app.routers import auth as auth_router
+
+    auth_router._login_attempts.clear()
+    for _ in range(10):
+        assert auth_router._rate_limited("192.168.1.42") is False
+    assert auth_router._rate_limited("192.168.1.42") is True
+    # 다른 IP 는 별도 버킷 — nginx 공유 버킷 회귀 방지
+    assert auth_router._rate_limited("192.168.1.43") is False
+    auth_router._login_attempts.clear()
+
+
+def test_rate_limit_cleanup_does_not_lose_live_counter():
+    """정리 스윕이 살아 있는 카운터를 지우지 않는지 — pop 후 append 하면 카운트가
+    유실되어 레이트리밋이 무력화된다(리뷰 중 작성 버그 방지)."""
+    from datetime import datetime, timedelta, timezone
+
+    from app.routers import auth as auth_router
+
+    auth_router._login_attempts.clear()
+    # 죽은 키 129개 (만료 창) + 살아 있는 키 1개
+    old = datetime.now(timezone.utc) - timedelta(minutes=5)
+    for i in range(129):
+        d = auth_router._login_attempts[f"dead-{i}"]
+        d.append(old)
+    assert auth_router._rate_limited("alive") is False  # 스윕 트리거 (>128)
+
+    for _ in range(9):
+        assert auth_router._rate_limited("alive") is False
+    assert auth_router._rate_limited("alive") is True  # 10회째 차단 — 카운트 보존
+    auth_router._login_attempts.clear()
