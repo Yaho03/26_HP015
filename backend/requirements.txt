@@ -9,3 +9,7 @@ argon2-cffi==23.1.0
 # 통행 구조(nav graph) YAML 로더 — FR-801. 마이그레이션에 시드하면 checksum 이 잠겨
 # 실측 도면이 들어와도 고칠 수 없어서 설정 파일로 뺐다.
 PyYAML==6.0.2
+# AI 이상징후 추론 전용 (연구용). 학습 프레임워크가 아니라 수치 계산 라이브러리다.
+# torch/onnxruntime 은 넣지 않는다 — 학습은 experiments/lstm_anomaly 의 별도 venv 에서
+# 하고, 백엔드는 export_weights.py 가 만든 .npz 를 numpy 행렬곱으로 추론한다.
+numpy==2.0.2

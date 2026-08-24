@@ -92,6 +92,13 @@ class Settings(BaseSettings):
     # 주입 도구 위치 (저장소 루트 기준). 컨테이너 배포본에는 없을 수 있다.
     demo_inject_cwd: str = ""
 
+    # AI 이상징후 탐지 (연구용). 기존 안전 경보와 완전히 별개다 — 이 값을 꺼도
+    # 임계값 경보·웨어러블 진동·MQTT 발행은 그대로 동작한다.
+    ai_anomaly_enabled: bool = True
+    # 학습 artifact 디렉토리. 없거나 읽기에 실패하면 서버는 정상 기동하고
+    # 서비스만 model_not_ready 상태로 남는다 (§9.1-2).
+    ai_anomaly_artifact_dir: str = "experiments/lstm_anomaly/artifacts/demo"
+
     # 인증 세션 (AUTH-2, ADR-007). 유휴 8h / 절대 12h (FR-604).
     session_idle_ttl_hours: float = 8.0
     session_absolute_ttl_hours: float = 12.0
