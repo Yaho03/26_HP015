@@ -57,6 +57,9 @@ export function WearableStrip({ node_id, wearable, worker }: WearableStripProps)
   // 낙상 또는 O₂ 이상이면 줄 전체가 승격된다 (§3.3).
   const stripLevel: AlertLevel = fall ? "level3_critical" : o2Level;
   const q = quality(wearable?.location_quality);
+  // 이 슬롯이 지금 값을 보내고 있는가. 보고가 없는 슬롯을 "대기" 로 두어야
+  // 두 명이 들어갔는데 한 명만 보이는 상황을 화면에서 알아챈다.
+  const tracking = !!wearable && wearable.connection_status === "online";
   const Icon = LEVEL_ICON[stripLevel] as ComponentType<{
     size?: number | string;
   }>;
@@ -82,15 +85,24 @@ export function WearableStrip({ node_id, wearable, worker }: WearableStripProps)
         {worker ? (
           <>
             <strong>{worker.name}</strong>
-            <em>사번 {worker.employee_no}</em>
+            {/* 착용 중인 웨어러블. 대피 지시는 사람 이름으로 하지만, 값이
+                이상할 때 현장에서 확인해야 하는 것은 이 장비다. */}
+            <em className="wstrip__device">{node_id}</em>
           </>
         ) : (
           // 밀폐공간에서 "누가 안에 있는지" 모르는 것은 그 자체가 위험 정보다.
           <>
             <strong className="wstrip__who--none">미배정</strong>
-            <em>{node_id}</em>
+            <em className="wstrip__device">{node_id}</em>
           </>
         )}
+      </span>
+
+      {/* 측정 중인지부터 밝힌다. 아래 숫자들이 지금 값인지 멈춘 값인지를
+          가르는 정보라 다른 항목보다 앞에 온다. */}
+      <span className={"wstrip__track" + (tracking ? " is-live" : "")}>
+        <span className="wstrip__track-dot" aria-hidden="true" />
+        {tracking ? "측정중" : "대기"}
       </span>
 
       <span className="wstrip__fact">

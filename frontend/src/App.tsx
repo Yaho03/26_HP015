@@ -79,8 +79,9 @@ function App() {
     // 시드를 unknown 으로 두면 낙상·서버 경보 같은 실제 위험은 rank 상 그대로 이긴다.
     let lv: AlertLevel = s.thresholds.length > 0 ? "normal" : "unknown";
     for (const n of Object.values(s.sensor_nodes)) lv = maxLevel(lv, nodeAlertLevel(n));
-    const w = s.wearable;
-    if (w) {
+    // 웨어러블 전원을 접는다. 한 명만 보면 나머지 작업자의 낙상·저산소가
+    // 상단 표시에서 통째로 빠진다.
+    for (const w of Object.values(s.wearables)) {
       if (w.fall_detected) lv = maxLevel(lv, "level3_critical");
       if (w.o2_pct !== null)
         lv = maxLevel(lv, maxLevel(classifyO2Low(w.o2_pct), classifyO2High(w.o2_pct)));

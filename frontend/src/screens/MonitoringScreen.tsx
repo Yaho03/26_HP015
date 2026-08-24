@@ -17,9 +17,11 @@ import { useAssignments } from "../hooks/useAssignments";
 import {
   displayPositionFor,
   FILL_PRESET,
+  PRIMARY_WEARABLE,
   SENSOR_SCREEN_ORDER,
   SENSOR_SHIP_POSITIONS,
   shouldMapToShip,
+  WEARABLE_SCREEN_ORDER,
 } from "../utils/coordinates";
 import type { SensorSample } from "../utils/idw";
 import type { AlertLevel, MetricKey } from "../types";
@@ -27,7 +29,9 @@ import type { AlertLevel, MetricKey } from "../types";
 // Spec 10_UI_FLOW §3.1: fixed sensor-01~04 + wearable-01 slots. Slots render in
 // a "대기" state until their node reports (live wiring tracked by #106/#121).
 const SENSOR_SLOTS = [...SENSOR_SCREEN_ORDER];
-const WEARABLE_SLOT = "wearable-01";
+// ⑤ 는 슬롯을 고정해 자리를 비워 둔다. 보고하지 않는 작업자가 목록에서 조용히
+// 사라지면 "두 명이 들어갔는데 한 명만 보인다" 를 알아챌 방법이 없다.
+const WEARABLE_SLOTS = [...WEARABLE_SCREEN_ORDER];
 const PLAN_METRIC: MetricKey = "co2_ppm";
 
 export function MonitoringScreen({
@@ -37,7 +41,7 @@ export function MonitoringScreen({
 }) {
   const nodes = useDashboardStore((s) => s.sensor_nodes);
   const trends = useDashboardStore((s) => s.sensor_trend);
-  const wearable = useDashboardStore((s) => s.wearable);
+  const wearables = useDashboardStore((s) => s.wearables);
   // 셀렉터에서 배열을 새로 만들면 안 된다. useSyncExternalStore 가 매 스냅숏을
   // 다른 참조로 보고 무한 루프에 빠진다 — 스토어에 있는 객체를 그대로 구독하고
   // 파생은 렌더 안에서 한다.
@@ -136,9 +140,11 @@ export function MonitoringScreen({
   const planSamples: SensorSample[] = planSensors
     .map((s) => ({ x: s.x, y: s.y, value: nodes[s.id]?.readings[PLAN_METRIC]?.value ?? 0 }))
     .filter((s) => s.value > 0);
+  // 트윈 마커와 ③ 헤더 O₂ 는 아직 대표 한 명만 다룬다 (① 트윈 작업에서 확장).
+  const primaryWearable = wearables[PRIMARY_WEARABLE] ?? null;
   const planWorkerPos = displayPositionFor(
-    wearable?.position_raw,
-    wearable?.source_coordinate_system,
+    primaryWearable?.position_raw,
+    primaryWearable?.source_coordinate_system,
     FILL_PRESET,
   );
   const planWorker = planWorkerPos
@@ -146,7 +152,7 @@ export function MonitoringScreen({
         x: planWorkerPos.x_m,
         y: planWorkerPos.y_m,
         z: planWorkerPos.z_m,
-        fall_detected: wearable?.fall_detected,
+        fall_detected: primaryWearable?.fall_detected,
       }
     : null;
 
@@ -192,16 +198,19 @@ export function MonitoringScreen({
             metric={PLAN_METRIC}
             onlineCount={onlineCount}
             sourceLabel={sourceLabel}
-            mapped={shouldMapToShip(wearable?.source_coordinate_system)}
+            mapped={shouldMapToShip(primaryWearable?.source_coordinate_system)}
           />
 
           <section className="panel-5" aria-label="노드별 센서 데이터">
             <NodeMetricsGrid />
-            <WearableStrip
-              node_id={WEARABLE_SLOT}
-              wearable={wearable}
-              worker={workerFor(WEARABLE_SLOT)}
-            />
+            {WEARABLE_SLOTS.map((slot) => (
+              <WearableStrip
+                key={slot}
+                node_id={slot}
+                wearable={wearables[slot] ?? null}
+                worker={workerFor(slot)}
+              />
+            ))}
           </section>
         </div>
 
@@ -235,7 +244,7 @@ export function MonitoringScreen({
             nodeIds={summaryIds}
             nodes={nodes}
             trends={trends}
-            wearable={wearable}
+            wearable={primaryWearable}
             levelOf={levelOf}
           />
           <RiskLogPanel onOpenEventLog={onOpenEventLog} />

@@ -6153,3 +6153,61 @@ body {
 .console__right .scard__co2-spark {
   height: 14px;
 }
+
+/* ⑤ 는 작업자 목록이다 — 슬롯마다 헤더 한 줄 + 누적 노출량 4칸이 한 블록을 이룬다.
+   블록 사이에 선을 그어 "누구의 값인가" 가 섞이지 않게 한다. */
+.panel-5 .wstrip + .dose-row {
+  margin-bottom: 8px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--rule);
+}
+.panel-5 .dose-row:last-child {
+  margin-bottom: 0;
+  padding-bottom: 0;
+  border-bottom: 0;
+}
+
+/* 착용 중인 장비. 사람 이름 뒤에 조용히 붙는다 — 대피 지시는 이름으로 하지만
+   값이 이상할 때 현장에서 확인해야 하는 것은 이 장비다. */
+.wstrip__device {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  font-style: normal;
+  letter-spacing: 0.04em;
+  color: var(--ink-3);
+}
+
+/* 측정 중인지부터 밝힌다. 아래 숫자들이 지금 값인지 멈춘 값인지를 가른다. */
+.wstrip__track {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-family: var(--font-mono);
+  font-size: 9px;
+  letter-spacing: 0.08em;
+  color: var(--ink-3);
+  white-space: nowrap;
+}
+.wstrip__track-dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--ink-3);
+}
+.wstrip__track.is-live {
+  color: var(--normal);
+}
+.wstrip__track.is-live .wstrip__track-dot {
+  background: var(--normal);
+}
+
+/* ⑤ 노드 표를 2×2 에서 4×1 로 편다.
+   좌측 열은 1000px 이 넘어 가로가 남는 반면, 이 칸은 작업자 블록(헤더 + 누적
+   노출량 4칸)을 사람 수만큼 아래로 쌓아야 해서 세로가 모자란다. 2×2 는 그 남는
+   가로를 버리고 부족한 세로를 두 배로 쓰는 배치였다 — 실제로 노드 셀이 74px 로
+   눌려 여섯 지표 중 둘만 보였다. 한 줄로 펴면 세로를 140px 넘게 돌려받는다. */
+.console__left .panel-5__grid {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-rows: minmax(0, 1fr);
+  gap: 8px;
+}

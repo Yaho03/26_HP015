@@ -46,7 +46,15 @@ interface DashboardStore {
    * 셀렉터를 건드리지 않게 한다 (10_UI_FLOW §10.3).
    */
   sensor_trend: Record<NodeId, Partial<Record<TrendMetric, TrendPoint[]>>>;
-  wearable: WearableState | null;
+  /**
+   * 웨어러블 노드별 실시간 상태.
+   *
+   * 단수(`wearable`)였던 것을 노드별로 편다 — 밀폐공간에 두 명 이상 들어가는
+   * 것이 기본 시나리오이고, 단수로 두면 나중에 들어온 사람이 앞사람의 O₂·위치를
+   * 덮어써서 화면이 한 사람만 있는 것처럼 보인다. 이미 노드별인 worker_exposure ·
+   * evacuation_route 와 키를 맞춘다.
+   */
+  wearables: Record<NodeId, WearableState>;
   active_alerts: Record<AlertKey, AlertState>;
   connection_status: ConnectionStatus;
   /** 서버 임계값 (PRD FR-204). 비어 있으면 아직 못 받은 것. */
@@ -106,7 +114,7 @@ const initial_connection_status: ConnectionStatus = {
 export const useDashboardStore = create<DashboardStore>((set) => ({
   sensor_nodes: {},
   sensor_trend: {},
-  wearable: null,
+  wearables: {},
   active_alerts: {},
   connection_status: initial_connection_status,
   thresholds: [],
@@ -184,24 +192,27 @@ export const useDashboardStore = create<DashboardStore>((set) => ({
   // (10_UI_FLOW 3.3). node_id 가 wearable- 이면 여기로 보낸다.
   setWearableO2Reading: (node_id, value, timestamp) =>
     set((state) => ({
-      wearable: {
-        ...(state.wearable ?? {
+      wearables: {
+        ...state.wearables,
+        [node_id]: {
+          ...(state.wearables[node_id] ?? {
+            node_id,
+            position_raw: null,
+            fall_detected: false,
+            heart_rate: null,
+            battery_pct: null,
+            connection_status: "online" as const,
+          }),
           node_id,
-          position_raw: null,
-          fall_detected: false,
-          heart_rate: null,
-          battery_pct: null,
-          connection_status: "online" as const,
-        }),
-        node_id,
-        o2_pct: value,
-        last_seen_at: timestamp,
+          o2_pct: value,
+          last_seen_at: timestamp,
+        },
       },
     })),
 
   setWearablePosition: (node_id, x, y, z, timestamp, metadata) =>
     set((state) => {
-      const existing = state.wearable ?? {
+      const existing = state.wearables[node_id] ?? {
         node_id,
         o2_pct: null,
         position_raw: null,
@@ -213,12 +224,15 @@ export const useDashboardStore = create<DashboardStore>((set) => ({
       // 구버전 백엔드는 position_raw 없이 x/y/z 만 보낸다. 그 경우 x/y/z 가 실측값이다.
       const rawPosition: Position3D = metadata?.position_raw ?? { x_m: x, y_m: y, z_m: z };
       return {
-        wearable: {
-          ...existing,
-          ...metadata,
-          node_id,
-          position_raw: rawPosition,
-          last_seen_at: timestamp,
+        wearables: {
+          ...state.wearables,
+          [node_id]: {
+            ...existing,
+            ...metadata,
+            node_id,
+            position_raw: rawPosition,
+            last_seen_at: timestamp,
+          },
         },
       };
     }),
@@ -253,7 +267,9 @@ export const useDashboardStore = create<DashboardStore>((set) => ({
       return {
         thresholds: rows,
         sensor_nodes,
-        wearable: state.wearable ? { ...state.wearable } : null,
+        wearables: Object.fromEntries(
+          Object.entries(state.wearables).map(([id, w]) => [id, { ...w }]),
+        ),
       };
     }),
 
