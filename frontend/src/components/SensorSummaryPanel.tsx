@@ -139,14 +139,17 @@ const SummaryCard = memo(function SummaryCard({
         <span className="scard__level">
           {offline ? "연결 끊김" : node ? levelLabel(level) : "대기"}
         </span>
-        <span className={"scard__src" + (sim ? " scard__src--sim" : "")}>
-          {sourceBadge(node?.source_mode, !!node)}
+        {/* 값이 멈췄으면 배지 자체가 "지연" 으로 바뀐다. LIVE 를 흐리게만 두면
+            흐린 LIVE 도 LIVE 로 읽혀 옆의 경과와 정면으로 모순된다. */}
+        <span
+          className={
+            "scard__src" + (sim ? " scard__src--sim" : "") + (stale ? " scard__src--stale" : "")
+          }
+        >
+          {sourceBadge(node?.source_mode, !!node, stale)}
         </span>
-        {/* 마지막 수신 경과. 5초 넘게 조용하면 값이 아니라 이 자리가 말한다. */}
         {node && !offline && (
-          <span className={"scard__age" + (stale ? " scard__age--stale" : "")}>
-            {stale ? "STALE " + fresh.label : fresh.label}
-          </span>
+          <span className={"scard__age" + (stale ? " scard__age--stale" : "")}>{fresh.label}</span>
         )}
       </header>
 

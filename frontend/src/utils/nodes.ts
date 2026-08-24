@@ -12,12 +12,19 @@ export function shortNodeLabel(nodeId: string): string {
   return nodeId;
 }
 
-/** 데이터 출처 배지 문구. 노드가 없으면 아직 아무것도 안 온 상태다. */
+/**
+ * 데이터 출처 배지 문구. 노드가 없으면 아직 아무것도 안 온 상태다.
+ *
+ * 값이 멈췄으면 LIVE 라고 말하지 않는다. 흐리게 처리하는 것만으로는 부족하다 —
+ * 흐린 "LIVE" 도 여전히 LIVE 로 읽히고, 옆의 STALE 배지와 정면으로 모순된다.
+ */
 export function sourceBadge(
   sourceMode: "live" | "simulation" | undefined,
   hasNode: boolean,
-): "LIVE" | "SIM" | "대기" {
+  stale = false,
+): "LIVE" | "SIM" | "대기" | "지연" {
   if (!hasNode) return "대기";
+  if (stale) return "지연";
   return sourceMode === "simulation" ? "SIM" : "LIVE";
 }
 

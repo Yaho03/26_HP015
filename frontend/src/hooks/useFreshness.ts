@@ -47,8 +47,18 @@ export function freshnessAt(lastSeenAt: string | null | undefined, now: number):
   return {
     secondsAgo,
     isStale: elapsed >= STALE_AFTER_MS,
-    label: `${secondsAgo}초 전`,
+    label: `${formatAgo(secondsAgo)} 전`,
   };
+}
+
+/** "4566초" 는 안 읽힌다. 분·시간으로 접는다. */
+function formatAgo(seconds: number): string {
+  if (seconds < 60) return `${seconds}초`;
+  const m = Math.floor(seconds / 60);
+  if (m < 60) return `${m}분`;
+  const h = Math.floor(m / 60);
+  const rem = m % 60;
+  return rem === 0 ? `${h}시간` : `${h}시간 ${rem}분`;
 }
 
 export function useFreshness(lastSeenAt: string | null | undefined): Freshness {

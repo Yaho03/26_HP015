@@ -68,19 +68,21 @@ describe("SensorSummaryPanel — 예측 배지와 신선도", () => {
     }
   });
 
-  it("값이 멈추면 STALE 을 띄우고 미래를 그리지 않는다", () => {
+  it("값이 멈추면 LIVE 라고 말하지 않고 미래도 그리지 않는다", () => {
     const stale = new Date(Date.now() - STALE_AFTER_MS - 1_000).toISOString();
     const markup = render(stale);
-    expect(markup).toContain("STALE");
+    // 흐린 LIVE 도 LIVE 로 읽힌다. 배지 문구 자체가 바뀌어야 한다.
+    expect(markup).not.toContain("LIVE");
+    expect(markup).toContain("지연");
     expect(markup).toContain("scard--stale");
     // 멈춘 버퍼로 외삽하면 "곧 위험" 이 영영 화면에 박힌다.
     expect(markup).not.toContain("scard__projection");
     expect(markup).not.toContain("spark__proj");
   });
 
-  it("갓 도착한 값에는 STALE 을 붙이지 않는다", () => {
+  it("갓 도착한 값은 LIVE 로 남는다", () => {
     const markup = render(new Date().toISOString());
-    expect(markup).not.toContain("STALE");
+    expect(markup).toContain("LIVE");
     expect(markup).not.toContain("scard--stale");
   });
 });

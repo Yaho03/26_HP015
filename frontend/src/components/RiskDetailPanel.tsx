@@ -201,17 +201,22 @@ export function RiskDetailPanel({
   levelOf,
   workerFor,
 }: RiskDetailPanelProps) {
+  // 승격된 노드가 없으면 칸을 접는다. "주의 이상 노드 없음" 한 줄은 바로 위
+  // 카운트(주의 0 · 경고 0 · 위험 0)가 이미 하는 말이고, 빈 껍데기가 ② 와 ③
+  // 사이에 끼면 경계선만 하나 더 늘어난다.
+  //
+  // 조건부로 아예 빼지는 않는다 — 그리드 자식이 하나 줄면 뒤 칸들이 한 행씩
+  // 당겨져 템플릿과 어긋난다 (실제로 ④ 가 암묵 행으로 밀려 겹친 적이 있다).
+  if (nodeIds.length === 0) {
+    return <section className="panel-2 panel-2--none" aria-hidden="true" />;
+  }
+
   return (
     <section className="panel-2" aria-label="위험 센서 상세">
       {/* n 이 3~4 로 커지면 카드가 세로로 다 안 들어간다. 내부 스크롤로 받고
           위험도 높은 순으로 정렬해, 잘리는 쪽이 항상 덜 위험한 카드가 되게 한다. */}
-      <div className={"panel-2__body" + (nodeIds.length === 0 ? " panel-2__body--empty" : "")}>
-        {nodeIds.length === 0 ? (
-          <p className="panel-2__clear">
-            <span className="panel-2__clear-mark" aria-hidden="true" />
-            주의 이상 노드 없음
-          </p>
-        ) : (
+      <div className="panel-2__body">
+        {(
           nodeIds.map((id) => (
             <RiskCard
               key={id}

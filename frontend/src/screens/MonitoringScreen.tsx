@@ -222,9 +222,7 @@ export function MonitoringScreen({
             <AlertBanner
               alert={banner}
               workerName={banner ? (workerFor(banner.node_id)?.name ?? null) : null}
-              projection={
-                banner ? mostUrgentProjection(trends[banner.node_id]) : null
-              }
+              projection={banner ? mostUrgentProjection(trends[banner.node_id]) : null}
             />
             <SummaryBar
               counts={counts}

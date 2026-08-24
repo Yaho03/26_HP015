@@ -126,15 +126,22 @@ export function SummaryBar({ counts, worstNodeId, worstLevel, projection }: Summ
       <div className="summary-bar__context">
         <div className={"summary-bar__worst is-" + worstLevel}>
           <span className="summary-bar__key">최악</span>
-          {worstNodeId ? (
+          {!worstNodeId ? (
+            // 온라인 노드가 하나도 없는 상태다. "정상"으로 그리면 안 된다.
+            <span className="summary-bar__muted">온라인 노드 없음</span>
+          ) : worstLevel === "normal" ? (
+            // 전부 정상인데 특정 노드를 "최악" 으로 지목하면 그 노드에 뭔가 있는
+            // 것처럼 읽힌다. 지목할 것이 없을 때는 지목하지 않는다.
+            <>
+              <WorstIcon size={12} />
+              <span className="summary-bar__level">이상 없음</span>
+            </>
+          ) : (
             <>
               <WorstIcon size={12} />
               <span className="summary-bar__node">{shortNodeLabel(worstNodeId)}</span>
               <span className="summary-bar__level">{levelLabel(worstLevel)}</span>
             </>
-          ) : (
-            // 온라인 노드가 하나도 없는 상태다. "정상"으로 그리면 안 된다.
-            <span className="summary-bar__muted">온라인 노드 없음</span>
           )}
         </div>
 
