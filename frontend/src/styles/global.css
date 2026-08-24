@@ -3511,41 +3511,9 @@ body {
 
 /* The count eases with React's requestAnimationFrame value interpolation; the
    meter below it uses a CSS width transition so live updates do not snap. */
-.summary-item {
-  display: grid;
-  grid-template-columns: auto 1fr;
-  grid-template-rows: auto auto;
-  grid-template-areas: "count label" "meter meter";
-  align-items: center;
-  row-gap: 6px;
-}
 .summary-count {
-  grid-area: count;
-  margin-left: 0;
-  transition:
-    color 180ms ease-out,
-    transform 180ms ease-out;
+  transition: color 180ms ease-out;
 }
-.summary-label {
-  grid-area: label;
-  justify-self: end;
-}
-.summary-meter {
-  grid-area: meter;
-  display: block;
-  width: 100%;
-  height: 3px;
-  overflow: hidden;
-  background: var(--rule);
-}
-.summary-meter__fill {
-  display: block;
-  width: 0;
-  height: 100%;
-  background: var(--lv, var(--ink-3));
-  transition: width 360ms cubic-bezier(0.22, 1, 0.36, 1);
-}
-
 /* The backdrop blur keeps the dashboard context present while directing focus
    to the alert. The modal uses ease-out scale-up instead of an abrupt mount. */
 .safety-demo-backdrop {
@@ -3887,7 +3855,10 @@ body {
 }
 .console__left {
   display: grid;
-  grid-template-rows: minmax(0, 46fr) minmax(0, 54fr);
+  /* ⑤ 는 노드 표(6종 × 4노드) 아래에 웨어러블 줄과 누적 노출량 4칸까지 얹는다.
+     46:54 로는 노드 셀이 23px 씩 잘려 마지막 지표(가스저항)가 사라졌다 —
+     잘린 지표는 없는 지표와 같다. 트윈에서 그만큼 넘겨받는다. */
+  grid-template-rows: minmax(0, 42fr) minmax(0, 58fr);
   gap: 14px;
   min-height: 0;
 }
@@ -3896,7 +3867,23 @@ body {
    값이 튀지 않도록 fr 단위로 두고 전환에 시간을 준다. */
 .console__right {
   display: grid;
-  grid-template-rows: var(--panel2-share, 15fr) var(--panel3-share, 85fr) 180px;
+  /* 4행: ② 스트립(auto) · ③ 위험상세 · ③ 센서요약 · ④ 위험로그.
+     ④ 는 고정 180px 이 아니라 하한이 있는 fr 이다 — 경보 팝업이 상단 절반을
+     덮으므로 로그가 최소 절반은 남아 있어야 한다. 새 패널을 끼울 때 이 템플릿을
+     같이 늘리지 않으면 새 패널이 로그 자리를 뺏고 로그는 암묵 행으로 밀려
+     두 패널이 겹쳐 보인다 (실제로 그렇게 깨졌다). */
+  /* 4행: ② 상태(auto) · ③ 위험상세 · ③ 센서요약 · ④ 위험로그.
+     ④ 를 fr 로 두면 안 된다. 최소 높이를 크게 잡은 순간 ③ 이 먹을 몫이 사라져
+     fr 배분 자체가 무너지고(15fr 이 85fr 보다 커지는 상태가 실제로 나왔다),
+     센서 카드 네 장 중 두 장이 스크롤 아래로 밀린다. 고정 높이로 못 박아
+     남는 세로가 전부 ③ 으로 가게 한다.
+     새 패널을 끼울 때 이 템플릿을 같이 늘리지 않으면 새 패널이 로그 자리를
+     뺏고 로그는 암묵 행으로 밀려 두 패널이 겹쳐 보인다 (실제로 그렇게 깨졌다). */
+  grid-template-rows:
+    auto
+    var(--panel2-share, 15fr)
+    var(--panel3-share, 85fr)
+    150px;
   gap: 14px;
   min-height: 0;
   transition: grid-template-rows 260ms ease;
@@ -4904,8 +4891,15 @@ body {
   .console__right {
     gap: 10px;
   }
+  /* 위 .console__right 와 행 수가 반드시 같아야 한다. 3행으로 두었더니 ④ 가
+     암묵 행으로 밀리면서 ③ 이 150px 로 눌려, 센서 카드 네 장 중 두 장이 스크롤
+     아래로 사라졌다 — 위에 적힌 경고가 실제로 재현된 자리다. */
   .console__right {
-    grid-template-rows: var(--panel2-share, 15fr) var(--panel3-share, 85fr) 150px;
+    grid-template-rows:
+      auto
+      var(--panel2-share, 15fr)
+      var(--panel3-share, 85fr)
+      180px;
   }
   .panel-5 {
     padding: 8px;
@@ -5529,4 +5523,633 @@ body {
   color: #e8b34b;
   border: 1px solid #e8b34b55;
   border-radius: 999px;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   ② 전체 상태 스트립
+   ───────────────────────────────────────────────────────────────────────────
+   노드가 4개뿐이라 등급별 카운트만으로는 면적 대비 정보량이 가장 낮은 칸이다 —
+   ③ 의 카드 네 장이 이미 같은 것을 색으로 말하고 있다. 그래서 카운트를 한 줄로
+   눌러 세로를 ③ 에 넘기고, 남는 가로에 다른 칸 어디에도 없는 것을 싣는다:
+   지금 가장 나쁜 노드와, 이 추세가 유지되면 언제 어느 등급에 닿는가.
+
+   앞선 세 겹의 .summary-item 정의(4칸 그리드·62px 행·grid-area)를 여기서
+   덮는다. 구조가 바뀌었으므로 마지막 정의가 실제로 적용되는 것이어야 한다.
+   ═══════════════════════════════════════════════════════════════════════════ */
+.summary-bar {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  min-width: 0;
+  border: 1px solid var(--rule);
+  border-radius: 0;
+  background: var(--panel);
+}
+/* 카운트 네 칸은 균등 분할한다 — 값이 0↔2 를 오갈 때 칸 폭이 흔들리면
+   옆 칸이 밀려 눈이 그 움직임을 쫓는다. */
+.summary-bar__counts {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  min-width: 0;
+}
+/* 판정 불가가 끼면 다섯 칸이 된다 (이슈 #165). */
+.summary-bar__counts:has(.summary-item.is-unknown) {
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+}
+.summary-bar__context {
+  display: flex;
+  align-items: stretch;
+  min-width: 0;
+  border-top: 1px solid var(--rule);
+}
+.summary-item {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  min-width: 0;
+  min-height: 0;
+  padding: 7px 13px;
+  border: 0;
+  border-left: 1px solid var(--rule);
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+.summary-item:first-child {
+  border-left: 0;
+}
+.summary-item::before {
+  content: none;
+}
+.summary-item svg {
+  color: var(--lv, var(--ink-3));
+}
+.summary-label {
+  display: inline;
+  margin: 0;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+}
+/* 값이 갱신될 때 폭이 흔들리면 옆 칸이 밀려 눈이 피로해진다. */
+.summary-count {
+  margin: 0;
+  font-family: var(--font-num);
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "zero" 1;
+  font-size: 17px;
+  font-weight: 600;
+  line-height: 1;
+  letter-spacing: -0.01em;
+  color: var(--ink-1);
+}
+.summary-item.is-unknown .summary-count,
+.summary-item.is-level1_caution .summary-count,
+.summary-item.is-level2_warning .summary-count,
+.summary-item.is-level3_critical .summary-count {
+  color: var(--lv);
+}
+
+.summary-bar__worst,
+.summary-bar__proj {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  min-width: 0;
+  padding: 7px 13px;
+  border-left: 1px solid var(--rule);
+  white-space: nowrap;
+}
+.summary-bar__worst {
+  flex: 0 0 auto;
+  border-left: 0;
+}
+/* 예측 칸이 남는 가로를 흡수한다. 문구가 나타났다 사라져도 앞 칸들이 밀리지 않는다. */
+.summary-bar__proj {
+  flex: 1 1 auto;
+}
+.summary-bar__key {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+}
+.summary-bar__worst svg {
+  color: var(--lv, var(--ink-3));
+}
+.summary-bar__node {
+  font-family: var(--font-mono);
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  color: var(--ink-1);
+}
+.summary-bar__level,
+.summary-bar__proj-level {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--lv, var(--ink-2));
+}
+.summary-bar__proj-eta {
+  font-family: var(--font-num);
+  font-variant-numeric: tabular-nums;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ink-1);
+}
+.summary-bar__proj-metric {
+  min-width: 0;
+  font-size: 12px;
+  color: var(--ink-2);
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+/* R² 는 확률이 아니라 적합도다. 조용한 회색으로 두어 등급 문구보다 뒤로 물린다. */
+.summary-bar__proj-fit {
+  margin-left: auto;
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  font-size: 11px;
+  color: var(--ink-3);
+  white-space: nowrap;
+}
+.summary-bar__muted {
+  font-size: 12px;
+  color: var(--ink-3);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   실측 vs 예측 · 데이터 신선도
+   ───────────────────────────────────────────────────────────────────────────
+   한 화면에 측정한 값과 계산한 값이 같이 놓인다. 둘을 같은 굵기·같은 실선으로
+   그리면 "지금 570ppm 인데 왜 경고인가" 를 되짚을 방법이 없어진다. 규칙은
+   예외 없이 하나다: **실측은 실선·채움, 예측은 점선·테두리.**
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* 외삽 구간. 실측선보다 얇고 흐리게 두어 "덜 확실한 것" 이 덜 확실해 보이게 한다. */
+.spark__proj {
+  fill: none;
+  stroke: var(--lv, var(--ink-2));
+  stroke-width: 1.1;
+  stroke-dasharray: 2.5 2;
+  stroke-linecap: round;
+  opacity: 0.72;
+}
+/* 도달 임계값. 값이 아니라 경계라서 더 조용하다. */
+.spark__threshold {
+  stroke: var(--ink-3);
+  stroke-width: 1;
+  stroke-dasharray: 1.5 2.5;
+  opacity: 0.55;
+}
+.spark--stale .spark__proj,
+.spark--stale .spark__threshold {
+  stroke: var(--ink-3);
+}
+
+/* ── 마지막 수신 경과 ──
+   평상시엔 조용한 회색 숫자다. 5초 넘게 조용해지면 그때만 눈에 띈다 —
+   상시 붉으면 아무도 안 본다. */
+.scard__age,
+.rcard__age {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  font-size: 10px;
+  letter-spacing: 0.04em;
+  color: var(--ink-3);
+  white-space: nowrap;
+}
+.scard__age--stale,
+.rcard__age--stale {
+  padding: 1px 5px;
+  border: 1px solid var(--unknown);
+  color: var(--unknown);
+  font-weight: 600;
+}
+/* 값이 멈춘 카드는 수치 전체를 물린다. 마지막 프레임이 현재값처럼 보이면 안 된다. */
+.scard--stale .scard__co2-value,
+.scard--stale .scard__co2-unit {
+  color: var(--ink-3);
+}
+/* LIVE 배지를 끈다 — 실시간이 아니기 때문이다. */
+.scard--stale .scard__src {
+  opacity: 0.4;
+}
+
+/* ── 예측 배지 ──
+   경보가 아니다 (06_ALERT_RULES §8.2). 등급 색을 테두리로만 쓰고 배경을 채우지
+   않아, 실제 경보 표면과 한눈에 구분된다. */
+.scard__proj-src,
+.rcard__proj-src {
+  flex: 0 0 auto;
+  padding: 1px 5px;
+  border: 1px solid var(--lv, var(--ink-3));
+  font-family: var(--font-mono);
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  color: var(--lv, var(--ink-2));
+}
+.rcard__projection {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  min-width: 0;
+  margin-bottom: 8px;
+  padding: 5px 8px;
+  border: 1px dashed var(--lv, var(--rule));
+  font-size: 12px;
+  color: var(--ink-2);
+}
+.rcard__proj-body {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.rcard__proj-fit {
+  margin-left: auto;
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  font-size: 11px;
+  color: var(--ink-3);
+  white-space: nowrap;
+}
+
+/* 예측 배지는 실제 경보 표면과 달라야 한다. 왼쪽 실선 막대를 점선 테두리로
+   바꿔, 경보 카드의 채워진 색면과 한눈에 갈린다. */
+.scard__projection {
+  align-items: center;
+  gap: 5px;
+  padding: 3px 6px;
+  border-left: 0;
+  border: 1px dashed var(--lv, var(--rule));
+  border-radius: 0;
+  background: transparent;
+  color: var(--ink-2);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   ② 상태 칸 — 경보(위) + 카운트(아래)
+   ───────────────────────────────────────────────────────────────────────────
+   경보를 우상단 부유 카드(.alert-modal)로 띄우면 ②③ 을 덮는다. 경보를 읽는
+   동안 정작 그 경보의 근거인 센서 카드가 가려진다는 뜻이다. 여기서는 칸 안에서
+   위로 자라고, ③ 은 그만큼만 줄어든다.
+   ═══════════════════════════════════════════════════════════════════════════ */
+.status-panel {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+}
+/* 경보가 없으면 카운트만 남는다 — 빈 자리를 미리 잡아두지 않는다. */
+.status-panel .summary-bar {
+  border-top: 0;
+}
+.status-panel:has(.alert-banner) .summary-bar {
+  border-top: 1px solid var(--rule);
+}
+
+.alert-banner {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+  padding: 8px 11px 9px;
+  border: 1px solid var(--lv, var(--rule));
+  border-bottom: 0;
+  /* 등급 색을 아주 옅게 깐다. 채도를 올리면 어두운 배경에서 번져 글자가 뭉갠다. */
+  background: var(--lv-wash, var(--panel));
+}
+.alert-banner__head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+.alert-banner__head svg {
+  color: var(--lv, var(--ink-2));
+  flex: none;
+}
+.alert-banner__level {
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  color: var(--lv, var(--ink-1));
+  white-space: nowrap;
+}
+.alert-banner__node {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--ink-1);
+}
+.alert-banner__worker {
+  min-width: 0;
+  font-size: 11px;
+  color: var(--ink-2);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.alert-banner__time {
+  margin-left: auto;
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  font-size: 10px;
+  color: var(--ink-3);
+  white-space: nowrap;
+}
+.alert-banner__ack {
+  flex: none;
+  padding: 2px 8px;
+  border: 1px solid var(--lv, var(--rule));
+  border-radius: 0;
+  background: transparent;
+  color: var(--lv, var(--ink-2));
+  font-family: inherit;
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.alert-banner__ack:hover {
+  background: var(--lv, var(--rule));
+  color: var(--ground);
+}
+.alert-banner__ack:focus-visible {
+  outline: 2px solid var(--lv, var(--ink-1));
+  outline-offset: 1px;
+}
+
+/* 원인 지표 — 값과 임계값을 같은 줄에 붙여 둔다. 떨어뜨리면 "무엇에 비해
+   높은가" 를 눈이 다시 이어붙여야 한다. */
+.alert-banner__cause {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  min-width: 0;
+  font-size: 12px;
+}
+.alert-banner__metric {
+  color: var(--ink-2);
+  white-space: nowrap;
+}
+.alert-banner__value {
+  font-family: var(--font-num);
+  font-variant-numeric: tabular-nums;
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--lv, var(--ink-1));
+}
+.alert-banner__limit {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  font-size: 11px;
+  color: var(--ink-3);
+  white-space: nowrap;
+}
+
+/* 추세는 측정이 아니라 계산이다. 점선 테두리로 경보 본문과 갈라 둔다. */
+.alert-banner__proj {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 6px;
+  border: 1px dashed var(--rule-strong, var(--rule));
+  font-size: 11px;
+  color: var(--ink-2);
+}
+.alert-banner__proj-src {
+  padding: 0 4px;
+  border: 1px solid var(--ink-3);
+  font-family: var(--font-mono);
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  color: var(--ink-3);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   ④ 24시간 등급 띠
+   ───────────────────────────────────────────────────────────────────────────
+   사고가 없으면 로그도 없다. "기록 없음" 한 줄만 남으면 화면에서 가장 큰 죽은
+   공간이 되므로, 같은 자리에 하루치 추이를 싣는다. 로그가 생기면 위로 쌓이고
+   이 띠가 아래로 밀린다.
+   ═══════════════════════════════════════════════════════════════════════════ */
+.risk-timeline {
+  flex: none;
+  padding: 6px 10px 7px;
+  border-top: 1px solid var(--rule);
+}
+.risk-timeline__head {
+  margin-bottom: 4px;
+}
+.risk-timeline__title {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+}
+.risk-timeline__strip {
+  display: grid;
+  grid-template-columns: repeat(24, minmax(0, 1fr));
+  gap: 1px;
+  height: 10px;
+}
+.risk-timeline__cell {
+  display: block;
+  height: 100%;
+  background: var(--lv, var(--rule));
+}
+/* 경보가 없던 시간대. 초록(정상)으로 칠하지 않는다 — "경보가 없었다" 와
+   "그 시간에 시스템이 살아 있었다" 는 다른 사실이고, 이 데이터는 전자만 안다. */
+.risk-timeline__cell.is-quiet {
+  background: var(--rule);
+}
+.risk-timeline__axis {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 3px;
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  font-size: 9px;
+  color: var(--ink-3);
+}
+
+/* ③ 센서 카드는 네 장이 스크롤 없이 2×2 로 들어가야 한다. 주의 이상 노드가
+   하나 생겨 이 칸이 65% 로 줄었을 때(RISK_SPLIT[1])가 가장 빡빡한 경우라,
+   그 높이를 기준으로 여백을 잡는다. 두 줄이 안 들어가면 아래 두 장이 스크롤
+   밖으로 사라지고, 사라진 카드는 없는 카드와 같다. */
+.panel-3__grid {
+  gap: 6px;
+  padding: 6px;
+}
+.console__right .scard {
+  gap: 3px;
+  padding: 6px 8px;
+}
+.console__right .scard__co2-value {
+  font-size: 20px;
+}
+
+/* ④ 는 이제 24시간 띠와 세로를 나눠 쓴다. 행 여백을 줄여 한 행이라도 더
+   보이게 한다 — 이 표는 훑어보는 용도라 행간보다 행 수가 중요하다.
+   그래도 다 담을 수는 없으므로 행을 누르면 전체 이벤트 로그로 넘어간다. */
+.panel-4 .risk-log th,
+.panel-4 .risk-log td {
+  padding: 3px 8px;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   ⑤ 누적 노출량 4종
+   ───────────────────────────────────────────────────────────────────────────
+   자리는 고정이다 — CO₂ · CO · H₂S · O₂. 위험한 순서로 재정렬하지 않는다.
+   관제사는 "CO₂ 는 항상 맨 왼쪽" 이라는 공간 기억으로 읽고, 자리가 움직이면
+   매번 라벨을 다시 읽어야 한다. 대신 가장 위험한 칸만 강조한다.
+   ═══════════════════════════════════════════════════════════════════════════ */
+.dose-row {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 6px;
+  margin-top: 6px;
+}
+.dose-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+  padding: 5px 8px 6px;
+  border: 1px solid var(--rule);
+  background: var(--panel);
+}
+/* 강조는 테두리와 발광으로만. 크기를 키우면 옆 칸이 밀려 결국 자리가 움직인다. */
+.dose-cell--worst {
+  border-color: var(--lv, var(--ink-2));
+  box-shadow: inset 0 0 0 1px var(--lv, transparent);
+}
+.dose-cell__head {
+  display: flex;
+  align-items: baseline;
+  gap: 5px;
+  min-width: 0;
+}
+.dose-cell__label {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--ink-1);
+}
+.dose-cell__flag {
+  padding: 0 4px;
+  border: 1px solid var(--lv, var(--ink-3));
+  font-family: var(--font-mono);
+  font-size: 8px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  color: var(--lv, var(--ink-2));
+}
+.dose-cell__pct {
+  margin-left: auto;
+  font-family: var(--font-num);
+  font-variant-numeric: tabular-nums;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--lv, var(--ink-1));
+  white-space: nowrap;
+}
+.dose-cell__track {
+  height: 4px;
+  background: var(--rule);
+}
+.dose-cell__fill {
+  display: block;
+  height: 100%;
+  background: var(--lv, var(--ink-3));
+  transition: width 400ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+/* "42%" 는 상태 보고고 "27분 뒤" 는 행동을 유발한다. 그래서 이 줄이 있다. */
+.dose-cell__note {
+  min-height: 12px;
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  font-size: 9px;
+  color: var(--ink-3);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* O₂ 는 몸에 쌓이지 않는다 — 결핍 상태에 있던 시간을 누적한다 (§2.4).
+   소진율 바와 다른 모양이어야 다른 개념으로 읽힌다. */
+.dose-cell__times {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 2px;
+  margin: 0;
+}
+.dose-cell__times > div {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+}
+.dose-cell__times dt {
+  font-family: var(--font-mono);
+  font-size: 8px;
+  letter-spacing: 0.06em;
+  color: var(--ink-3);
+}
+.dose-cell__times dd {
+  margin: 0;
+  font-family: var(--font-num);
+  font-variant-numeric: tabular-nums;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--ink-1);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* ⑤ 노드 표는 지표 6종을 전부 보여야 한다. 웨어러블 줄과 누적 노출량 4칸이
+   같은 칸을 나눠 쓰게 되면서 마지막 행(가스저항)이 잘렸다 — 잘린 지표는
+   없는 지표와 같으므로, 행간을 줄여 여섯 줄을 지킨다. */
+.panel-5 .ncell {
+  padding: 2px 8px 3px;
+}
+.panel-5 .ncell__table td,
+.panel-5 .ncell__table th {
+  padding-top: 1px;
+  padding-bottom: 1px;
+}
+
+/* 누적 노출량 표가 가져가는 세로를 최소로 줄인다 — 이 칸에서 나온 여백은
+   전부 노드 표(지표 6종)로 돌아간다. */
+.dose-row {
+  margin-top: 5px;
+  gap: 5px;
+}
+.dose-cell {
+  gap: 2px;
+  padding: 4px 7px 5px;
+}
+.dose-cell__note {
+  min-height: 11px;
+}
+
+/* ③ 카드의 CO₂ 줄: 숫자와 스파크라인을 baseline 으로 맞추면 두 폰트 크기 차이
+   만큼 줄 높이가 부풀어 스파크라인 아래가 잘린다. 가운데 정렬로 붙인다. */
+.console__right .scard__co2 {
+  align-items: center;
+}
+.console__right .scard__co2-spark {
+  height: 14px;
 }

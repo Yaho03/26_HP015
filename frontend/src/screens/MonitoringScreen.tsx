@@ -4,11 +4,15 @@ import { NodeMetricsGrid } from "../components/NodeMetricsGrid";
 import { RiskDetailPanel } from "../components/RiskDetailPanel";
 import { RiskLogPanel } from "../components/RiskLogPanel";
 import { SensorSummaryPanel } from "../components/SensorSummaryPanel";
+import { AlertBanner } from "../components/AlertBanner";
+import { SummaryBar } from "../components/SummaryBar";
 import { TwinHeatmapPanel } from "../components/TwinHeatmapPanel";
 import { WearableStrip } from "../components/WearableStrip";
 import { IconWarning } from "../components/icons";
-import { nodeAlertLevel } from "../utils/alerts";
+import { LEVEL_RANK, nodeAlertLevel } from "../utils/alerts";
 import { splitNodes } from "../utils/consoleSplit";
+import { mostUrgentProjection, type Projection } from "../utils/projection";
+import { useStableLevels } from "../hooks/useStableLevels";
 import { useAssignments } from "../hooks/useAssignments";
 import {
   displayPositionFor,
@@ -47,13 +51,19 @@ export function MonitoringScreen({
 
   // 노드 정보가 아직 없으면 판정 불가다 (이슈 #165). normal 로 떨어뜨리면
   // 데이터 없는 자리가 안전한 자리로 보인다.
-  const levels = useMemo(() => {
+  const measured = useMemo(() => {
     const out: Record<string, AlertLevel> = {};
     for (const id of SENSOR_SLOTS) {
       out[id] = nodes[id] ? nodeAlertLevel(nodes[id]) : "unknown";
     }
     return out;
   }, [nodes]);
+
+  // 임계값 경계에 걸친 값은 초 단위로 등급을 뒤집는다. 그대로 두면 노드가
+  // ② ↔ ③ 을 오가며 칸 비율과 카드 자리가 계속 바뀐다. 여기서 한 번 누르면
+  // 카운트·분할·높이·정렬이 전부 같은 값을 본다.
+  // **상승은 즉시, 하강만 지연이다** — 이 훅은 위험이 아니라 안심을 늦춘다.
+  const levels = useStableLevels(measured);
   const levelOf = (id: string): AlertLevel => levels[id] ?? "unknown";
 
   const counts: Record<AlertLevel, number> = {
@@ -68,7 +78,48 @@ export function MonitoringScreen({
     if (node && node.connection_status === "online") counts[levelOf(id)] += 1;
   }
 
-  // ② 와 ③ 의 분할. 규칙과 높이 표는 utils/consoleSplit 이 단일 소스이고
+  // ② 스트립 입력. 온라인 노드 중 등급이 가장 높은 하나 — 동급이면 슬롯 순서상
+  // 앞선 노드를 잡는다. 오프라인 노드는 멈춘 값이라 "최악" 의 근거가 될 수 없다.
+  let worstNodeId: string | null = null;
+  let worstLevel: AlertLevel = "normal";
+  for (const id of SENSOR_SLOTS) {
+    if (nodes[id]?.connection_status !== "online") continue;
+    const level = levelOf(id);
+    if (worstNodeId === null || LEVEL_RANK[level] > LEVEL_RANK[worstLevel]) {
+      worstNodeId = id;
+      worstLevel = level;
+    }
+  }
+
+  // 전 노드에서 가장 심각한 도달 예측. 경보가 아니라 표시 전용이다
+  // (06_ALERT_RULES §8.2) — levelOf() 나 counts 에 절대 반영하지 않는다.
+  const projection = useMemo(() => {
+    let best: Projection | null = null;
+    for (const id of SENSOR_SLOTS) {
+      if (nodes[id]?.connection_status !== "online") continue;
+      const p = mostUrgentProjection(trends[id]);
+      if (!p) continue;
+      const rank = best ? LEVEL_RANK[p.level] - LEVEL_RANK[best.level] : 1;
+      if (rank > 0 || (rank === 0 && best && p.minutes < best.minutes)) best = p;
+    }
+    return best;
+  }, [nodes, trends]);
+
+  // ② 배너에 띄울 경보 — 활성 경보 중 가장 높은 등급, 동급이면 가장 최근.
+  const banner = useMemo(() => {
+    let worst = null as (typeof activeAlerts)[number] | null;
+    for (const a of activeAlerts) {
+      if (!worst) {
+        worst = a;
+        continue;
+      }
+      const rank = LEVEL_RANK[a.level] - LEVEL_RANK[worst.level];
+      if (rank > 0 || (rank === 0 && a.activated_at > worst.activated_at)) worst = a;
+    }
+    return worst;
+  }, [activeAlerts]);
+
+  // ③ 내부(위험 상세 ↔ 센서 요약)의 분할. 규칙과 높이 표는 utils/consoleSplit 이 단일 소스이고
   // consoleSplit.test.ts 가 붙잡고 있다 (승격 조건, 중복 금지, 정렬 순서).
   const {
     risk: riskIds,
@@ -111,7 +162,11 @@ export function MonitoringScreen({
       className="console"
       style={
         {
-          "--panel2-share": `${riskShare}fr`,
+          // 승격된 노드가 없으면 ③ 위험상세는 "주의 이상 노드 없음" 한 줄뿐이다.
+          // 그때까지 15fr(≈57px)을 붙잡고 있으면 그 여백이 ④ 로그에서 그대로
+          // 빠져나가 로그가 한 행밖에 안 보인다. 내용 높이로 접고 남는 세로를
+          // ③ 요약과 ④ 에 넘긴다. n≥1 부터는 RISK_SPLIT 표를 그대로 따른다.
+          "--panel2-share": riskIds.length === 0 ? "auto" : `${riskShare}fr`,
           "--panel3-share": `${summaryShare}fr`,
         } as React.CSSProperties
       }
@@ -151,11 +206,27 @@ export function MonitoringScreen({
         </div>
 
         <div className="console__right">
+          {/* ② 경보가 위, 카운트가 아래. 경보를 읽는 동안 그 근거인 센서 카드가
+              가려지면 안 되므로 ③ 을 덮지 않고 이 칸 안에서만 자란다. */}
+          <section className="status-panel" aria-label="전체 상태">
+            <AlertBanner
+              alert={banner}
+              workerName={banner ? (workerFor(banner.node_id)?.name ?? null) : null}
+              projection={
+                banner ? mostUrgentProjection(trends[banner.node_id]) : null
+              }
+            />
+            <SummaryBar
+              counts={counts}
+              worstNodeId={worstNodeId}
+              worstLevel={worstLevel}
+              projection={projection}
+            />
+          </section>
           <RiskDetailPanel
             nodeIds={riskIds}
             nodes={nodes}
             trends={trends}
-            counts={counts}
             alerts={activeAlerts}
             levelOf={levelOf}
             workerFor={workerFor}

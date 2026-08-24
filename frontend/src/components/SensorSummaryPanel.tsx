@@ -18,8 +18,10 @@ import {
   unitFor,
   type MetricMeta,
 } from "../utils/metrics";
-import { shortNodeLabel, sourceBadge } from "../utils/nodes";
-import { projectThresholdCrossing } from "../utils/trend";
+import { nodeLastSeenAt, shortNodeLabel, sourceBadge } from "../utils/nodes";
+import { alertMetricLabel } from "../utils/alertLabels";
+import { mostUrgentProjection } from "../utils/projection";
+import { useFreshness } from "../hooks/useFreshness";
 import { LEVEL_ICON, IconClock } from "./icons";
 import { Sparkline } from "./Sparkline";
 import { ThresholdBar } from "./ThresholdBar";
@@ -104,11 +106,16 @@ const SummaryCard = memo(function SummaryCard({
     size?: number | string;
   }>;
 
+  // 서버가 offline 으로 판정하기 전에도 값은 멈출 수 있다. 그 공백 동안 마지막
+  // 프레임이 그대로 남아 "570ppm 정상" 으로 계속 보이는 것이 이 화면의 가장
+  // 위험한 실패다 — 화면이 직접 시계를 본다.
+  const fresh = useFreshness(nodeLastSeenAt(node));
+  const stale = offline || fresh.isStale;
+
   // 06_ALERT_RULES §8.2 — 등급이 오르기 전에 알리는 선제 표시. 경보를 발령하지
   // 않고 배지로만 알린다. 아직 위험하지 않은 노드가 모이는 이 칸이 제자리다.
-  // 오프라인 노드의 멈춘 버퍼로 미래를 예측하지 않는다.
-  const projection =
-    !offline && trends.co2_ppm ? projectThresholdCrossing(trends.co2_ppm, "co2_ppm") : null;
+  // 멈춘 버퍼로 미래를 예측하지 않는다.
+  const projection = stale ? null : mostUrgentProjection(trends);
 
   return (
     <article
@@ -116,6 +123,7 @@ const SummaryCard = memo(function SummaryCard({
         "scard is-" +
         level +
         (offline ? " scard--offline" : "") +
+        (stale && !offline ? " scard--stale" : "") +
         (sim ? " scard--sim" : "") +
         (node ? "" : " scard--pending")
       }
@@ -134,13 +142,26 @@ const SummaryCard = memo(function SummaryCard({
         <span className={"scard__src" + (sim ? " scard__src--sim" : "")}>
           {sourceBadge(node?.source_mode, !!node)}
         </span>
+        {/* 마지막 수신 경과. 5초 넘게 조용하면 값이 아니라 이 자리가 말한다. */}
+        {node && !offline && (
+          <span className={"scard__age" + (stale ? " scard__age--stale" : "")}>
+            {stale ? "STALE " + fresh.label : fresh.label}
+          </span>
+        )}
       </header>
 
       {/* 유일하게 교정된 값이라 이것만 큰 수치로 띄운다. */}
       <div className="scard__co2">
         <span className="scard__co2-value">{co2 ? formatMetricValue(CO2, co2.value) : "—"}</span>
         <span className="scard__co2-unit">ppm</span>
-        <Sparkline points={trends.co2_ppm} stale={offline} className="scard__co2-spark" />
+        {/* 실측은 실선, 외삽은 점선, 도달 임계값은 가로선. 같은 선으로 그리면
+            "지금 570ppm 인데 왜 경고인가" 를 화면에서 되짚을 수 없다. */}
+        <Sparkline
+          points={trends.co2_ppm}
+          stale={stale}
+          projection={projection?.metric === "co2_ppm" ? projection.curve : undefined}
+          className="scard__co2-spark"
+        />
       </div>
 
       <div className="scard__chips">
@@ -150,9 +171,16 @@ const SummaryCard = memo(function SummaryCard({
       </div>
 
       {projection && (
+        // 출처를 앞에 박는다. LSTM forecaster 가 붙으면 이 자리만 "AI 예측" 으로
+        // 바뀐다. 적합도는 승격된 카드(② 위험 상세)에서 보여준다 — 이 카드는
+        // 낮게 유지되어야 한다.
         <p className={"scard__projection is-" + projection.level}>
+          <span className="scard__proj-src">
+            {projection.source === "lstm" ? "AI 예측" : "추세"}
+          </span>
           <span aria-hidden="true">↗</span>
-          추세 유지 시 약 {Math.round(projection.minutes)}분 뒤 {levelLabel(projection.level)}
+          {alertMetricLabel(projection.metric)} · 약 {Math.round(projection.minutes)}분 뒤{" "}
+          {levelLabel(projection.level)}
         </p>
       )}
 

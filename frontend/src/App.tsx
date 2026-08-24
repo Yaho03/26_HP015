@@ -98,6 +98,9 @@ function App() {
     return <LoginScreen />;
   }
 
+  // ② 경보 배너가 이 화면의 경보를 책임지는가.
+  const bannerOwnsAlerts = screen === "monitoring" && authStatus === "authenticated";
+
   return (
     <div className="app">
       <Sidebar
@@ -129,8 +132,16 @@ function App() {
       {/* 세션 만료 오버레이 — 기존 화면 위에 덮는다. AlertModal(z-index 2000)이
           로그인 카드(200)보다 위에 렌더링돼 활성 경보가 계속 보인다 (FR-607). */}
       {authStatus === "unauthenticated" && hadSession && <LoginScreen overlay />}
-      <Toaster />
-      <AlertModal />
+      {/* 모니터링 화면은 ② 상태 칸의 경보 배너가 같은 일을 한다. 같은 사건에
+          표면이 셋(배너·토스트·우상단 카드)이면 시끄러울 뿐 아니라, 우상단
+          카드가 하필 ②③ 위를 덮어 경보의 근거인 센서 카드를 가린다.
+
+          두 자리에서는 그대로 둔다.
+            - 다른 화면(사고 이력 로그·차트·트윈·노출량·설정)에는 배너가 없다.
+            - 세션 만료 오버레이가 떠 있으면 배너가 그 아래로 덮인다. 활성 경보는
+              그때도 보여야 한다 (FR-607). */}
+      {!bannerOwnsAlerts && <Toaster />}
+      {!bannerOwnsAlerts && <AlertModal />}
     </div>
   );
 }
