@@ -119,6 +119,22 @@ async def load_active_states() -> List[ExposureStateRow]:
         return [ExposureStateRow(**dict(r)) for r in rows]
 
 
+async def active_state_for(node_id: str, metric: str) -> Optional[ExposureStateRow]:
+    """한 (노드, 지표)의 활성 윈도우. 없으면 None.
+
+    조정 루프가 DB 에는 열려 있지만 메모리에 없는 윈도우를 되찾을 때 쓴다
+    (close 실패로 pop 만 남고 확정은 못 한 상태 — 고립 윈도우 회수).
+    """
+    pool = get_pool()
+    async with pool.acquire() as conn:
+        row = await conn.fetchrow(
+            f"SELECT {_STATE_COLUMNS} FROM exposure_state "
+            "WHERE closed_at IS NULL AND node_id = $1 AND metric = $2",
+            node_id, metric,
+        )
+        return ExposureStateRow(**dict(row)) if row else None
+
+
 async def open_window(
     exposure_id: str,
     worker_id: int,
