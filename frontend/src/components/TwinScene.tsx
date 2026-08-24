@@ -958,6 +958,35 @@ function EscapeRoute({ route }: { route: RouteOverlay }) {
   );
 }
 
+/**
+ * IDW 분포에서 가장 높은 표본 위치.
+ *
+ * 센서 네 점으로 누출원을 확정할 수는 없다. 따라서 "누출원"이 아니라
+ * "추정 고농도"라고 표시하고, 확정 위치처럼 보이는 핀 대신 점선 링을 쓴다.
+ */
+function EstimatedPeak({ sample }: { sample: SensorSample }) {
+  const position = toThreeGroundPosition(sample.x, sample.y, 0.16);
+
+  return (
+    <group position={position}>
+      <mesh rotation={[-Math.PI / 2, 0, 0]}>
+        <ringGeometry args={[0.78, 1.02, 32]} />
+        <meshBasicMaterial color="#ffb347" transparent opacity={0.92} side={THREE.DoubleSide} />
+      </mesh>
+      <mesh position={[0, 0.1, 0]} rotation={[-Math.PI / 2, 0, 0]}>
+        <ringGeometry args={[1.22, 1.3, 32]} />
+        <meshBasicMaterial color="#ffb347" transparent opacity={0.42} side={THREE.DoubleSide} />
+      </mesh>
+      <Html position={[0, 1.1, 0]} center distanceFactor={28}>
+        <div className="twin-peak-label">
+          <strong>추정 고농도</strong>
+          <span>{Math.round(sample.value).toLocaleString("ko-KR")} ppm</span>
+        </div>
+      </Html>
+    </group>
+  );
+}
+
 // ── Scene content ──────────────────────────────────────────────
 function SceneContent({
   nodes,
@@ -985,6 +1014,11 @@ function SceneContent({
   const focusTarget: [number, number, number] | null = focused
     ? toThreeGroundPosition(focused.x, focused.y, 0)
     : null;
+  const peakSample = useMemo(() => {
+    const samples = heatmap?.samples ?? [];
+    if (samples.length === 0) return null;
+    return samples.reduce((peak, sample) => (sample.value > peak.value ? sample : peak));
+  }, [heatmap?.samples]);
   const controlsRef = useRef<OrbitControlsImpl>(null);
   return (
     <>
@@ -1044,6 +1078,7 @@ function SceneContent({
       {heatmap && heatmap.samples.length > 0 && (
         <Heatmap sensors={heatmap.samples} metric={heatmap.metric} />
       )}
+      {peakSample && <EstimatedPeak sample={peakSample} />}
       {nodes.map((n) => (
         <SensorMarker key={n.id} id={n.id} x={n.x} y={n.y} level={n.level} />
       ))}

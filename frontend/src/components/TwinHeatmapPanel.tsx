@@ -1,6 +1,7 @@
 import type { AlertLevel, MetricKey } from "../types";
 import type { RouteOverlay } from "../types/evacuation";
 import type { SensorSample } from "../utils/idw";
+import { thresholdLinesFor } from "../utils/alerts";
 import { TwinScene } from "./TwinScene";
 
 interface TwinHeatmapPanelProps {
@@ -47,10 +48,25 @@ export function TwinHeatmapPanel({
   focusNodeId = null,
 }: TwinHeatmapPanelProps) {
   const insufficient = onlineCount < MIN_NODES_FOR_IDW;
+  const thresholds = thresholdLinesFor(metric).slice().reverse();
+  const legendMax = thresholds.at(-1)?.value ?? 0;
 
   return (
     <section className="panel-1" aria-label="디지털 트윈 히트맵">
       <div className="panel-1__stage">
+        <div className="panel-1__toolbar" aria-label="분포 지표">
+          <span className="panel-1__tool-label">분포</span>
+          <button type="button" className="panel-1__metric is-active" aria-pressed="true">
+            CO₂
+          </button>
+          <button type="button" className="panel-1__metric" disabled title="MQ-7 교정 후 사용">
+            CO <em>교정 필요</em>
+          </button>
+          <button type="button" className="panel-1__metric" disabled title="MQ-136 교정 후 사용">
+            H₂S <em>교정 필요</em>
+          </button>
+        </div>
+
         <TwinScene
           mode="plan"
           showModeToggle={false}
@@ -65,6 +81,22 @@ export function TwinHeatmapPanel({
           escapeRoute={escapeRoute}
           focusNodeId={focusNodeId}
         />
+
+        {!insufficient && legendMax > 0 && (
+          <div className="panel-1__legend" aria-label="CO₂ 농도 색상 범례">
+            <div className="panel-1__legend-head">
+              <strong>CO₂</strong>
+              <span>ppm · IDW 추정</span>
+            </div>
+            <span className="panel-1__legend-ramp" aria-hidden="true" />
+            <div className="panel-1__legend-scale">
+              <span>0</span>
+              {thresholds.map((line) => (
+                <span key={line.level}>{line.value.toLocaleString("ko-KR")}</span>
+              ))}
+            </div>
+          </div>
+        )}
 
         {insufficient && (
           // 보간을 못 하는 상태를 조용히 빈 화면으로 두면 "가스가 없다"로 읽힌다.
