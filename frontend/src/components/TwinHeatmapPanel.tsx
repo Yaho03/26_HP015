@@ -1,4 +1,5 @@
 import type { AlertLevel, MetricKey } from "../types";
+import type { RouteOverlay } from "../types/evacuation";
 import type { SensorSample } from "../utils/idw";
 import { TwinScene } from "./TwinScene";
 
@@ -12,6 +13,13 @@ interface TwinHeatmapPanelProps {
   sourceLabel: "LIVE" | "SIM" | "대기";
   /** 작업자 좌표가 실측(demo-local)에서 매핑됐는지. */
   mapped: boolean;
+  /**
+   * 경고(L2) 이상에서만 넘어온다. 평상시 경로를 상시 그리면 선이 배경이 되어,
+   * 정작 대피해야 할 때 그 선이 눈에 띄지 않는다.
+   */
+  escapeRoute?: RouteOverlay | null;
+  /** ③ 카드에서 고른 노드. 카메라가 그쪽을 향한다. */
+  focusNodeId?: string | null;
 }
 
 /**
@@ -35,6 +43,8 @@ export function TwinHeatmapPanel({
   onlineCount,
   sourceLabel,
   mapped,
+  escapeRoute = null,
+  focusNodeId = null,
 }: TwinHeatmapPanelProps) {
   const insufficient = onlineCount < MIN_NODES_FOR_IDW;
 
@@ -48,11 +58,12 @@ export function TwinHeatmapPanel({
           nodes={nodes}
           wearable={wearable}
           heatmap={insufficient ? null : { samples, metric }}
-          // 이 칸은 FILL 프리셋(x 24배 / y 6.5배)이라 축마다 배율이 다르다.
-          // 경로를 그리면 형상이 실제와 달라지고, 왜곡된 그림에서 "가장 가까운
-          // 출구"를 눈으로 고르면 틀린 답이 나온다. 경로는 TRUE SCALE 인 3D
-          // 트윈 화면과 2D 평면도에서만 본다 (ADR-010, 12_EVACUATION §2.4).
-          escapeRoute={null}
+          // 이 칸도 이제 TRUE SCALE(UNIFORM) 이라 경로를 그릴 수 있다. FILL
+          // 프리셋일 때는 축마다 배율이 달라(x 24배 / y 6.5배) 경로 형상이
+          // 왜곡됐고, 왜곡된 그림에서 "가장 가까운 출구" 를 눈으로 고르면 틀린
+          // 답이 나왔다 (ADR-010, 12_EVACUATION §2.4).
+          escapeRoute={escapeRoute}
+          focusNodeId={focusNodeId}
         />
 
         {insufficient && (

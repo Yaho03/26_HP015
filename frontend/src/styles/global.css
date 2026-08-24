@@ -6292,3 +6292,21 @@ body {
   background: none;
   overflow: hidden;
 }
+
+/* ③ 카드 → ① 트윈 연동. 누르면 그 노드로 카메라가 향한다.
+   "S2 가 위험" 과 "S2 가 저기 있다" 사이를 한 동작으로 잇는다. */
+.console__right .scard[role="button"] {
+  cursor: pointer;
+}
+.console__right .scard[role="button"]:hover {
+  border-color: var(--lv, var(--ink-3));
+}
+.console__right .scard[role="button"]:focus-visible {
+  outline: 2px solid var(--ink-1);
+  outline-offset: 1px;
+}
+/* 지금 트윈이 비추는 카드. 등급 색과 겹치지 않게 굵기로만 표시한다 —
+   색으로 표시하면 "선택" 이 "위험" 으로 읽힌다. */
+.console__right .scard--focused {
+  box-shadow: inset 0 0 0 2px var(--ink-2);
+}

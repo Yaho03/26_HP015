@@ -44,6 +44,13 @@ interface TwinSceneProps {
    * 서로 다른 그래프에서 나오게 된다 (§2.4).
    */
   escapeRoute?: RouteOverlay | null;
+  /**
+   * 카메라가 향할 센서 노드. ③ 카드를 누르면 그 노드로 시선이 옮겨간다.
+   *
+   * 카메라를 순간이동시키지 않고 부드럽게 민다 — 관제 화면에서 시점이 툭 바뀌면
+   * 방금 보던 곳이 어디였는지 잃는다. null 이면 기본 시점으로 되돌아온다.
+   */
+  focusNodeId?: string | null;
 }
 
 const LEVEL_COLOR: Record<AlertLevel, string> = {
@@ -630,16 +637,26 @@ function HoldDetails({ cutaway }: { cutaway: boolean }) {
 }
 
 // ── Camera controller ──────────────────────────────────────────
+/** 포커스 이동 속도. 1 이면 즉시, 작을수록 느리게 따라간다. */
+const FOCUS_LERP = 0.12;
+/** 이보다 가까우면 도착으로 본다 (제곱 거리, 약 4cm). */
+const FOCUS_EPSILON_SQ = 0.0016;
+
 function CameraController({
   mode,
   controlsRef,
+  focusTarget,
 }: {
   mode: CamMode;
   controlsRef: { current: OrbitControlsImpl | null };
+  /** ship-visual 기준 카메라 타깃. null 이면 모드 기본값. */
+  focusTarget: [number, number, number] | null;
 }) {
   const { camera, invalidate, gl, scene } = useThree();
   const sceneControls = useThree((state) => state.controls) as OrbitControlsImpl | null;
   const appliedMode = useRef<CamMode | null>(null);
+  // 매 프레임 새 Vector3 를 만들지 않는다 — 60fps 로 도는 루프에서 GC 압력이 된다.
+  const focusVec = useRef(new THREE.Vector3());
 
   // Apply after OrbitControls has mounted, then repeat on the next frame so
   // entering the twin screen never leaves the controls aimed at the origin.
@@ -669,11 +686,32 @@ function CameraController({
   }, [mode, camera, invalidate, gl, scene, sceneControls, controlsRef]);
 
   useFrame(() => {
-    if (appliedMode.current === mode) return;
     const controls = controlsRef.current ?? sceneControls;
     if (!controls) return;
-    const tgt = CAMS[mode].tgt;
     const aspect = camera instanceof THREE.PerspectiveCamera ? camera.aspect : 1;
+
+    // 포커스가 걸려 있으면 매 프레임 그쪽으로 조금씩 민다. 한 번에 옮기면
+    // 시점이 툭 바뀌어 방금 보던 곳을 잃는다.
+    if (focusTarget) {
+      // 포커스를 놓았을 때 기본 시점으로 되돌아가야 하므로 적용 표시를 지운다.
+      appliedMode.current = null;
+      const goal = focusVec.current.set(focusTarget[0], focusTarget[1], focusTarget[2]);
+      // 충분히 가까우면 붙이고 멈춘다. 그냥 두면 lerp 가 영영 수렴만 하면서
+      // 매 프레임 controls.update() 를 돌린다.
+      if (controls.target.distanceToSquared(goal) < FOCUS_EPSILON_SQ) {
+        if (!controls.target.equals(goal)) {
+          controls.target.copy(goal);
+          controls.update();
+        }
+        return;
+      }
+      controls.target.lerp(goal, FOCUS_LERP);
+      controls.update();
+      return;
+    }
+
+    if (appliedMode.current === mode) return;
+    const tgt = CAMS[mode].tgt;
     const pos = cameraPosition(mode, aspect);
     controls.target.set(...tgt);
     camera.position.set(...pos);
@@ -928,6 +966,7 @@ function SceneContent({
   mode,
   interactive,
   escapeRoute,
+  focusNodeId,
 }: {
   nodes: NonNullable<TwinSceneProps["nodes"]>;
   wearable: TwinSceneProps["wearable"];
@@ -935,10 +974,17 @@ function SceneContent({
   mode: CamMode;
   interactive: boolean;
   escapeRoute: RouteOverlay | null;
+  focusNodeId: string | null;
 }) {
   // 카메라 쪽 측벽을 잘라내야 바닥이 보인다. 내부 시점일 때만 벽을 세운다 —
   // 벽 안에서 보는 시점이므로 절개하면 화물창 밖이 뚫려 보인다.
   const cutaway = mode !== "inside";
+  // 고른 노드의 Three 좌표. 노드가 목록에 없으면 포커스를 걸지 않는다 —
+  // 없는 자리로 카메라를 보내면 화면이 빈 곳을 비춘다.
+  const focused = focusNodeId ? (nodes ?? []).find((n) => n.id === focusNodeId) : undefined;
+  const focusTarget: [number, number, number] | null = focused
+    ? toThreeGroundPosition(focused.x, focused.y, 0)
+    : null;
   const controlsRef = useRef<OrbitControlsImpl>(null);
   return (
     <>
@@ -1022,7 +1068,7 @@ function SceneContent({
         maxDistance={160}
         maxPolarAngle={Math.PI * 0.9}
       />
-      <CameraController mode={mode} controlsRef={controlsRef} />
+      <CameraController mode={mode} controlsRef={controlsRef} focusTarget={focusTarget} />
       <ReleaseContextOnUnmount />
     </>
   );
@@ -1059,6 +1105,7 @@ export function TwinScene({
   showModeToggle = true,
   interactive = true,
   escapeRoute = null,
+  focusNodeId = null,
 }: TwinSceneProps) {
   const [internalMode, setInternalMode] = useState<CamMode>("overview");
   // 제어 prop 이 오면 그것이 우선이다. Screen 1 ① 은 plan 고정으로 쓴다.
@@ -1095,6 +1142,7 @@ export function TwinScene({
           mode={mode}
           interactive={interactive}
           escapeRoute={escapeRoute}
+          focusNodeId={focusNodeId}
         />
       </Canvas>
     </div>

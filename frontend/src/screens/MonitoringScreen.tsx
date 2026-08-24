@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { useDashboardStore } from "../store/dashboardStore";
 import { RiskDetailPanel } from "../components/RiskDetailPanel";
 import { RiskLogPanel } from "../components/RiskLogPanel";
@@ -15,7 +15,7 @@ import { useStableLevels } from "../hooks/useStableLevels";
 import { useAssignments } from "../hooks/useAssignments";
 import {
   displayPositionFor,
-  FILL_PRESET,
+  UNIFORM_PRESET,
   PRIMARY_WEARABLE,
   SENSOR_SCREEN_ORDER,
   SENSOR_SHIP_POSITIONS,
@@ -24,6 +24,7 @@ import {
 } from "../utils/coordinates";
 import type { SensorSample } from "../utils/idw";
 import type { AlertLevel, MetricKey } from "../types";
+import type { RouteOverlay } from "../types/evacuation";
 
 // Spec 10_UI_FLOW §3.1: fixed sensor-01~04 + wearable-01 slots. Slots render in
 // a "대기" state until their node reports (live wiring tracked by #106/#121).
@@ -122,6 +123,25 @@ export function MonitoringScreen({
     return worst;
   }, [activeAlerts]);
 
+  // ① 탈출로. **경고(L2) 이상에서만 그린다** — 평상시 상시 표시하면 선이 배경이
+  // 되어, 정작 대피해야 할 때 눈에 띄지 않는다. 경로 계산은 백엔드 책임이고
+  // 여기서는 받은 것을 그릴지 말지만 정한다 (12_EVACUATION §2.4).
+  const routes = useDashboardStore((s) => s.evacuation_route);
+  const escapeRoute: RouteOverlay | null = useMemo(() => {
+    const evacuating = LEVEL_RANK[worstLevel] >= LEVEL_RANK.level2_warning;
+    if (!evacuating) return null;
+    const route = routes[PRIMARY_WEARABLE] ?? Object.values(routes)[0];
+    if (!route) return null;
+    return {
+      route_status: route.route_status,
+      waypoints: route.waypoints,
+      target_exit_id: route.target_exit_id,
+    };
+  }, [routes, worstLevel]);
+
+  // ③ 카드에서 고른 노드. 다시 누르면 해제되어 기본 시점으로 돌아온다.
+  const [focusNodeId, setFocusNodeId] = useState<string | null>(null);
+
   // ③ 내부(위험 상세 ↔ 센서 요약)의 분할. 규칙과 높이 표는 utils/consoleSplit 이 단일 소스이고
   // consoleSplit.test.ts 가 붙잡고 있다 (승격 조건, 중복 금지, 정렬 순서).
   const {
@@ -139,12 +159,15 @@ export function MonitoringScreen({
   const planSamples: SensorSample[] = planSensors
     .map((s) => ({ x: s.x, y: s.y, value: nodes[s.id]?.readings[PLAN_METRIC]?.value ?? 0 }))
     .filter((s) => s.value > 0);
-  // 트윈 마커와 ③ 헤더 O₂ 는 아직 대표 한 명만 다룬다 (① 트윈 작업에서 확장).
+  // 트윈 마커와 ③ 헤더 O₂ 는 아직 대표 한 명만 다룬다.
   const primaryWearable = wearables[PRIMARY_WEARABLE] ?? null;
+  // TRUE SCALE(UNIFORM). FILL 은 축마다 배율이 달라(x 24배 / y 6.5배) 경로
+  // 형상이 왜곡되고, 왜곡된 그림에서 "가장 가까운 출구" 를 눈으로 고르면 틀린
+  // 답이 나온다 (ADR-010, 12_EVACUATION §2.4). 탈출로를 그리려면 이 프리셋이어야 한다.
   const planWorkerPos = displayPositionFor(
     primaryWearable?.position_raw,
     primaryWearable?.source_coordinate_system,
-    FILL_PRESET,
+    UNIFORM_PRESET,
   );
   const planWorker = planWorkerPos
     ? {
@@ -198,6 +221,8 @@ export function MonitoringScreen({
             onlineCount={onlineCount}
             sourceLabel={sourceLabel}
             mapped={shouldMapToShip(primaryWearable?.source_coordinate_system)}
+            escapeRoute={escapeRoute}
+            focusNodeId={focusNodeId}
           />
 
           {/* ⑤ 는 작업자 칸이다. 센서 노드 표를 여기 같이 두면 ③ 이 이미 보여주는
@@ -245,6 +270,8 @@ export function MonitoringScreen({
             trends={trends}
             wearable={primaryWearable}
             levelOf={levelOf}
+            focusNodeId={focusNodeId}
+            onFocusNode={(id: string) => setFocusNodeId((cur) => (cur === id ? null : id))}
           />
           <RiskLogPanel onOpenEventLog={onOpenEventLog} />
         </div>

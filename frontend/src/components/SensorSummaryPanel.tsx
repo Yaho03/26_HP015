@@ -39,6 +39,10 @@ interface SensorSummaryPanelProps {
   trends: Record<string, Trends>;
   wearable: WearableState | null;
   levelOf: (nodeId: string) => AlertLevel;
+  /** ① 트윈이 지금 비추고 있는 노드. */
+  focusNodeId?: string | null;
+  /** 카드를 누르면 ① 트윈 카메라가 그 노드로 향한다. */
+  onFocusNode?: (nodeId: string) => void;
 }
 
 /**
@@ -93,11 +97,15 @@ const SummaryCard = memo(function SummaryCard({
   node,
   trends,
   level,
+  focused,
+  onFocus,
 }: {
   nodeId: string;
   node: SensorNodeState | null;
   trends: Trends;
   level: AlertLevel;
+  focused: boolean;
+  onFocus?: (nodeId: string) => void;
 }) {
   const offline = node?.connection_status === "offline";
   const sim = node?.source_mode === "simulation";
@@ -125,9 +133,26 @@ const SummaryCard = memo(function SummaryCard({
         (offline ? " scard--offline" : "") +
         (stale && !offline ? " scard--stale" : "") +
         (sim ? " scard--sim" : "") +
+        (focused ? " scard--focused" : "") +
         (node ? "" : " scard--pending")
       }
       aria-label={`${shortNodeLabel(nodeId)} ${levelLabel(level)}`}
+      // 카드를 누르면 ① 트윈이 이 노드를 비춘다. "S2 가 위험" 과 "S2 가 저기"
+      // 사이를 한 동작으로 잇는다. 나중에 노드 상세 화면으로 가는 자리이기도 하다.
+      onClick={onFocus ? () => onFocus(nodeId) : undefined}
+      onKeyDown={
+        onFocus
+          ? (e) => {
+              if (e.key === "Enter" || e.key === " ") {
+                e.preventDefault();
+                onFocus(nodeId);
+              }
+            }
+          : undefined
+      }
+      role={onFocus ? "button" : undefined}
+      tabIndex={onFocus ? 0 : undefined}
+      aria-pressed={onFocus ? focused : undefined}
     >
       {/* 등급을 색 하나로 전달하지 않는다 — 브래킷 + 아이콘 + 텍스트가 함께 나른다. */}
       <i className="brk brk--tl" aria-hidden="true" />
@@ -209,6 +234,8 @@ export function SensorSummaryPanel({
   trends,
   wearable,
   levelOf,
+  focusNodeId = null,
+  onFocusNode,
 }: SensorSummaryPanelProps) {
   const o2 = wearable?.o2_pct ?? null;
   // O₂ 값이 없으면 판정 불가다 (이슈 #165). 측정 못 한 것을 정상이라 하면 안 된다.
@@ -241,6 +268,8 @@ export function SensorSummaryPanel({
             node={nodes[id] ?? null}
             trends={trends[id] ?? {}}
             level={levelOf(id)}
+            focused={focusNodeId === id}
+            onFocus={onFocusNode}
           />
         ))}
         {nodeIds.length === 0 && (
