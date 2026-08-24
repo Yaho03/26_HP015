@@ -1,7 +1,7 @@
 import json
 import logging
 from datetime import datetime
-from typing import Any, List, Tuple
+from typing import Any, List, Optional, Tuple
 
 import asyncpg
 
@@ -178,6 +178,19 @@ def _extract_metrics(data: dict) -> List[Tuple[str, float]]:
     return metrics
 
 
+def _normalize_source_mode(value: Any) -> Optional[str]:
+    """envelope 의 source_mode 를 계약값('live'/'simulation')으로 정규화한다.
+
+    확신할 수 없으면 None 이다. 누락/오타/타입 이상을 'live' 로 메우면 주입값이
+    정상 실측으로 둔갑해 AI 학습셋을 오염시킨다 (012 마이그레이션 주석 참조).
+    여기서 InvalidMessage 를 던지지 않는 이유는, 출처 한 칸 때문에 메시지 전체를
+    drop 하면 안전 필수 경보 판정까지 함께 사라지기 때문이다.
+    """
+    if value in ("live", "simulation"):
+        return value
+    return None
+
+
 async def _mark_processed(conn: asyncpg.Connection, message_id: str, node_id: str) -> bool:
     """processed_messages 1차 방어선. 새로 기록되면 True, 이미 있으면 False(중복)."""
     row = await conn.fetchrow(
@@ -204,6 +217,7 @@ async def ingest_telemetry(payload: bytes) -> None:
     if not isinstance(data, dict):
         raise InvalidMessage("'data' field is not an object")
     sampled_at = _parse_ts(sampled_at_raw)
+    source_mode = _normalize_source_mode(envelope.get("source_mode"))
 
     pool = get_pool()
     async with pool.acquire() as conn:
@@ -216,12 +230,12 @@ async def ingest_telemetry(payload: bytes) -> None:
             if extracted:
                 await conn.executemany(
                     """
-                    INSERT INTO sensor_data (time, node_id, metric, value, message_id)
-                    VALUES ($1, $2, $3, $4, $5)
+                    INSERT INTO sensor_data (time, node_id, metric, value, message_id, source_mode)
+                    VALUES ($1, $2, $3, $4, $5, $6)
                     ON CONFLICT DO NOTHING
                     """,
                     [
-                        (sampled_at, node_id, metric, value, message_id)
+                        (sampled_at, node_id, metric, value, message_id, source_mode)
                         for metric, value in extracted
                     ],
                 )
