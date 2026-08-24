@@ -53,3 +53,13 @@ test_results/hardware/*/mqtt_tap.jsonl.gz
 
 # 컴퓨터 간 이관 안내 — 특정 노트북의 SSID/IP 가 들어 있고 저장소 가치가 없다
 docs/HW_TRANSFER_README_*.md
+
+# LSTM 이상탐지 실험 — 학습 산출물과 전용 venv.
+# 모델 가중치는 저장소에 넣지 않는다 (프롬프트 §8). 재현에 필요한 것은
+# training_manifest.json 이며 공유가 필요하면 실행자가 직접 전달한다.
+experiments/lstm_anomaly/artifacts/
+experiments/lstm_anomaly/.venv/
+experiments/lstm_anomaly/.pytest_cache/
+
+# MQTT tap 원본 — 실측 센서 로그(수십 MB). test_results/ 의 원시 증거와 같은 취급.
+mqtt_*.txt
