@@ -1,5 +1,6 @@
 import { useMemo } from "react";
 import { useDashboardStore } from "../store/dashboardStore";
+import { AiAnomalyGrid } from "../components/AiAnomalyGrid";
 import { NodeMetricsGrid } from "../components/NodeMetricsGrid";
 import { RiskDetailPanel } from "../components/RiskDetailPanel";
 import { RiskLogPanel } from "../components/RiskLogPanel";
@@ -167,6 +168,7 @@ export function MonitoringScreen({
             wearable={wearable}
             levelOf={levelOf}
           />
+          <AiAnomalyGrid nodeIds={[...riskIds, ...summaryIds]} />
           <RiskLogPanel onOpenEventLog={onOpenEventLog} />
         </div>
       </div>

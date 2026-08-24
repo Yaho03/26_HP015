@@ -1,0 +1,16 @@
+# LSTM Autoencoder 이상탐지 실험 의존성.
+#
+# backend/requirements.txt 에 넣지 않는다. 백엔드 컨테이너는 MQTT 수신과 경보 판정을
+# 하는 안전 필수 경로이고, 학습 프레임워크는 거기서 한 번도 쓰이지 않는다.
+# torch 하나가 이미지에 수백 MB 를 얹고 기동 시간을 늘리며, 그 대가로 얻는 것이 없다.
+# 서비스 추론이 실제로 필요해지면 그때 onnxruntime(수십 MB)만 백엔드에 넣는다.
+#
+# 설치:
+#   python3.12 -m venv experiments/lstm_anomaly/.venv
+#   experiments/lstm_anomaly/.venv/bin/pip install -r experiments/lstm_anomaly/requirements.txt
+
+numpy==2.2.1
+pandas==2.2.3
+torch==2.5.1
+scikit-learn==1.6.1
+PyYAML==6.0.2

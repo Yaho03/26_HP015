@@ -1,0 +1,93 @@
+# LSTM Autoencoder 이상탐지 기본 설정.
+#
+# 이 파일의 값은 전부 training_manifest.json 에 복사되어 artifact 와 함께 저장된다.
+# 재현하려면 manifest 의 config 블록을 그대로 쓰면 된다.
+
+seed: 20260824
+
+data:
+  # 로더가 받는 입력. MQTT tap 로그(.txt), CSV(.csv/.csv.gz), TimescaleDB 중 하나.
+  # 경로는 CLI 로 덮어쓴다 — 실측 원본은 저장소에 커밋하지 않기 때문이다.
+  sources: []
+  # 실측만 학습한다 (§0.1). tap 로그는 envelope 의 source_mode 를, DB 는 012
+  # 마이그레이션으로 추가한 sensor_data.source_mode 컬럼을 본다.
+  # null(출처 불명)은 live 로 간주하지 않는다 — 주입값이 섞일 수 있다.
+  require_source_mode: live
+
+features:
+  # 비워 두면 data_quality.diagnose() 가 판정한 목록을 그대로 쓴다.
+  # 손으로 적은 목록을 우선하지 않는 이유: 센서가 죽거나 살아나면 유효 feature 가
+  # 바뀌는데, 설정 파일에 박아두면 죽은 채널을 계속 학습하게 된다.
+  # 실제로 쓴 목록은 feature_manifest.json 에 기록되고 추론 시 대조된다 (§9.2).
+  use: []
+
+  # 아래는 2026-08-24 4노드 2.4시간 실측(353,808행)에 대해 진단이 내놓은 결과다.
+  # 참고용 기록이며 코드가 읽지 않는다.
+  #
+  #   채택(5): mq7_rs_ohm, mq136_rs_ohm, mq2_rs_ohm, temperature_c, humidity_pct
+  #
+  #   배제:
+  #     co2_ppm            MH-Z19B 가 4노드 전부 error — 100% null 이라 행 자체가 없다
+  #     *_rs_r0_ratio      R0 미기입(platformio.ini MQ*_R0_OHM=0.0) — 100% null
+  #                        §2.2 규칙대로 원시값 *_rs_ohm 으로 대체했다
+  #     gas_resistance_ohm sensor-04 가 6,521샘플 내내 176.6 고정 (BME680 가스히터 사망)
+  #     iaq_index          iaq_accuracy 최대 1 < 2 (08_SAFETY §2.1)
+  #     iaq_accuracy       3개 노드에서 stuck-at
+  #     pressure_hpa       CV 0.05% — 사실상 상수
+  #     *_raw_adc/_voltage_v  *_rs_ohm 과 |r|=1.00000 (결정론적 변환)
+  #
+  # gas_resistance_ohm 을 살리려면 sensor-04 를 빼고 3노드로 가는 선택지가 있다.
+  # 4노드x5채널을 택한 이유: 2.4시간짜리 데이터에서 노드 일반화 평가(3학습/1테스트,
+  # §4.3)를 하려면 노드 수가 채널 하나보다 귀하다.
+  candidate_denylist: []
+
+preprocessing:
+  resample_interval_s: 10
+  # 결측 보간 한도. 이 시간을 넘는 공백은 채우지 않는다.
+  max_interpolate_gap_s: 20
+  # 이 시간 이상 관측이 없는 구간을 포함한 window 는 학습·평가에서 뺀다.
+  max_window_gap_s: 30
+  # window 안에서 실제 관측(보간 아님)이 차지해야 하는 최소 비율.
+  min_observed_ratio: 0.7
+  # 이 시간 이상 완전히 같은 값이 이어지면 센서 고장(stuck-at)으로 보고 정상 학습에서 뺀다.
+  # sensor-04 의 gas_resistance_ohm 이 6,521 샘플 내내 176.6 이었던 사례가 근거다.
+  constant_run_reject_s: 600
+  scaler: standard
+
+windowing:
+  sequence_length: 60          # 10초 x 60 = 10분
+  stride: 1
+  # 분할 사이에 비우는 구간. 최소 한 window 길이를 비워야 train 의 꼬리가
+  # validation 의 머리로 새지 않는다 (§4.3).
+  purge_gap_steps: 60
+  split:
+    train: 0.70
+    val: 0.15
+    test: 0.15
+
+model:
+  hidden_size: 32
+  latent_size: 16
+  num_layers: 1                # 1개 layer 에 dropout 을 걸지 않는다 (§5)
+  loss: masked_mae
+
+train:
+  epochs: 100
+  batch_size: 64
+  learning_rate: 0.001
+  early_stopping_patience: 10  # validation loss 만 본다
+
+scoring:
+  # 10분 전체를 균등 평균하면 지금 막 생긴 이상이 9분간의 정상에 희석된다.
+  # 최근 60초(6스텝)에 가중치를 몰아 현재 상태를 반영한다 (§6.1).
+  recent_window_steps: 6
+  recent_weight: 0.7
+  threshold_quantile: 0.99     # validation 정상 score 분포만 사용 (§6.2)
+  # 실시간 판정 지속 조건. 기존 안전 경보의 enter_for_ms 와는 무관한 별개 상태다.
+  consecutive_to_anomaly: 3
+  consecutive_to_normal: 3
+
+anomaly_injection:
+  seed: 777
+  # held-out test 복사본에만 주입한다. 학습·validation 에는 절대 넣지 않는다 (§7).
+  contamination_ratio: 0.3

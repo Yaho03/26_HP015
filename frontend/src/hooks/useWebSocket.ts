@@ -33,6 +33,23 @@ function deriveAlertKey(metric: string, nodeId: string): string {
 function handleMessage(msg: WSMessage): void {
   const store = useDashboardStore.getState();
   const toastStore = useToastStore.getState();
+  // AI 이상징후는 여기서 끝난다 — toast·modal·진동을 만들지 않는다 (§10.3).
+  // 연구용 참고 지표가 화면을 가로막으면 사람이 진짜 경보까지 무시하게 된다.
+  if (msg.type === "ai_anomaly") {
+    store.setAiAnomaly({
+      node_id: msg.node_id,
+      status: msg.status,
+      score: msg.score,
+      threshold: msg.threshold,
+      consecutive_exceedances: msg.consecutive_exceedances,
+      top_contributors: msg.top_contributors ?? [],
+      model_version: msg.model_version,
+      evaluated_at: msg.evaluated_at,
+      source_mode: msg.source_mode ?? null,
+      is_research_only: msg.is_research_only,
+    });
+    return;
+  }
   if (msg.type === "alert") {
     const key = deriveAlertKey(msg.metric, msg.node_id);
     if (msg.to_level === "normal") {
