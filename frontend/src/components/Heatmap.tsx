@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef } from "react";
 import type { BufferAttribute, BufferGeometry } from "three";
 import type { MetricKey } from "../types";
-import { classifyValue, idw, LEVEL_RGB, type SensorSample } from "../utils/idw";
+import { gasRamp, idw, type SensorSample } from "../utils/idw";
 import { SHIP_FLOOR_HALF_WIDTH_M, SHIP_SPACE, toThreeGroundPosition } from "../utils/coordinates";
 
 interface HeatmapProps {
@@ -62,7 +62,10 @@ export function Heatmap({
     for (let r = 0; r < rows; r++) {
       for (let c = 0; c < cols; c++) {
         const value = idw(sensors, minX + stepX * c, minY + stepY * r);
-        const rgb = LEVEL_RGB[classifyValue(metric, value)];
+        // 등급 색 네 가지로만 칠하면 600ppm 과 990ppm 이 같은 초록이 된다 —
+        // 분포도가 해야 할 일("어디가 더 짙은가")을 임계값 넘기 전까지 숨기는
+        // 셈이다. 색 고정점은 서버 임계값이라 등급 경계는 그대로 읽힌다.
+        const rgb = gasRamp(metric, value);
         arr[i * 3] = rgb[0];
         arr[i * 3 + 1] = rgb[1];
         arr[i * 3 + 2] = rgb[2];
