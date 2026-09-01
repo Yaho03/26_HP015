@@ -5,6 +5,7 @@
 """
 from __future__ import annotations
 
+import inspect
 import math
 from datetime import datetime, timezone
 
@@ -20,6 +21,7 @@ from scenarios import (
     SCENARIOS,
     WALK_SPEED_MPS,
     co2_warning,
+    exposure_h2s_danger,
     gas_spread,
     fall_detection,
     h2s_warning,
@@ -40,9 +42,34 @@ def test_all_scenarios_registered():
         "normal_steady",
         "worker_walk",
         "gas_spread",
+        "exposure_h2s_danger",
         "worker_walk_uwb",
     }
     assert set(SCENARIOS.keys()) == expected
+
+
+def test_exposure_h2s_danger_keeps_four_node_samples_fresh_and_marks_simulation():
+    start = datetime(2026, 8, 25, 12, 0, 0, tzinfo=timezone.utc)
+    for node_id in ("sensor-01", "sensor-02", "sensor-03", "sensor-04"):
+        messages = exposure_h2s_danger(
+            start=start, node_id=node_id, duration_seconds=2,
+        )
+        gas = [payload for topic, payload in messages if topic.endswith("/gas")]
+        assert len(gas) == 3
+        assert all(p["simulation"]["scenario_id"] == "exposure_h2s_danger" for p in gas)
+        expected_h2s = 4.0 if node_id == "sensor-03" else gas[0]["data"]["h2s_ppm"]
+        assert gas[-1]["data"]["h2s_ppm"] == expected_h2s
+
+    source_messages = exposure_h2s_danger(
+        start=start, node_id="sensor-03", duration_seconds=2,
+    )
+    assert any(topic == "wearable/wearable-01/location" for topic, _ in source_messages)
+    assert any(topic == "wearable/wearable-01/vital" for topic, _ in source_messages)
+    locations = [
+        payload["data"] for topic, payload in source_messages
+        if topic == "wearable/wearable-01/location"
+    ]
+    assert all(location["x_m"] == 2.2 and location["y_m"] == 1.7 for location in locations)
 
 
 def test_co2_warning_generates_escalating_messages():
@@ -117,6 +144,8 @@ def test_normal_steady_stays_below_level1_thresholds():
     messages = normal_steady(start=start, node_id="sensor-01", duration_seconds=120)
     assert messages
     for topic, payload in messages:
+        if "data" not in payload:
+            continue
         for metric, ceiling in NORMAL_CEILINGS.items():
             value = payload["data"].get(metric)
             if value is not None:
@@ -129,7 +158,7 @@ def test_normal_steady_covers_all_six_card_metrics():
     messages = normal_steady(start=start, node_id="sensor-01", duration_seconds=10)
     seen = set()
     for _, payload in messages:
-        seen.update(payload["data"].keys())
+        seen.update(payload.get("data", {}).keys())
     assert {
         "co2_ppm",
         "co_ppm",
@@ -145,7 +174,10 @@ def test_normal_steady_splits_gas_and_env_topics():
     start = datetime(2026, 8, 10, 12, 0, 0, tzinfo=timezone.utc)
     messages = normal_steady(start=start, node_id="sensor-02", duration_seconds=10)
     topics = {m[0] for m in messages}
-    assert topics == {"sensors/sensor-02/gas", "sensors/sensor-02/env"}
+    assert topics == {
+        "sensors/sensor-02/gas",
+        "sensors/sensor-02/env",
+    }
     for topic, payload in messages:
         if topic.endswith("/env"):
             assert "co2_ppm" not in payload["data"]
@@ -159,6 +191,29 @@ def test_normal_steady_duration_controls_message_count():
     short = normal_steady(start=start, node_id="sensor-01", duration_seconds=10)
     long = normal_steady(start=start, node_id="sensor-01", duration_seconds=60)
     assert len(long) > len(short)
+
+
+def test_scenarios_leave_connection_status_to_the_runner():
+    """연결 상태는 ScenarioRunner 가 낸다 (test_injector).
+
+    시나리오가 각자 내면 새 시나리오를 추가할 때 빠뜨리기 쉽고, 실제로
+    gas_spread 를 포함한 8개가 빠져 노드가 "연결 끊김" 으로 남았다.
+    연결 전이 자체를 시연하는 node_offline 만 예외다.
+    """
+    start = datetime(2026, 8, 10, 12, 0, 0, tzinfo=timezone.utc)
+    for name, fn in SCENARIOS.items():
+        if name == "node_offline":
+            continue
+        params = inspect.signature(fn).parameters
+        kwargs = {"start": start, "run_id": "r"}
+        if "node_id" in params:
+            kwargs["node_id"] = "sensor-01"
+        if "node_ids" in params:
+            kwargs["node_ids"] = ["sensor-01"]
+        if "sec" in params:
+            kwargs["sec"] = 1
+        topics = {topic for topic, _ in fn(**kwargs)}
+        assert not any(t.endswith("/connection") for t in topics), name
 
 
 def test_normal_steady_differs_per_node():
@@ -258,16 +313,38 @@ def _spread_co2(node_id: str, duration_seconds: int = 180) -> list[float]:
     start = datetime(2026, 8, 10, 12, 0, 0, tzinfo=timezone.utc)
     return [
         payload["data"]["co2_ppm"]
-        for _, payload in gas_spread(
+        for topic, payload in gas_spread(
             start=start, node_id=node_id, duration_seconds=duration_seconds
         )
+        if topic.endswith("/gas")
     ]
 
 
-def test_gas_spread_uses_gas_topic_only():
+def test_gas_spread_source_keeps_worker_position_fresh_for_evacuation():
     start = datetime(2026, 8, 10, 12, 0, 0, tzinfo=timezone.utc)
     messages = gas_spread(start=start, node_id="sensor-03", duration_seconds=30)
-    assert {t for t, _ in messages} == {"sensors/sensor-03/gas"}
+    topics = {t for t, _ in messages}
+    assert topics == {
+        "sensors/sensor-03/gas",
+        "wearable/wearable-01/location",
+        "wearable/wearable-01/vital",
+    }
+
+    location_payloads = [
+        payload for topic, payload in messages if topic.endswith("/location")
+    ]
+    assert location_payloads
+    assert {payload["node_id"] for payload in location_payloads} == {"wearable-01"}
+    assert all(
+        payload["simulation"]["scenario_id"] == "gas_spread"
+        for payload in location_payloads
+    )
+
+
+def test_gas_spread_non_source_nodes_do_not_duplicate_worker_position():
+    start = datetime(2026, 8, 10, 12, 0, 0, tzinfo=timezone.utc)
+    messages = gas_spread(start=start, node_id="sensor-01", duration_seconds=30)
+    assert {t for t, _ in messages} == {"sensors/sensor-01/gas"}
 
 
 def test_gas_spread_starts_from_normal_baseline():

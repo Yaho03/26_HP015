@@ -25,6 +25,7 @@ import {
 interface TwinSceneProps {
   nodes?: { id: string; x: number; y: number; level: AlertLevel }[];
   wearable?: { x: number; y: number; z: number; fall_detected?: boolean } | null;
+  wearables?: { id: string; x: number; y: number; z: number; fall_detected?: boolean }[];
   heatmap?: { samples: SensorSample[]; metric: MetricKey } | null;
   /** 제어 모드. 주면 내부 상태 대신 이 값을 쓰고 토글이 사라진다. */
   mode?: CamMode;
@@ -44,6 +45,25 @@ interface TwinSceneProps {
    * 서로 다른 그래프에서 나오게 된다 (§2.4).
    */
   escapeRoute?: RouteOverlay | null;
+  escapeRoutes?: { id: string; route: RouteOverlay }[];
+  /**
+   * 카메라가 향할 센서 노드. ③ 카드를 누르면 그 노드로 시선이 옮겨간다.
+   *
+   * 카메라를 순간이동시키지 않고 부드럽게 민다 — 관제 화면에서 시점이 툭 바뀌면
+   * 방금 보던 곳이 어디였는지 잃는다. null 이면 기본 시점으로 되돌아온다.
+   */
+  focusNodeId?: string | null;
+  /** ⑤ 작업자를 고르면 그 작업자 위치로 카메라가 이동한다. */
+  focusWearableId?: string | null;
+}
+
+export function shouldShowEstimatedPeak(levels: AlertLevel[]): boolean {
+  return levels.some(
+    (level) =>
+      level === "level1_caution" ||
+      level === "level2_warning" ||
+      level === "level3_critical",
+  );
 }
 
 const LEVEL_COLOR: Record<AlertLevel, string> = {
@@ -630,16 +650,26 @@ function HoldDetails({ cutaway }: { cutaway: boolean }) {
 }
 
 // ── Camera controller ──────────────────────────────────────────
+/** 포커스 이동 속도. 1 이면 즉시, 작을수록 느리게 따라간다. */
+const FOCUS_LERP = 0.12;
+/** 이보다 가까우면 도착으로 본다 (제곱 거리, 약 4cm). */
+const FOCUS_EPSILON_SQ = 0.0016;
+
 function CameraController({
   mode,
   controlsRef,
+  focusTarget,
 }: {
   mode: CamMode;
   controlsRef: { current: OrbitControlsImpl | null };
+  /** ship-visual 기준 카메라 타깃. null 이면 모드 기본값. */
+  focusTarget: [number, number, number] | null;
 }) {
   const { camera, invalidate, gl, scene } = useThree();
   const sceneControls = useThree((state) => state.controls) as OrbitControlsImpl | null;
   const appliedMode = useRef<CamMode | null>(null);
+  // 매 프레임 새 Vector3 를 만들지 않는다 — 60fps 로 도는 루프에서 GC 압력이 된다.
+  const focusVec = useRef(new THREE.Vector3());
 
   // Apply after OrbitControls has mounted, then repeat on the next frame so
   // entering the twin screen never leaves the controls aimed at the origin.
@@ -669,11 +699,32 @@ function CameraController({
   }, [mode, camera, invalidate, gl, scene, sceneControls, controlsRef]);
 
   useFrame(() => {
-    if (appliedMode.current === mode) return;
     const controls = controlsRef.current ?? sceneControls;
     if (!controls) return;
-    const tgt = CAMS[mode].tgt;
     const aspect = camera instanceof THREE.PerspectiveCamera ? camera.aspect : 1;
+
+    // 포커스가 걸려 있으면 매 프레임 그쪽으로 조금씩 민다. 한 번에 옮기면
+    // 시점이 툭 바뀌어 방금 보던 곳을 잃는다.
+    if (focusTarget) {
+      // 포커스를 놓았을 때 기본 시점으로 되돌아가야 하므로 적용 표시를 지운다.
+      appliedMode.current = null;
+      const goal = focusVec.current.set(focusTarget[0], focusTarget[1], focusTarget[2]);
+      // 충분히 가까우면 붙이고 멈춘다. 그냥 두면 lerp 가 영영 수렴만 하면서
+      // 매 프레임 controls.update() 를 돌린다.
+      if (controls.target.distanceToSquared(goal) < FOCUS_EPSILON_SQ) {
+        if (!controls.target.equals(goal)) {
+          controls.target.copy(goal);
+          controls.update();
+        }
+        return;
+      }
+      controls.target.lerp(goal, FOCUS_LERP);
+      controls.update();
+      return;
+    }
+
+    if (appliedMode.current === mode) return;
+    const tgt = CAMS[mode].tgt;
     const pos = cameraPosition(mode, aspect);
     controls.target.set(...tgt);
     camera.position.set(...pos);
@@ -767,11 +818,13 @@ function SensorMarker({
 }
 
 function WearableMarker({
+  id,
   x,
   y,
   z,
   fall_detected,
 }: {
+  id: string;
   x: number;
   y: number;
   z: number;
@@ -795,7 +848,7 @@ function WearableMarker({
             "twin-node-label " + (fall_detected ? "twin-node-level3_critical" : "twin-wearable")
           }
         >
-          <span className="twin-node-id">wearable</span>
+          <span className="twin-node-id">{id}</span>
           {fall_detected && <span className="twin-node-level">낙하</span>}
         </div>
       </Html>
@@ -871,7 +924,15 @@ function RouteArrows({
   );
 }
 
-function EscapeRoute({ route }: { route: RouteOverlay }) {
+function EscapeRoute({
+  route,
+  label,
+  lane = 0,
+}: {
+  route: RouteOverlay;
+  label?: string;
+  lane?: number;
+}) {
   const points = useMemo(() => routePoints(route.waypoints), [route.waypoints]);
 
   // 구간이 없으면 곡선을 만들 수 없다. unavailable 이 정확히 이 상태다 —
@@ -892,7 +953,12 @@ function EscapeRoute({ route }: { route: RouteOverlay }) {
   const exitLabel = route.waypoints[route.waypoints.length - 1]?.label;
 
   return (
-    <group>
+    <group position={[0, lane * 0.12, 0]}>
+      {label && (
+        <Html position={points[0]} center distanceFactor={30}>
+          <div className="twin-route-label">{label} 탈출로</div>
+        </Html>
+      )}
       {points.slice(0, -1).map((a, i) => {
         const b = points[i + 1];
         if (!dashed) return <RouteSegment key={i} a={a} b={b} color={color} />;
@@ -920,25 +986,80 @@ function EscapeRoute({ route }: { route: RouteOverlay }) {
   );
 }
 
+/**
+ * IDW 분포에서 가장 높은 표본 위치.
+ *
+ * 센서 네 점으로 누출원을 확정할 수는 없다. 따라서 "누출원"이 아니라
+ * "추정 고농도"라고 표시하고, 확정 위치처럼 보이는 핀 대신 점선 링을 쓴다.
+ */
+function EstimatedPeak({ sample }: { sample: SensorSample }) {
+  const position = toThreeGroundPosition(sample.x, sample.y, 0.16);
+
+  return (
+    <group position={position}>
+      <mesh rotation={[-Math.PI / 2, 0, 0]}>
+        <ringGeometry args={[0.78, 1.02, 32]} />
+        <meshBasicMaterial color="#ffb347" transparent opacity={0.92} side={THREE.DoubleSide} />
+      </mesh>
+      <mesh position={[0, 0.1, 0]} rotation={[-Math.PI / 2, 0, 0]}>
+        <ringGeometry args={[1.22, 1.3, 32]} />
+        <meshBasicMaterial color="#ffb347" transparent opacity={0.42} side={THREE.DoubleSide} />
+      </mesh>
+      <Html position={[0, 1.1, 0]} center distanceFactor={28}>
+        <div className="twin-peak-label">
+          <strong>최고 농도 추정</strong>
+          <span>{Math.round(sample.value).toLocaleString("ko-KR")} ppm</span>
+        </div>
+      </Html>
+    </group>
+  );
+}
+
 // ── Scene content ──────────────────────────────────────────────
 function SceneContent({
   nodes,
   wearable,
+  wearables,
   heatmap,
   mode,
   interactive,
   escapeRoute,
+  escapeRoutes,
+  focusNodeId,
+  focusWearableId,
 }: {
   nodes: NonNullable<TwinSceneProps["nodes"]>;
   wearable: TwinSceneProps["wearable"];
+  wearables: NonNullable<TwinSceneProps["wearables"]>;
   heatmap: TwinSceneProps["heatmap"];
   mode: CamMode;
   interactive: boolean;
   escapeRoute: RouteOverlay | null;
+  escapeRoutes: NonNullable<TwinSceneProps["escapeRoutes"]>;
+  focusNodeId: string | null;
+  focusWearableId: string | null;
 }) {
   // 카메라 쪽 측벽을 잘라내야 바닥이 보인다. 내부 시점일 때만 벽을 세운다 —
   // 벽 안에서 보는 시점이므로 절개하면 화물창 밖이 뚫려 보인다.
   const cutaway = mode !== "inside";
+  // 고른 노드의 Three 좌표. 노드가 목록에 없으면 포커스를 걸지 않는다 —
+  // 없는 자리로 카메라를 보내면 화면이 빈 곳을 비춘다.
+  const focused = focusNodeId ? (nodes ?? []).find((n) => n.id === focusNodeId) : undefined;
+  const focusedWearable = focusWearableId
+    ? wearables.find((item) => item.id === focusWearableId)
+    : undefined;
+  const focusTarget: [number, number, number] | null = focused
+    ? toThreeGroundPosition(focused.x, focused.y, 0)
+    : focusedWearable
+      ? toThreeGroundPosition(focusedWearable.x, focusedWearable.y, focusedWearable.z)
+      : null;
+  const peakSample = useMemo(() => {
+    const samples = heatmap?.samples ?? [];
+    if (samples.length === 0 || !shouldShowEstimatedPeak(nodes.map((node) => node.level))) {
+      return null;
+    }
+    return samples.reduce((peak, sample) => (sample.value > peak.value ? sample : peak));
+  }, [heatmap?.samples, nodes]);
   const controlsRef = useRef<OrbitControlsImpl>(null);
   return (
     <>
@@ -998,18 +1119,35 @@ function SceneContent({
       {heatmap && heatmap.samples.length > 0 && (
         <Heatmap sensors={heatmap.samples} metric={heatmap.metric} />
       )}
+      {peakSample && <EstimatedPeak sample={peakSample} />}
       {nodes.map((n) => (
         <SensorMarker key={n.id} id={n.id} x={n.x} y={n.y} level={n.level} />
       ))}
       {wearable && (
         <WearableMarker
+          id="wearable"
           x={wearable.x}
           y={wearable.y}
           z={wearable.z}
           fall_detected={!!wearable.fall_detected}
         />
       )}
+      {wearables.map((item) => (
+        <WearableMarker
+          key={item.id}
+          id={item.id}
+          x={item.x}
+          y={item.y}
+          z={item.z}
+          fall_detected={!!item.fall_detected}
+        />
+      ))}
       {escapeRoute && <EscapeRoute route={escapeRoute} />}
+      {escapeRoutes.map(({ id, route }, index) => (
+        <group key={id}>
+          <EscapeRoute route={route} label={id} lane={index} />
+        </group>
+      ))}
       {/* 고정 크롭에서는 조작을 막는다. 관제사가 실수로 시점을 돌려놓으면
           노드의 화면 위치가 ⑤ 2×2 격자와 어긋나 위치 판독이 깨진다.
           컨트롤 자체는 유지해야 CameraController 가 타깃을 잡을 수 있다. */}
@@ -1022,7 +1160,7 @@ function SceneContent({
         maxDistance={160}
         maxPolarAngle={Math.PI * 0.9}
       />
-      <CameraController mode={mode} controlsRef={controlsRef} />
+      <CameraController mode={mode} controlsRef={controlsRef} focusTarget={focusTarget} />
       <ReleaseContextOnUnmount />
     </>
   );
@@ -1054,11 +1192,15 @@ function ReleaseContextOnUnmount() {
 export function TwinScene({
   nodes = [],
   wearable = null,
+  wearables = [],
   heatmap = null,
   mode: modeProp,
   showModeToggle = true,
   interactive = true,
   escapeRoute = null,
+  escapeRoutes = [],
+  focusNodeId = null,
+  focusWearableId = null,
 }: TwinSceneProps) {
   const [internalMode, setInternalMode] = useState<CamMode>("overview");
   // 제어 prop 이 오면 그것이 우선이다. Screen 1 ① 은 plan 고정으로 쓴다.
@@ -1091,10 +1233,14 @@ export function TwinScene({
         <SceneContent
           nodes={nodes}
           wearable={wearable}
+          wearables={wearables}
           heatmap={heatmap}
           mode={mode}
           interactive={interactive}
           escapeRoute={escapeRoute}
+          escapeRoutes={escapeRoutes}
+          focusNodeId={focusNodeId}
+          focusWearableId={focusWearableId}
         />
       </Canvas>
     </div>

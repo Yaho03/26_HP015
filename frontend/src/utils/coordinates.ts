@@ -211,6 +211,18 @@ export const SENSOR_SCREEN_ORDER = [
 ] as const;
 
 /**
+ * ⑤ 가 자리를 잡아 두는 웨어러블 슬롯.
+ *
+ * 센서 슬롯과 같은 이유로 고정한다 — 보고하지 않는 슬롯도 자리를 비워 두어야
+ * "두 명이 들어갔는데 한 명만 보인다" 를 화면에서 알아챌 수 있다. 슬롯을 지우면
+ * 연결이 끊긴 작업자가 조용히 사라진다.
+ */
+export const WEARABLE_SCREEN_ORDER = ["wearable-01", "wearable-02"] as const;
+
+/** 트윈 마커·헤더처럼 아직 한 명만 다루는 자리에서 쓰는 대표 슬롯. */
+export const PRIMARY_WEARABLE = WEARABLE_SCREEN_ORDER[0];
+
+/**
  * ship-visual (Z-up) → Three.js (Y-up).
  *
  * docs/05_DIGITAL_TWIN_SPEC §3.2:

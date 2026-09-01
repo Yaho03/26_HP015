@@ -70,6 +70,16 @@ def test_lists_scenarios_when_enabled(enabled):
     assert "gas_spread" in names
 
 
+def test_lists_playlists_when_enabled(enabled):
+    rows = enabled.get("/api/demo/playlists").json()
+    assert [row["name"] for row in rows] == ["demo", "gas", "wearable"]
+
+
+def test_unknown_playlist_is_rejected(enabled):
+    resp = enabled.post("/api/demo/playlist/run", json={"playlist": "missing"})
+    assert resp.status_code == 404
+
+
 def test_catalog_matches_actual_scenario_registry():
     """카탈로그 이름이 실제 시나리오와 어긋나면 실행 시점에 터진다."""
     inject_dir = REPO_ROOT / "experiments" / "inject"

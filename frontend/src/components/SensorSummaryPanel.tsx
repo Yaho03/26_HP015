@@ -1,4 +1,4 @@
-import { memo, type ComponentType } from "react";
+import { memo, useEffect, useRef, useState, type ComponentType } from "react";
 import type { AlertLevel, SensorNodeState, WearableState } from "../types";
 import type { TrendPoint, TrendMetric } from "../store/dashboardStore";
 import {
@@ -18,8 +18,10 @@ import {
   unitFor,
   type MetricMeta,
 } from "../utils/metrics";
-import { shortNodeLabel, sourceBadge } from "../utils/nodes";
-import { projectThresholdCrossing } from "../utils/trend";
+import { nodeLastSeenAt, shortNodeLabel, sourceBadge } from "../utils/nodes";
+import { alertMetricLabel } from "../utils/alertLabels";
+import { mostUrgentProjection } from "../utils/projection";
+import { useFreshness } from "../hooks/useFreshness";
 import { LEVEL_ICON, IconClock } from "./icons";
 import { Sparkline } from "./Sparkline";
 import { ThresholdBar } from "./ThresholdBar";
@@ -30,6 +32,20 @@ const CHIP_METRICS = ASPHYXIANT_METRICS.filter((m) => m.key !== "co2_ppm");
 
 type Trends = Partial<Record<TrendMetric, TrendPoint[]>>;
 
+function useValueDirection(value: number | null): "up" | "down" | null {
+  const previous = useRef<number | null>(null);
+  const [direction, setDirection] = useState<"up" | "down" | null>(null);
+  useEffect(() => {
+    const before = previous.current;
+    previous.current = value;
+    if (before === null || value === null || before === value) return;
+    setDirection(value > before ? "up" : "down");
+    const timer = window.setTimeout(() => setDirection(null), 420);
+    return () => window.clearTimeout(timer);
+  }, [value]);
+  return direction;
+}
+
 interface SensorSummaryPanelProps {
   /** ② 로 승격되지 않은 노드만 온다. 두 칸에 중복 표시하지 않는다. */
   nodeIds: string[];
@@ -37,6 +53,12 @@ interface SensorSummaryPanelProps {
   trends: Record<string, Trends>;
   wearable: WearableState | null;
   levelOf: (nodeId: string) => AlertLevel;
+  /** ① 트윈이 지금 비추고 있는 노드. */
+  focusNodeId?: string | null;
+  /** 카드를 누르면 ① 트윈 카메라가 그 노드로 향한다. */
+  onFocusNode?: (nodeId: string) => void;
+  /** 포인터가 머무는 동안 ① 트윈에서 위치를 미리 보여준다. */
+  onPreviewNode?: (nodeId: string | null) => void;
 }
 
 /**
@@ -91,24 +113,36 @@ const SummaryCard = memo(function SummaryCard({
   node,
   trends,
   level,
+  focused,
+  onFocus,
+  onPreview,
 }: {
   nodeId: string;
   node: SensorNodeState | null;
   trends: Trends;
   level: AlertLevel;
+  focused: boolean;
+  onFocus?: (nodeId: string) => void;
+  onPreview?: (nodeId: string | null) => void;
 }) {
   const offline = node?.connection_status === "offline";
   const sim = node?.source_mode === "simulation";
   const co2 = node?.readings.co2_ppm ?? null;
+  const co2Direction = useValueDirection(co2?.value ?? null);
   const LevelIcon = LEVEL_ICON[level] as ComponentType<{
     size?: number | string;
   }>;
 
+  // 서버가 offline 으로 판정하기 전에도 값은 멈출 수 있다. 그 공백 동안 마지막
+  // 프레임이 그대로 남아 "570ppm 정상" 으로 계속 보이는 것이 이 화면의 가장
+  // 위험한 실패다 — 화면이 직접 시계를 본다.
+  const fresh = useFreshness(nodeLastSeenAt(node));
+  const stale = offline || fresh.isStale;
+
   // 06_ALERT_RULES §8.2 — 등급이 오르기 전에 알리는 선제 표시. 경보를 발령하지
   // 않고 배지로만 알린다. 아직 위험하지 않은 노드가 모이는 이 칸이 제자리다.
-  // 오프라인 노드의 멈춘 버퍼로 미래를 예측하지 않는다.
-  const projection =
-    !offline && trends.co2_ppm ? projectThresholdCrossing(trends.co2_ppm, "co2_ppm") : null;
+  // 멈춘 버퍼로 미래를 예측하지 않는다.
+  const projection = stale ? null : mostUrgentProjection(trends);
 
   return (
     <article
@@ -116,10 +150,32 @@ const SummaryCard = memo(function SummaryCard({
         "scard is-" +
         level +
         (offline ? " scard--offline" : "") +
+        (stale && !offline ? " scard--stale" : "") +
         (sim ? " scard--sim" : "") +
+        (focused ? " scard--focused" : "") +
         (node ? "" : " scard--pending")
       }
       aria-label={`${shortNodeLabel(nodeId)} ${levelLabel(level)}`}
+      // 카드를 누르면 ① 트윈이 이 노드를 비춘다. "S2 가 위험" 과 "S2 가 저기"
+      // 사이를 한 동작으로 잇는다. 나중에 노드 상세 화면으로 가는 자리이기도 하다.
+      onClick={onFocus ? () => onFocus(nodeId) : undefined}
+      onMouseEnter={onPreview ? () => onPreview(nodeId) : undefined}
+      onMouseLeave={onPreview ? () => onPreview(null) : undefined}
+      onFocus={onPreview ? () => onPreview(nodeId) : undefined}
+      onBlur={onPreview ? () => onPreview(null) : undefined}
+      onKeyDown={
+        onFocus
+          ? (e) => {
+              if (e.key === "Enter" || e.key === " ") {
+                e.preventDefault();
+                onFocus(nodeId);
+              }
+            }
+          : undefined
+      }
+      role={onFocus ? "button" : undefined}
+      tabIndex={onFocus ? 0 : undefined}
+      aria-pressed={onFocus ? focused : undefined}
     >
       {/* 등급을 색 하나로 전달하지 않는다 — 브래킷 + 아이콘 + 텍스트가 함께 나른다. */}
       <i className="brk brk--tl" aria-hidden="true" />
@@ -131,16 +187,38 @@ const SummaryCard = memo(function SummaryCard({
         <span className="scard__level">
           {offline ? "연결 끊김" : node ? levelLabel(level) : "대기"}
         </span>
-        <span className={"scard__src" + (sim ? " scard__src--sim" : "")}>
-          {sourceBadge(node?.source_mode, !!node)}
+        {/* 값이 멈췄으면 배지 자체가 "지연" 으로 바뀐다. LIVE 를 흐리게만 두면
+            흐린 LIVE 도 LIVE 로 읽혀 옆의 경과와 정면으로 모순된다. */}
+        <span
+          className={
+            "scard__src" + (sim ? " scard__src--sim" : "") + (stale ? " scard__src--stale" : "")
+          }
+        >
+          {sourceBadge(node?.source_mode, !!node, stale)}
         </span>
+        {node && !offline && (
+          <span className={"scard__age" + (stale ? " scard__age--stale" : "")}>{fresh.label}</span>
+        )}
       </header>
 
       {/* 유일하게 교정된 값이라 이것만 큰 수치로 띄운다. */}
       <div className="scard__co2">
-        <span className="scard__co2-value">{co2 ? formatMetricValue(CO2, co2.value) : "—"}</span>
+        <span
+          className={
+            "scard__co2-value" + (co2Direction ? ` scard__co2-value--${co2Direction}` : "")
+          }
+        >
+          {co2 ? formatMetricValue(CO2, co2.value) : "—"}
+        </span>
         <span className="scard__co2-unit">ppm</span>
-        <Sparkline points={trends.co2_ppm} stale={offline} className="scard__co2-spark" />
+        {/* 실측은 실선, 외삽은 점선, 도달 임계값은 가로선. 같은 선으로 그리면
+            "지금 570ppm 인데 왜 경고인가" 를 화면에서 되짚을 수 없다. */}
+        <Sparkline
+          points={trends.co2_ppm}
+          stale={stale}
+          projection={projection?.metric === "co2_ppm" ? projection.curve : undefined}
+          className="scard__co2-spark"
+        />
       </div>
 
       <div className="scard__chips">
@@ -150,9 +228,16 @@ const SummaryCard = memo(function SummaryCard({
       </div>
 
       {projection && (
+        // 출처를 앞에 박는다. LSTM forecaster 가 붙으면 이 자리만 "AI 예측" 으로
+        // 바뀐다. 적합도는 승격된 카드(② 위험 상세)에서 보여준다 — 이 카드는
+        // 낮게 유지되어야 한다.
         <p className={"scard__projection is-" + projection.level}>
+          <span className="scard__proj-src">
+            {projection.source === "lstm" ? "AI 예측" : "추세"}
+          </span>
           <span aria-hidden="true">↗</span>
-          추세 유지 시 약 {Math.round(projection.minutes)}분 뒤 {levelLabel(projection.level)}
+          {alertMetricLabel(projection.metric)} · 약 {Math.round(projection.minutes)}분 뒤{" "}
+          {levelLabel(projection.level)}
         </p>
       )}
 
@@ -178,6 +263,9 @@ export function SensorSummaryPanel({
   trends,
   wearable,
   levelOf,
+  focusNodeId = null,
+  onFocusNode,
+  onPreviewNode,
 }: SensorSummaryPanelProps) {
   const o2 = wearable?.o2_pct ?? null;
   // O₂ 값이 없으면 판정 불가다 (이슈 #165). 측정 못 한 것을 정상이라 하면 안 된다.
@@ -196,7 +284,9 @@ export function SensorSummaryPanel({
         <span className="panel-3__o2">
           <O2Icon size={13} />
           <span className="panel-3__o2-label">공간 O₂</span>
-          <strong>{o2 !== null ? `${o2.toFixed(1)}%` : "—"}</strong>
+          <strong key={o2 !== null ? o2.toFixed(1) : "unknown"}>
+            {o2 !== null ? `${o2.toFixed(1)}%` : "—"}
+          </strong>
           <span className="panel-3__o2-level">{levelLabel(o2Level)}</span>
         </span>
         <span className="panel-3__o2-note">센서 응답 지연 가능성 (최대 15초)</span>
@@ -210,6 +300,9 @@ export function SensorSummaryPanel({
             node={nodes[id] ?? null}
             trends={trends[id] ?? {}}
             level={levelOf(id)}
+            focused={focusNodeId === id}
+            onFocus={onFocusNode}
+            onPreview={onPreviewNode}
           />
         ))}
         {nodeIds.length === 0 && (

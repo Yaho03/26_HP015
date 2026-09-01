@@ -68,6 +68,7 @@ def integrate(
     *,
     gap_max_s: float,
     worst_case_value: Optional[float] = None,
+    dose_scale: float = 1.0,
 ) -> DoseState:
     """샘플 하나를 적산한다 (§4.1 사다리꼴 적분).
 
@@ -113,11 +114,11 @@ def integrate(
     gap_s = delta_s - counted_s
 
     average = (state.last_value + value) / 2.0
-    dose_delta = average * (counted_s / 60.0)
+    dose_delta = average * (counted_s / 60.0) * dose_scale
 
     worst = value if worst_case_value is None else worst_case_value
     worst_average = (state.last_value + worst) / 2.0
-    worst_delta = worst_average * (counted_s / 60.0)
+    worst_delta = worst_average * (counted_s / 60.0) * dose_scale
 
     nxt = replace(
         state,

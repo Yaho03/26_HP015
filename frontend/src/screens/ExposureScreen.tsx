@@ -1,12 +1,7 @@
 import { ExposureGauge } from "../components/ExposureGauge";
 import { IconWarning } from "../components/icons";
 import { useExposure, useExposureBootstrap } from "../hooks/useExposure";
-import {
-  EXPOSURE_MOCK_STATES,
-  MOCK_NODE_ID,
-  useExposureMock,
-  type ExposureMockState,
-} from "../mocks/exposure";
+import { PRIMARY_WEARABLE } from "../utils/coordinates";
 import {
   EXPOSURE_DISCLAIMER,
   EXPOSURE_DOSE_METRICS,
@@ -47,12 +42,10 @@ function num(value: number | null | undefined, digits: number): string {
  */
 export function ExposureScreen() {
   useExposureBootstrap();
-  const { exposure, is_mock } = useExposure(MOCK_NODE_ID);
+  const { exposure } = useExposure(PRIMARY_WEARABLE);
 
   return (
     <div className="exposure">
-      <MockControls />
-
       {!exposure ? (
         <p className="exposure__empty">
           노출량 데이터가 없습니다. 웨어러블이 배정되지 않았거나 적산이 시작되지 않았습니다.
@@ -63,7 +56,6 @@ export function ExposureScreen() {
             <div className="exposure__who">
               <strong>{exposure.worker_name}</strong>
               <em>{exposure.node_id}</em>
-              {is_mock && <span className="exposure__mock-badge">MOCK</span>}
             </div>
             <dl className="exposure__window">
               <div>
@@ -228,43 +220,5 @@ function O2Section({ o2 }: { o2: ExposureO2Metric | undefined }) {
         </div>
       </dl>
     </section>
-  );
-}
-
-/**
- * 목 데이터 토글 (A1).
- *
- * 운영 빌드에서는 렌더하지 않는다. 관제 화면에 가짜 데이터를 켜는 버튼이 있으면
- * 안 된다.
- */
-function MockControls() {
-  const enabled = useExposureMock((s) => s.enabled);
-  const state = useExposureMock((s) => s.state);
-  const setEnabled = useExposureMock((s) => s.setEnabled);
-  const setState = useExposureMock((s) => s.setState);
-
-  if (!import.meta.env.DEV) return null;
-
-  return (
-    <div className="exposure__mock">
-      <label className="exposure__mock-toggle">
-        <input type="checkbox" checked={enabled} onChange={(e) => setEnabled(e.target.checked)} />
-        <span>목 데이터</span>
-      </label>
-      <div className="exposure__mock-states" role="group" aria-label="목 데이터 상태">
-        {EXPOSURE_MOCK_STATES.map(({ key, label }) => (
-          <button
-            key={key}
-            type="button"
-            disabled={!enabled}
-            aria-pressed={state === key}
-            className={"exposure__mock-btn" + (state === key ? " is-active" : "")}
-            onClick={() => setState(key as ExposureMockState)}
-          >
-            {label}
-          </button>
-        ))}
-      </div>
-    </div>
   );
 }

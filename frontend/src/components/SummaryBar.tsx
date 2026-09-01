@@ -1,9 +1,18 @@
 import { useEffect, useRef, useState } from "react";
 import type { AlertLevel } from "../types";
+import type { Projection } from "../utils/projection";
+import { levelLabel } from "../utils/alerts";
+import { alertMetricLabel } from "../utils/alertLabels";
+import { shortNodeLabel } from "../utils/nodes";
 import { LEVEL_ICON } from "./icons";
 
 interface SummaryBarProps {
   counts: Record<AlertLevel, number>;
+  /** 지금 가장 등급이 높은 온라인 노드. 없으면 null. */
+  worstNodeId: string | null;
+  worstLevel: AlertLevel;
+  /** 전 노드에서 가장 심각한 도달 예측. 상승 중인 지표가 없으면 null. */
+  projection: Projection | null;
 }
 
 const ITEMS: { level: AlertLevel; label: string }[] = [
@@ -76,28 +85,87 @@ function AnimatedNumber({ value }: { value: number }) {
   return <span className="summary-count">{Math.round(displayValue)}</span>;
 }
 
-export function SummaryBar({ counts }: SummaryBarProps) {
+/** 분 단위를 사람이 읽는 문구로. 1분 미만은 "곧" 이다 — "0분 뒤"는 말이 안 된다. */
+function formatMinutes(minutes: number): string {
+  if (minutes < 1) return "곧";
+  return `약 ${Math.round(minutes)}분 뒤`;
+}
+
+/**
+ * ② 전체 상태 스트립.
+ *
+ * 노드가 4개뿐이라 등급별 카운트만으로는 면적 대비 정보량이 낮다 — ③ 의 카드
+ * 네 장이 이미 같은 것을 색으로 말하고 있다. 그래서 카운트는 한 줄로 눌러두고,
+ * 남는 가로에 **다른 칸 어디에도 없는 것**을 넣는다: 지금 가장 나쁜 노드가
+ * 무엇이고, 이 추세가 유지되면 언제 어느 등급에 닿는가.
+ *
+ * 예측 문구는 경보가 아니다 (06_ALERT_RULES §8.2). "추세" 라는 말을 항상 앞에
+ * 붙이고, 적합도를 같이 적어 단정처럼 읽히지 않게 한다.
+ */
+export function SummaryBar({ counts, worstNodeId, worstLevel, projection }: SummaryBarProps) {
   const items = counts.unknown > 0 ? [UNKNOWN_ITEM, ...ITEMS] : ITEMS;
-  const total = items.reduce((sum, { level }) => sum + counts[level], 0);
+  const WorstIcon = LEVEL_ICON[worstLevel];
 
   return (
-    <div className="summary-bar" role="status" aria-label="전체 노드 요약">
-      {items.map(({ level, label }) => {
-        const Icon = LEVEL_ICON[level];
-        const share = total > 0 ? (counts[level] / total) * 100 : 0;
-        return (
-          <div key={level} className={"summary-item is-" + level}>
-            <AnimatedNumber value={counts[level]} />
-            <span className="summary-label">
+    <section className="summary-bar" role="status" aria-label="전체 노드 요약">
+      <div className="summary-bar__counts">
+        {items.map(({ level, label }) => {
+          const Icon = LEVEL_ICON[level];
+          return (
+            <div key={level} className={"summary-item is-" + level}>
               <Icon size={12} />
-              {label}
-            </span>
-            <span className="summary-meter" aria-hidden="true">
-              <span className="summary-meter__fill" style={{ width: `${share}%` }} />
-            </span>
-          </div>
-        );
-      })}
-    </div>
+              <span className="summary-label">{label}</span>
+              <AnimatedNumber value={counts[level]} />
+            </div>
+          );
+        })}
+      </div>
+
+      {/* 우측 열이 ~390px 뿐이라 카운트와 같은 줄에 두면 문구가 줄바꿈되며
+          스트립 전체를 밀어올린다. 아랫줄로 내리고 가로를 통째로 쓴다. */}
+      <div className="summary-bar__context">
+        <div className={"summary-bar__worst is-" + worstLevel}>
+          <span className="summary-bar__key">최악</span>
+          {!worstNodeId ? (
+            // 온라인 노드가 하나도 없는 상태다. "정상"으로 그리면 안 된다.
+            <span className="summary-bar__muted">온라인 노드 없음</span>
+          ) : worstLevel === "normal" ? (
+            // 전부 정상인데 특정 노드를 "최악" 으로 지목하면 그 노드에 뭔가 있는
+            // 것처럼 읽힌다. 지목할 것이 없을 때는 지목하지 않는다.
+            <>
+              <WorstIcon size={12} />
+              <span className="summary-bar__level">이상 없음</span>
+            </>
+          ) : (
+            <>
+              <WorstIcon size={12} />
+              <span className="summary-bar__node">{shortNodeLabel(worstNodeId)}</span>
+              <span className="summary-bar__level">{levelLabel(worstLevel)}</span>
+            </>
+          )}
+        </div>
+
+        <div className={"summary-bar__proj" + (projection ? " is-" + projection.level : "")}>
+          <span className="summary-bar__key">추세</span>
+          {projection ? (
+            <>
+              <span className="summary-bar__proj-eta">{formatMinutes(projection.minutes)}</span>
+              <span className="summary-bar__proj-level">{levelLabel(projection.level)}</span>
+              <span className="summary-bar__proj-metric">
+                {alertMetricLabel(projection.metric)}
+              </span>
+              {/* R² 는 확률이 아니다. "신뢰도 78%" 로 적으면 확률로 읽힌다. */}
+              {projection.confidence !== null && (
+                <span className="summary-bar__proj-fit">
+                  적합도 {projection.confidence.toFixed(2)}
+                </span>
+              )}
+            </>
+          ) : (
+            <span className="summary-bar__muted">상승 추세 없음</span>
+          )}
+        </div>
+      </div>
+    </section>
   );
 }

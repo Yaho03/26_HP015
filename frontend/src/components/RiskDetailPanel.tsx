@@ -5,9 +5,10 @@ import type { AssignedWorker } from "../services/api";
 import { classifyMetric, levelLabel, LEVEL_RANK } from "../utils/alerts";
 import { alertMetricLabel, metricFromAlertKey } from "../utils/alertLabels";
 import { formatMetricValue, isUncalibrated, NODE_METRICS, unitFor } from "../utils/metrics";
-import { shortNodeLabel } from "../utils/nodes";
+import { nodeLastSeenAt, shortNodeLabel } from "../utils/nodes";
+import { mostUrgentProjection } from "../utils/projection";
+import { useFreshness } from "../hooks/useFreshness";
 import { LEVEL_ICON } from "./icons";
-import { SummaryBar } from "./SummaryBar";
 import { Sparkline } from "./Sparkline";
 import { ThresholdBar } from "./ThresholdBar";
 
@@ -18,7 +19,6 @@ interface RiskDetailPanelProps {
   nodeIds: string[];
   nodes: Record<string, SensorNodeState>;
   trends: Record<string, Trends>;
-  counts: Record<AlertLevel, number>;
   alerts: AlertState[];
   levelOf: (nodeId: string) => AlertLevel;
   workerFor: (nodeId: string) => AssignedWorker | null;
@@ -48,6 +48,10 @@ const RiskCard = memo(function RiskCard({
     size?: number | string;
   }>;
   const sim = node?.source_mode === "simulation";
+  const fresh = useFreshness(nodeLastSeenAt(node));
+  // 멈춘 버퍼로 미래를 예측하지 않는다. 승격된 카드일수록 이 구분이 중요하다 —
+  // 위험 등급인 채로 값이 멈추면 "계속 위험" 인지 "보고가 끊긴" 것인지 갈린다.
+  const projection = fresh.isStale ? null : mostUrgentProjection(trends);
   // 가장 먼저 발생한 경보가 이 노드가 승격된 시점이다.
   const firstAlert = alerts.reduce<AlertState | null>(
     (earliest, a) =>
@@ -71,6 +75,11 @@ const RiskCard = memo(function RiskCard({
         <span className="rcard__node">{nodeId}</span>
         <span className="rcard__level">{levelLabel(level)}</span>
         {sim && <span className="badge badge--sim">SIM</span>}
+        {node && (
+          <span className={"rcard__age" + (fresh.isStale ? " rcard__age--stale" : "")}>
+            {fresh.isStale ? "STALE " + fresh.label : fresh.label}
+          </span>
+        )}
       </header>
 
       {/* 6종 전부. 어느 지표가 등급을 끌어올렸는지 그 행이 강조된다. */}
@@ -112,7 +121,13 @@ const RiskCard = memo(function RiskCard({
                   />
                 </td>
                 <td className="rcard__spark">
-                  <Sparkline points={trends[meta.key]} />
+                  <Sparkline
+                    points={trends[meta.key]}
+                    stale={fresh.isStale}
+                    projection={
+                      projection?.metric === meta.key ? projection.curve : undefined
+                    }
+                  />
                 </td>
               </tr>
             );
@@ -121,6 +136,22 @@ const RiskCard = memo(function RiskCard({
       </table>
 
       <footer className="rcard__foot">
+        {projection && (
+          // 06_ALERT_RULES §8.2 — 이 줄은 경보가 아니다. 출처와 적합도를 같이
+          // 적어 단정으로 읽히지 않게 한다. R² 는 확률이 아니므로 % 로 쓰지 않는다.
+          <div className={"rcard__projection is-" + projection.level}>
+            <span className="rcard__proj-src">
+              {projection.source === "lstm" ? "AI 예측" : "추세"}
+            </span>
+            <span className="rcard__proj-body">
+              {alertMetricLabel(projection.metric)} · 약 {Math.round(projection.minutes)}분 뒤{" "}
+              {levelLabel(projection.level)}
+            </span>
+            {projection.confidence !== null && (
+              <span className="rcard__proj-fit">적합도 {projection.confidence.toFixed(2)}</span>
+            )}
+          </div>
+        )}
         <div className="rcard__foot-row">
           <span className="rcard__foot-label">경보 발생</span>
           <span className="rcard__foot-value">{formatTime(firstAlert?.activated_at)}</span>
@@ -166,24 +197,26 @@ export function RiskDetailPanel({
   nodeIds,
   nodes,
   trends,
-  counts,
   alerts,
   levelOf,
   workerFor,
 }: RiskDetailPanelProps) {
+  // 승격된 노드가 없으면 칸을 접는다. "주의 이상 노드 없음" 한 줄은 바로 위
+  // 카운트(주의 0 · 경고 0 · 위험 0)가 이미 하는 말이고, 빈 껍데기가 ② 와 ③
+  // 사이에 끼면 경계선만 하나 더 늘어난다.
+  //
+  // 조건부로 아예 빼지는 않는다 — 그리드 자식이 하나 줄면 뒤 칸들이 한 행씩
+  // 당겨져 템플릿과 어긋난다 (실제로 ④ 가 암묵 행으로 밀려 겹친 적이 있다).
+  if (nodeIds.length === 0) {
+    return <section className="panel-2 panel-2--none" aria-hidden="true" />;
+  }
+
   return (
     <section className="panel-2" aria-label="위험 센서 상세">
-      <SummaryBar counts={counts} />
-
-      {/* n 이 3~4 로 커지면 카드가 세로로 다 안 들어간다. 내부 스크롤로 받고
-          위험도 높은 순으로 정렬해, 잘리는 쪽이 항상 덜 위험한 카드가 되게 한다. */}
-      <div className={"panel-2__body" + (nodeIds.length === 0 ? " panel-2__body--empty" : "")}>
-        {nodeIds.length === 0 ? (
-          <p className="panel-2__clear">
-            <span className="panel-2__clear-mark" aria-hidden="true" />
-            주의 이상 노드 없음
-          </p>
-        ) : (
+      {/* 가장 위험한 카드부터 배치한다. 한 개가 승격된 일반적인 경보 상황에서는
+          아래 정상 요약을 압축해 이 카드의 6종·경보 근거·작업자를 한 화면에 보인다. */}
+      <div className="panel-2__body">
+        {(
           nodeIds.map((id) => (
             <RiskCard
               key={id}

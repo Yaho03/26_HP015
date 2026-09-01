@@ -20,6 +20,7 @@ import {
   shouldMapToShip,
   UNIFORM_PRESET,
   type MappingPreset,
+  PRIMARY_WEARABLE,
 } from "../utils/coordinates";
 
 const HEATMAP_METRIC: MetricKey = "co2_ppm";
@@ -39,7 +40,9 @@ export function TwinPanel({
   escapeRoute?: RouteOverlay | null;
 }) {
   const nodes = useDashboardStore((s) => s.sensor_nodes);
-  const wearable = useDashboardStore((s) => s.wearable);
+  // 트윈 마커는 아직 한 명만 그린다. 여러 명 표시는 ① 트윈 작업에서 함께 한다.
+  const wearables = useDashboardStore((s) => s.wearables);
+  const wearable = wearables[PRIMARY_WEARABLE] ?? null;
   const connectionStatus = useDashboardStore((s) => s.connection_status);
   const sceneNodes = Object.values(nodes)
     .filter((n) => n.node_id in SENSOR_POSITIONS)
@@ -188,7 +191,6 @@ function MockRouteToggle({
 }
 
 /** MVP 는 작업자 1명이다 (§7 한계 #5). 여러 명으로 늘면 선택 UI 가 필요해진다. */
-const PRIMARY_WEARABLE = "wearable-01";
 
 export function TwinScreen() {
   const routes = useDashboardStore((s) => s.evacuation_route);

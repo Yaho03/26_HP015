@@ -85,17 +85,40 @@ async def test_status_ingested_broadcasts_node_status(monkeypatch):
     assert sent[0]["battery_pct"] == 78
 
 
+@pytest.mark.asyncio
+async def test_connection_ingested_broadcasts_live_connection_state(monkeypatch):
+    from app.services import sensor_broadcast
+
+    sent: list[dict] = []
+
+    async def _fake_broadcast(msg):
+        sent.append(msg)
+    monkeypatch.setattr(sensor_broadcast.manager, "broadcast", _fake_broadcast)
+
+    ts = datetime(2026, 8, 13, 12, 0, 0, tzinfo=timezone.utc)
+    await sensor_broadcast._on_connection_ingested("sensor-01", "online", ts)
+
+    assert sent == [{
+        "type": "node_connection",
+        "node_id": "sensor-01",
+        "connection_status": "online",
+        "timestamp": ts.isoformat(),
+    }]
+
+
 def test_init_registers_callbacks_with_ingest(monkeypatch):
     from app.services import sensor_broadcast, ingest
 
     monkeypatch.setattr(sensor_broadcast, "_callback_registered", False)
     monkeypatch.setattr(ingest, "_reading_callback", None)
     monkeypatch.setattr(ingest, "_status_callback", None)
+    monkeypatch.setattr(ingest, "_connection_callback", None)
 
     sensor_broadcast.init()
 
     assert ingest._reading_callback is sensor_broadcast._on_reading_ingested
     assert ingest._status_callback is sensor_broadcast._on_status_ingested
+    assert ingest._connection_callback is sensor_broadcast._on_connection_ingested
 
 
 def test_init_is_idempotent(monkeypatch):
@@ -105,8 +128,9 @@ def test_init_is_idempotent(monkeypatch):
     calls = []
     monkeypatch.setattr(ingest, "set_reading_callback", lambda cb: calls.append(cb))
     monkeypatch.setattr(ingest, "set_status_callback", lambda cb: calls.append(cb))
+    monkeypatch.setattr(ingest, "set_connection_callback", lambda cb: calls.append(cb))
 
     sensor_broadcast.init()
     sensor_broadcast.init()
 
-    assert len(calls) == 2, "두 번째 init()은 콜백을 재등록하지 않음"
+    assert len(calls) == 3, "두 번째 init()은 콜백을 재등록하지 않음"

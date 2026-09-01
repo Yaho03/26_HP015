@@ -118,6 +118,13 @@ function handleMessage(msg: WSMessage): void {
     });
     return;
   }
+  if (msg.type === "node_connection") {
+    store.setSensorNodeStatus(msg.node_id, {
+      connection_status: msg.connection_status,
+      last_seen_at: msg.timestamp,
+    });
+    return;
+  }
   if (msg.type === "snapshot") {
     const rawNodes = msg.nodes as Record<string, Partial<SensorNodeState>>;
     // snapshot도 실시간 sensor_reading과 동일하게 wearable을 분리해야 한다

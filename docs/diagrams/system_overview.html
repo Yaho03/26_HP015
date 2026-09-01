@@ -1,0 +1,347 @@
+<meta charset="utf-8">
+<style>
+  *{margin:0;padding:0;box-sizing:border-box}
+  body{width:1460px;height:1830px;background:#fff;
+    font-family:"Apple SD Gothic Neo","AppleGothic",sans-serif;color:#111;position:relative}
+  .cap{position:absolute;top:26px;left:0;right:0;text-align:center;font-size:25px;font-weight:800;letter-spacing:-.5px}
+  .cap span{display:block;font-size:14px;font-weight:600;color:#555;margin-top:4px}
+
+  svg.wires{position:absolute;inset:0;z-index:1}
+  .bx{position:absolute;z-index:2;background:#fff;border:2px solid #1a1a1a;border-radius:12px}
+  .bx.dash{border-style:dashed;border-color:#777}
+  .grp{position:absolute;z-index:0;border:2px solid #1a1a1a;border-radius:16px;background:transparent}
+  .grp.soft{border-color:#8a8a8a}
+  .grp>.gt{position:absolute;top:-14px;left:26px;background:#fff;padding:0 12px;font-size:17px;font-weight:800}
+  .grp>.gt em{font-style:normal;font-weight:600;font-size:13.5px;color:#555}
+
+  .bt{font-size:17px;font-weight:800;text-align:center;line-height:1.25}
+  .bs{font-size:12.8px;color:#555;text-align:center;font-weight:600;margin-top:2px}
+  .lst{font-size:13px;line-height:1.62;color:#222;font-weight:500}
+  .lst b{font-weight:800}
+  .ctr{text-align:center}
+  .logo{display:flex;align-items:center;justify-content:center}
+
+  .chips{display:flex;flex-wrap:wrap;gap:5px;justify-content:center;margin-top:7px}
+  .chip{font-size:12px;font-weight:700;border:1.6px solid #999;border-radius:5px;padding:2px 7px;background:#fff}
+  .chip i{font-style:normal;font-weight:600;color:#666;font-size:11px}
+
+  .alab{position:absolute;z-index:3;background:#fff;font-size:14px;font-weight:700;padding:1px 6px;line-height:1.3;text-align:center}
+  .alab.sm{font-size:13px;font-weight:700}
+  .alab.red{color:#C0392B}
+</style>
+
+<div class="cap">그림 1. 시스템 구성도 — 하드웨어 · 소프트웨어 통합<span>조선소 밀폐공간 실시간 안전 모니터링 시스템</span></div>
+
+<!-- ======================= WIRES ======================= -->
+<svg class="wires" width="1460" height="1880">
+  <defs>
+    <marker id="a" markerWidth="11" markerHeight="11" refX="9" refY="5.5" orient="auto">
+      <path d="M0 0.5L10 5.5L0 10.5z" fill="#1a1a1a"/></marker>
+    <marker id="ar" markerWidth="11" markerHeight="11" refX="9" refY="5.5" orient="auto">
+      <path d="M0 0.5L10 5.5L0 10.5z" fill="#C0392B"/></marker>
+    <marker id="ag" markerWidth="11" markerHeight="11" refX="9" refY="5.5" orient="auto">
+      <path d="M0 0.5L10 5.5L0 10.5z" fill="#777"/></marker>
+  </defs>
+  <path d="M50 1432H1400" stroke="#c8c8c8" stroke-width="2" fill="none"/>
+  <g stroke="#1a1a1a" stroke-width="2.2" fill="none">
+    <path d="M260 340V400"/><path d="M700 340V400"/><path d="M1140 340V400"/>
+    <path d="M260 400H1140"/>
+    <path d="M340 400V562" marker-end="url(#a)"/>
+    <path d="M340 700V741" marker-end="url(#a)"/>
+    <path d="M615 810H651" marker-end="url(#a)"/>
+    <path d="M651 852H615" marker-end="url(#a)"/>
+    <path d="M615 762H636V636H926" marker-end="url(#a)"/>
+    <path d="M1067 700V741" marker-end="url(#a)"/>
+    <path d="M1067 910V1130H757V1162" marker-end="url(#a)"/>
+    <path d="M280 1525H326" marker-end="url(#a)"/>
+    <path d="M530 1525H576" marker-end="url(#a)"/>
+    <path d="M780 1525H826" marker-end="url(#a)"/>
+    <path d="M1030 1525H1076" marker-end="url(#a)"/>
+    <path d="M1170 1470V1084" marker-end="url(#a)"/>
+  </g>
+  <g stroke="#777" stroke-width="2.2" fill="none" stroke-dasharray="7 5">
+    <path d="M690 895V951" marker-end="url(#ag)"/>
+    <path d="M860 951V895" marker-end="url(#ag)"/>
+    <path d="M320 1715H366" marker-end="url(#ag)"/>
+    <path d="M610 1715H656" marker-end="url(#ag)"/>
+    <path d="M880 1715H1300V1005H894" marker-end="url(#ag)"/>
+  </g>
+  <g stroke="#C0392B" stroke-width="2.4" fill="none">
+    <path d="M1250 648H1420V250H1348" marker-end="url(#ar)"/>
+  </g>
+</svg>
+
+<div class="alab" style="left:372px;top:424px;width:340px">Wi-Fi 2.4 GHz &nbsp;·&nbsp; MQTT Publish (QoS 1)</div>
+<div class="alab sm" style="left:352px;top:706px">1883 port<br>Subscribe</div>
+<div class="alab sm" style="left:700px;top:592px">8000 port<br>REST / WebSocket</div>
+<div class="alab sm" style="left:1078px;top:706px">정적 파일 서빙</div>
+<div class="alab sm" style="left:1080px;top:1088px">5173 port · HTTP</div>
+<div class="alab" style="left:713px;top:902px;width:124px;font-size:11px;color:#666">읽기 전용 · 결과 기록</div>
+<div class="alab sm" style="left:1186px;top:1230px">컨테이너 4종 기동</div>
+<div class="alab sm" style="left:1308px;top:1300px;color:#666">가중치 적재</div>
+<div class="alab" style="left:1344px;top:190px;width:80px;font-size:11.5px;color:#C0392B;line-height:1.35">경보 지시<br>→ 진동 알림</div>
+<div class="alab sm" style="left:282px;top:1494px">Git Push</div>
+<div class="alab sm" style="left:530px;top:1494px">main 병합</div>
+<div class="alab sm" style="left:782px;top:1494px">CI 실행</div>
+<div class="alab sm" style="left:1030px;top:1494px">통과 시</div>
+
+<!-- ======================= FIELD ======================= -->
+<div class="bx" style="left:60px;top:100px;width:400px;height:240px;padding:12px 14px">
+  <div class="bt">고정형 센서 노드 × 4</div>
+  <div class="bs">밀폐공간 4지점 고정 설치</div>
+  <div class="logo" style="margin:9px 0 3px">
+    <svg width="128" height="72" viewBox="0 0 128 72">
+      <path d="M52 5h10v3h6v3h6v3h6v3" stroke="#C9A227" stroke-width="2.4" fill="none"/>
+      <rect x="22" y="14" width="84" height="52" rx="3" fill="#22303C"/>
+      <rect x="38" y="21" width="52" height="24" rx="2" fill="#A8AFB6"/>
+      <text x="64" y="37" font-size="11" font-weight="700" fill="#22303C" text-anchor="middle" font-family="Helvetica">ESP32</text>
+      <g fill="#D4AF37">
+        <circle cx="27" cy="52" r="2.4"/><circle cx="35" cy="52" r="2.4"/><circle cx="43" cy="52" r="2.4"/>
+        <circle cx="51" cy="52" r="2.4"/><circle cx="59" cy="52" r="2.4"/><circle cx="67" cy="52" r="2.4"/>
+        <circle cx="75" cy="52" r="2.4"/><circle cx="83" cy="52" r="2.4"/><circle cx="91" cy="52" r="2.4"/>
+        <circle cx="99" cy="52" r="2.4"/>
+        <circle cx="27" cy="60" r="2.4"/><circle cx="35" cy="60" r="2.4"/><circle cx="43" cy="60" r="2.4"/>
+        <circle cx="51" cy="60" r="2.4"/><circle cx="59" cy="60" r="2.4"/><circle cx="67" cy="60" r="2.4"/>
+        <circle cx="75" cy="60" r="2.4"/><circle cx="83" cy="60" r="2.4"/><circle cx="91" cy="60" r="2.4"/>
+        <circle cx="99" cy="60" r="2.4"/>
+      </g>
+    </svg>
+  </div>
+  <div class="chips">
+    <span class="chip">BME680 <i>온·습도·기압</i></span>
+    <span class="chip">MH-Z19B <i>CO₂</i></span>
+    <span class="chip">MQ-2 <i>가연성</i></span>
+    <span class="chip">MQ-7 <i>CO</i></span>
+    <span class="chip">MQ-136 <i>H₂S</i></span>
+    <span class="chip">ADS1115 <i>ADC</i></span>
+    <span class="chip">DWM1000 <i>UWB 앵커</i></span>
+  </div>
+</div>
+
+<div class="bx" style="left:500px;top:100px;width:400px;height:240px;padding:12px 14px">
+  <div class="bt">열화상 노드</div>
+  <div class="bs">비접촉 온도 분포 측정</div>
+  <div class="logo" style="margin:9px 0 3px">
+    <svg width="128" height="72" viewBox="0 0 128 72">
+      <rect x="8" y="14" width="62" height="52" rx="3" fill="#22303C"/>
+      <rect x="20" y="21" width="38" height="20" rx="2" fill="#A8AFB6"/>
+      <text x="39" y="35" font-size="9.5" font-weight="700" fill="#22303C" text-anchor="middle" font-family="Helvetica">ESP32</text>
+      <g fill="#D4AF37"><circle cx="14" cy="52" r="2.2"/><circle cx="22" cy="52" r="2.2"/><circle cx="30" cy="52" r="2.2"/>
+        <circle cx="38" cy="52" r="2.2"/><circle cx="46" cy="52" r="2.2"/><circle cx="54" cy="52" r="2.2"/><circle cx="62" cy="52" r="2.2"/></g>
+      <rect x="80" y="18" width="42" height="36" rx="3" fill="none" stroke="#333" stroke-width="2"/>
+      <rect x="85" y="23" width="10" height="9" fill="#7FB2DA"/><rect x="96" y="23" width="10" height="9" fill="#E8B24A"/>
+      <rect x="107" y="23" width="10" height="9" fill="#7FB2DA"/><rect x="85" y="33" width="10" height="9" fill="#E8834A"/>
+      <rect x="96" y="33" width="10" height="9" fill="#C0392B"/><rect x="107" y="33" width="10" height="9" fill="#E8B24A"/>
+      <rect x="85" y="43" width="10" height="8" fill="#7FB2DA"/><rect x="96" y="43" width="10" height="8" fill="#E8834A"/>
+      <rect x="107" y="43" width="10" height="8" fill="#7FB2DA"/>
+      <path d="M70 36h10" stroke="#333" stroke-width="2"/>
+    </svg>
+  </div>
+  <div class="chips">
+    <span class="chip">MLX90640 <i>32 × 24 픽셀 열화상</i></span>
+    <span class="chip">이상 고온 구역 탐지</span>
+    <span class="chip">저조도 도장 환경 대응</span>
+  </div>
+</div>
+
+<div class="bx" style="left:940px;top:100px;width:400px;height:240px;padding:12px 14px">
+  <div class="bt">작업자 웨어러블 노드</div>
+  <div class="bs">비계 설치 불가 협소 구역 담당</div>
+  <div class="logo" style="margin:9px 0 3px">
+    <svg width="128" height="72" viewBox="0 0 128 72">
+      <rect x="6" y="14" width="62" height="52" rx="3" fill="#22303C"/>
+      <rect x="18" y="21" width="38" height="20" rx="2" fill="#A8AFB6"/>
+      <text x="37" y="35" font-size="9.5" font-weight="700" fill="#22303C" text-anchor="middle" font-family="Helvetica">ESP32</text>
+      <g fill="#D4AF37"><circle cx="12" cy="52" r="2.2"/><circle cx="20" cy="52" r="2.2"/><circle cx="28" cy="52" r="2.2"/>
+        <circle cx="36" cy="52" r="2.2"/><circle cx="44" cy="52" r="2.2"/><circle cx="52" cy="52" r="2.2"/><circle cx="60" cy="52" r="2.2"/></g>
+      <circle cx="90" cy="26" r="11" fill="none" stroke="#333" stroke-width="2.2"/>
+      <text x="90" y="30" font-size="10" font-weight="800" fill="#111" text-anchor="middle" font-family="Helvetica">O₂</text>
+      <rect x="76" y="44" width="28" height="18" rx="3" fill="none" stroke="#333" stroke-width="2.2"/>
+      <text x="90" y="57" font-size="9" font-weight="700" fill="#111" text-anchor="middle" font-family="Helvetica">IMU</text>
+      <path d="M114 20v34M110 26v22M118 26v22" stroke="#C0392B" stroke-width="2.4" stroke-linecap="round"/>
+    </svg>
+  </div>
+  <div class="chips">
+    <span class="chip">SEN0322 <i>산소 농도</i></span>
+    <span class="chip">MPU-6050 <i>낙상 감지</i></span>
+    <span class="chip">DWM1000 <i>UWB 태그</i></span>
+    <span class="chip">진동 모터 <i>촉각 경보</i></span>
+    <span class="chip">리튬이온 배터리 + TP4056</span>
+  </div>
+</div>
+
+<!-- ======================= SERVER ======================= -->
+<div class="grp" style="left:150px;top:500px;width:1100px;height:580px">
+  <div class="gt">서버 <em>— Docker Compose 컨테이너 4종</em></div>
+</div>
+
+<div class="bx" style="left:195px;top:566px;width:290px;height:134px;padding:9px">
+  <div class="logo" style="margin-bottom:3px">
+    <svg width="40" height="30" viewBox="0 0 40 30">
+      <path d="M4 26a22 22 0 0122-22" stroke="#3C5280" stroke-width="3" fill="none" stroke-linecap="round"/>
+      <path d="M4 26a15 15 0 0115-15" stroke="#3C5280" stroke-width="3" fill="none" stroke-linecap="round"/>
+      <path d="M4 26a8 8 0 018-8" stroke="#3C5280" stroke-width="3" fill="none" stroke-linecap="round"/>
+      <circle cx="5" cy="25" r="2.6" fill="#3C5280"/>
+    </svg>
+  </div>
+  <div class="bt" style="font-size:16px">Eclipse Mosquitto</div>
+  <div class="bs">MQTT 브로커</div>
+  <div class="lst ctr" style="margin-top:4px;font-size:12.4px">표준 토픽 8종 · 계정 인증<br>LWT 비정상 종료 감지</div>
+</div>
+
+<div class="bx" style="left:195px;top:745px;width:420px;height:295px;padding:10px 13px">
+  <div class="logo" style="gap:9px;margin-bottom:3px">
+    <svg width="30" height="30" viewBox="0 0 30 30">
+      <circle cx="15" cy="15" r="13.5" fill="#05998B"/>
+      <path d="M16.5 5l-8 12h5.5l-1 8 8-12h-5.5z" fill="#fff"/>
+    </svg>
+    <span style="font-size:19px;font-weight:800;color:#05998B">FastAPI</span>
+    <svg width="26" height="26" viewBox="0 0 26 26">
+      <path d="M12.8 2c-2.6 0-4.6.6-4.6 2.7v2.2h4.8v.8H5.6C3.5 7.7 2 9 2 12.4s1.4 4.7 3.5 4.7h1.7v-2.6c0-2.2 1.9-3.6 4-3.6h4.6c1.9 0 3.4-1.4 3.4-3.3V4.7C19.2 2.9 17.6 2 15.6 2h-2.8zm-2.5 1.5a.9.9 0 110 1.8.9.9 0 010-1.8z" fill="#3C74A5"/>
+      <path d="M13.2 24c2.6 0 4.6-.6 4.6-2.7v-2.2H13v-.8h7.4c2.1 0 3.6-1.3 3.6-4.7s-1.4-4.7-3.5-4.7h-1.7v2.6c0 2.2-1.9 3.6-4 3.6h-4.6c-1.9 0-3.4 1.4-3.4 3.3v3c0 1.8 1.6 2.6 3.6 2.6h2.8zm2.5-1.5a.9.9 0 110-1.8.9.9 0 010 1.8z" fill="#F2C63D"/>
+    </svg>
+  </div>
+  <div class="bt" style="font-size:16px">백엔드 서버</div>
+  <div class="bs">REST 44종 · WebSocket 8종 · 계정 권한 인증</div>
+  <div class="lst" style="margin-top:7px">
+    <b>수집·정제</b> — 스키마 검증 12종 · ULID 중복 제거 · 결측/이상값 처리<br>
+    <b>위험 판정 엔진</b> — 4단계 · 진입 임계값 + 유지 시간 · 산소 양방향<br>
+    <b>누적 노출량</b> — 작업자 배정 구간 적산 · 결측 구간 분리 계상<br>
+    <b>비상 탈출 경로</b> — 위험 가중 최소비용 경로 산출<br>
+    <b>UWB 측위</b> — DS-TWR 거리 → 실내 좌표 산출<br>
+    <b>연결 감시</b> — LWT · 무응답 타임아웃 → 오프라인 경보
+  </div>
+</div>
+
+<div class="bx" style="left:655px;top:745px;width:235px;height:150px;padding:9px">
+  <div class="logo" style="margin-bottom:4px">
+    <svg width="34" height="32" viewBox="0 0 34 32">
+      <ellipse cx="17" cy="7" rx="12" ry="4.6" fill="none" stroke="#F5A623" stroke-width="2.4"/>
+      <path d="M5 7v18c0 2.5 5.4 4.6 12 4.6s12-2.1 12-4.6V7" fill="none" stroke="#F5A623" stroke-width="2.4"/>
+      <path d="M5 16c0 2.5 5.4 4.6 12 4.6s12-2.1 12-4.6" fill="none" stroke="#F5A623" stroke-width="2.2"/>
+    </svg>
+  </div>
+  <div class="bt" style="font-size:15.5px">TimescaleDB</div>
+  <div class="bs">시계열 데이터베이스</div>
+  <div class="lst ctr" style="margin-top:4px;font-size:12.2px">하이퍼테이블 · 마이그레이션 13<br>측정값 · 경보 이력 · 노출량</div>
+</div>
+
+<div class="bx dash" style="left:655px;top:955px;width:235px;height:112px;padding:8px">
+  <div class="bt" style="font-size:15px;color:#444">LSTM AE <span style="font-size:13px">+ 센서값 예측</span></div>
+  <div class="lst ctr" style="margin-top:3px;font-size:11.6px;color:#555;line-height:1.62">
+    복원오차 기반 이상징후 탐지<br>
+    n분 후 센서값 예측 <span style="color:#888">(계획)</span><br>
+    위험 기준 접근 조기 진단 <span style="color:#888">(계획)</span><br>
+    연구용 · 실측 경보와 분리</div>
+</div>
+
+<div class="bx" style="left:930px;top:566px;width:275px;height:134px;padding:9px">
+  <div class="logo" style="margin-bottom:3px">
+    <svg width="30" height="34" viewBox="0 0 30 34">
+      <path d="M15 1l13 7.5v17L15 33 2 25.5v-17z" fill="#009639"/>
+      <path d="M10.5 23V11h2.2l6.6 8.4V11h2.2v12h-2.2l-6.6-8.4V23z" fill="#fff"/>
+    </svg>
+  </div>
+  <div class="bt" style="font-size:16px">Nginx</div>
+  <div class="bs">리버스 프록시 · 정적 서빙</div>
+  <div class="lst ctr" style="margin-top:4px;font-size:12.4px">/api · /ws → 백엔드 내부 프록시</div>
+</div>
+
+<div class="bx" style="left:930px;top:745px;width:275px;height:165px;padding:9px">
+  <div class="logo" style="gap:8px;margin-bottom:3px">
+    <svg width="40" height="36" viewBox="0 0 44 40">
+      <circle cx="22" cy="20" r="3.6" fill="#61DAFB"/>
+      <g fill="none" stroke="#61DAFB" stroke-width="1.9">
+        <ellipse cx="22" cy="20" rx="20" ry="7.6"/>
+        <ellipse cx="22" cy="20" rx="20" ry="7.6" transform="rotate(60 22 20)"/>
+        <ellipse cx="22" cy="20" rx="20" ry="7.6" transform="rotate(120 22 20)"/>
+      </g>
+    </svg>
+  </div>
+  <div class="bt" style="font-size:16px">관제 대시보드</div>
+  <div class="bs">React 19 + TypeScript</div>
+  <div class="lst ctr" style="margin-top:4px;font-size:12.2px">실시간 모니터링 · 2D 히트맵<br>3D 디지털 트윈 · 노출량 · 탈출 경로</div>
+</div>
+
+<!-- ======================= USERS ======================= -->
+<div class="bx" style="left:620px;top:1166px;width:275px;height:120px;padding:10px">
+  <div class="logo" style="margin-bottom:4px">
+    <svg width="34" height="30" viewBox="0 0 34 30">
+      <rect x="1.5" y="1.5" width="31" height="22" rx="2.5" fill="none" stroke="#111" stroke-width="2.2"/>
+      <path d="M1.5 7h31" stroke="#111" stroke-width="2.2"/>
+      <circle cx="5.5" cy="4.2" r="1.1" fill="#111"/><circle cx="9" cy="4.2" r="1.1" fill="#111"/>
+      <path d="M11 28h12M17 23.5V28" stroke="#111" stroke-width="2.2" stroke-linecap="round"/>
+    </svg>
+  </div>
+  <div class="bt" style="font-size:16px">관리자</div>
+  <div class="bs">웹 브라우저 관제</div>
+</div>
+
+<!-- ======================= DEPLOY ======================= -->
+<div style="position:absolute;z-index:2;left:52px;top:1400px;font-size:17px;font-weight:800">개발 · 배포 및 모델 반입 <em style="font-style:normal;font-weight:600;font-size:13.5px;color:#555">— 형상관리와 자동 검증</em></div>
+
+<div class="bx" style="left:80px;top:1470px;width:200px;height:110px;padding:9px">
+  <div class="bt" style="font-size:15.5px">로컬 개발</div>
+  <div class="bs">VS Code · PlatformIO</div>
+  <div class="lst ctr" style="margin-top:3px;font-size:12px">펌웨어 · 백엔드 · 프론트</div>
+</div>
+
+<div class="bx" style="left:330px;top:1470px;width:200px;height:110px;padding:8px">
+  <div class="logo" style="margin-bottom:2px">
+    <svg width="30" height="30" viewBox="0 0 30 30">
+      <path d="M15 1C7.3 1 1 7.3 1 15c0 6.2 4 11.4 9.6 13.3.7.1 1-.3 1-.7v-2.4c-3.9.8-4.7-1.9-4.7-1.9-.6-1.6-1.6-2-1.6-2-1.3-.9.1-.9.1-.9 1.4.1 2.2 1.5 2.2 1.5 1.3 2.2 3.4 1.6 4.2 1.2.1-.9.5-1.6.9-2-3.1-.4-6.4-1.6-6.4-7 0-1.5.6-2.8 1.5-3.8-.2-.4-.7-1.9.1-3.9 0 0 1.2-.4 3.9 1.5 1.1-.3 2.3-.5 3.5-.5s2.4.2 3.5.5c2.7-1.8 3.9-1.5 3.9-1.5.8 2 .3 3.5.1 3.9.9 1 1.5 2.3 1.5 3.8 0 5.4-3.3 6.6-6.4 7 .5.4 1 1.3 1 2.6v3.9c0 .4.3.8 1 .7C25 26.4 29 21.2 29 15c0-7.7-6.3-14-14-14z" fill="#111"/>
+    </svg>
+  </div>
+  <div class="bt" style="font-size:15.5px">GitHub</div>
+  <div class="bs">형상관리 · PR 리뷰</div>
+</div>
+
+<div class="bx" style="left:580px;top:1470px;width:200px;height:110px;padding:8px">
+  <div class="logo" style="margin-bottom:2px">
+    <svg width="30" height="30" viewBox="0 0 30 30">
+      <circle cx="15" cy="15" r="13" fill="none" stroke="#2088FF" stroke-width="2.6"/>
+      <path d="M11.5 9.5l7.5 5.5-7.5 5.5z" fill="#2088FF"/>
+    </svg>
+  </div>
+  <div class="bt" style="font-size:15.5px">GitHub Actions</div>
+  <div class="bs">지속적 통합(CI)</div>
+</div>
+
+<div class="bx" style="left:830px;top:1470px;width:200px;height:110px;padding:9px">
+  <div class="bt" style="font-size:15.5px">자동화 테스트</div>
+  <div class="bs">단위 · 통합 · 계약</div>
+  <div class="lst ctr" style="margin-top:3px;font-size:12.6px"><b>879개</b> 전량 통과 시 병합</div>
+</div>
+
+<div class="bx" style="left:1080px;top:1470px;width:180px;height:110px;padding:8px">
+  <div class="logo" style="margin-bottom:2px">
+    <svg width="42" height="26" viewBox="0 0 46 28">
+      <g fill="#1D91E0">
+        <rect x="10" y="11" width="6" height="5"/><rect x="17" y="11" width="6" height="5"/><rect x="24" y="11" width="6" height="5"/>
+        <rect x="17" y="5" width="6" height="5"/><rect x="24" y="5" width="6" height="5"/><rect x="24" y="-1" width="6" height="5"/>
+      </g>
+      <path d="M2 18c0 5 4 8 10 8 9 0 15-4 17.5-10 3 1.5 6 .5 7-1.5-2-1-4-1-5.5 0 .5-2-.5-4-2-5-1.5 1.5-2 4-1 6H2z" fill="#1D91E0"/>
+    </svg>
+  </div>
+  <div class="bt" style="font-size:15.5px">Docker</div>
+  <div class="bs">컨테이너 배포</div>
+</div>
+
+<div class="bx dash" style="left:80px;top:1660px;width:240px;height:110px;padding:9px">
+  <div class="bt" style="font-size:15px;color:#444">실측 시계열 확보</div>
+  <div class="bs" style="font-size:12px">노드 4대 연속 측정 데이터</div>
+</div>
+
+<div class="bx dash" style="left:370px;top:1660px;width:240px;height:110px;padding:9px">
+  <div class="bt" style="font-size:15px;color:#444">LSTM AE <span style="font-size:12.5px;font-weight:600">+ 예측 모델 학습</span></div>
+  <div class="lst ctr" style="margin-top:3px;font-size:11.5px;color:#555;line-height:1.62">
+    정상 패턴 학습 · 복원오차 · 이상탐지<br>
+    미래 센서값 학습 · n분 후 예측 <span style="color:#888">(계획)</span><br>
+    위험 기준 접근 분석 <span style="color:#888">(계획)</span></div>
+</div>
+
+<div class="bx dash" style="left:660px;top:1660px;width:220px;height:110px;padding:9px">
+  <div class="bt" style="font-size:15px;color:#444">통합 모델 · 전처리 산출물</div>
+  <div class="lst ctr" style="margin-top:3px;font-size:11.5px;color:#555;line-height:1.62">
+    AE · 예측 가중치 · 스케일러 · 임계값<br>학습 프레임워크 미포함</div>
+</div>

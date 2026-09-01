@@ -1,13 +1,8 @@
-import { useEffect, useState } from "react";
-import { AlertModal } from "./components/AlertModal";
+import { lazy, Suspense, useEffect, useState } from "react";
 import { Header } from "./components/Header";
 import { Sidebar, type ScreenKey } from "./components/Sidebar";
 import { Toaster } from "./components/Toaster";
-import { ChartScreen } from "./screens/ChartScreen";
-import { ExposureScreen } from "./screens/ExposureScreen";
 import { LoginScreen } from "./screens/LoginScreen";
-import { SettingsScreen } from "./screens/SettingsScreen";
-import { TwinScreen } from "./screens/TwinScreen";
 import { SafetyWorkspace, type SafetyWorkspaceView } from "./components/SafetyWorkspace";
 import { useWebSocket } from "./hooks/useWebSocket";
 import { useHealthPoll } from "./hooks/useHealthPoll";
@@ -18,8 +13,21 @@ import { fetchMe } from "./services/authApi";
 import { classifyO2High, classifyO2Low, maxLevel, nodeAlertLevel } from "./utils/alerts";
 import type { AlertLevel } from "./types";
 
+const ChartScreen = lazy(() =>
+  import("./screens/ChartScreen").then((module) => ({ default: module.ChartScreen })),
+);
+const ExposureScreen = lazy(() =>
+  import("./screens/ExposureScreen").then((module) => ({ default: module.ExposureScreen })),
+);
+const SettingsScreen = lazy(() =>
+  import("./screens/SettingsScreen").then((module) => ({ default: module.SettingsScreen })),
+);
+const TwinScreen = lazy(() =>
+  import("./screens/TwinScreen").then((module) => ({ default: module.TwinScreen })),
+);
+
 const TITLES: Record<ScreenKey, string> = {
-  monitoring: "실시간 모니터링",
+  monitoring: "밀폐공간 모니터링 시스템",
   twin: "3D 디지털 트윈",
   chart: "시계열 차트",
   "event-log": "이벤트 로그",
@@ -79,11 +87,18 @@ function App() {
     // 시드를 unknown 으로 두면 낙상·서버 경보 같은 실제 위험은 rank 상 그대로 이긴다.
     let lv: AlertLevel = s.thresholds.length > 0 ? "normal" : "unknown";
     for (const n of Object.values(s.sensor_nodes)) lv = maxLevel(lv, nodeAlertLevel(n));
-    const w = s.wearable;
-    if (w) {
+    // 웨어러블 전원을 접는다. 한 명만 보면 나머지 작업자의 낙상·저산소가
+    // 상단 표시에서 통째로 빠진다.
+    for (const w of Object.values(s.wearables)) {
       if (w.fall_detected) lv = maxLevel(lv, "level3_critical");
       if (w.o2_pct !== null)
         lv = maxLevel(lv, maxLevel(classifyO2Low(w.o2_pct), classifyO2High(w.o2_pct)));
+    }
+    // 경보는 히스테리시스와 명시적 해제 수명주기를 갖는다. 현재 측정값만 보면
+    // 이미 정상 범위로 돌아온 순간 상단은 정상인데 ④에는 활성 경보가 남는 모순이
+    // 생긴다. 서버가 active로 유지하는 동안은 전체 위험도에도 반드시 포함한다.
+    for (const alert of Object.values(s.active_alerts)) {
+      if (alert.status === "active") lv = maxLevel(lv, alert.level);
     }
     return lv;
   });
@@ -116,7 +131,8 @@ function App() {
           theme={theme}
           onToggleTheme={() => setTheme((t) => (t === "dark" ? "light" : "dark"))}
         />
-        <main className="app-content">
+        <main className={"app-content" + (screen === "monitoring" ? " app-content--monitoring" : "")}>
+          <Suspense fallback={<div className="screen-loading" role="status">화면을 불러오는 중…</div>}>
           {(screen === "monitoring" || screen === "event-log") && (
             <SafetyWorkspace activeView={screen as SafetyWorkspaceView} onViewChange={setScreen} />
           )}
@@ -124,13 +140,14 @@ function App() {
           {screen === "chart" && <ChartScreen />}
           {screen === "exposure" && <ExposureScreen />}
           {screen === "settings" && <SettingsScreen />}
+          </Suspense>
         </main>
       </div>
-      {/* 세션 만료 오버레이 — 기존 화면 위에 덮는다. AlertModal(z-index 2000)이
-          로그인 카드(200)보다 위에 렌더링돼 활성 경보가 계속 보인다 (FR-607). */}
+      {/* 세션 만료 오버레이 — 기존 화면 위에 덮는다. */}
       {authStatus === "unauthenticated" && hadSession && <LoginScreen overlay />}
-      <Toaster />
-      <AlertModal />
+      {/* 활성 경보의 시각 표면은 메인 모니터링 ④ 영역 하나로 제한한다.
+          다른 화면에서는 작은 알림만 남기고 우상단 고정 경보는 띄우지 않는다. */}
+      {screen !== "monitoring" && <Toaster />}
     </div>
   );
 }

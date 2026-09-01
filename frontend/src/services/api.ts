@@ -1,6 +1,6 @@
 import type { MetricKey } from "../types";
 import type { WorkerExposureMessage } from "../types/ws";
-import { ApiError, fetchApi } from "./fetchWithAuth";
+import { fetchApi } from "./fetchWithAuth";
 
 export interface SensorDataPoint {
   time: string;
@@ -209,59 +209,6 @@ export async function fetchHealth(): Promise<HealthStatus> {
 
 export async function fetchMetrics(): Promise<Record<string, number>> {
   return fetchApi<Record<string, number>>("/api/metrics");
-}
-
-// ── 데모 시나리오 제어 (09_DEMO_SCENARIOS 4절) ────────────────────────
-// 백엔드에서 기본 비활성이다. 꺼져 있으면 전 경로가 404 를 낸다.
-
-export interface DemoScenario {
-  name: string;
-  label: string;
-  description: string;
-  default_nodes: string[];
-  supports_duration: boolean;
-  default_duration_s: number | null;
-}
-
-export interface DemoRunState {
-  running: boolean;
-  scenario: string | null;
-  node_ids: string[];
-  started_at: string | null;
-}
-
-/** 시나리오 목록. 기능이 꺼져 있으면 null 을 반환한다 (에러가 아니다). */
-export async function fetchDemoScenarios(): Promise<DemoScenario[] | null> {
-  try {
-    return await fetchApi<DemoScenario[]>("/api/demo/scenarios");
-  } catch (err) {
-    if (err instanceof ApiError && err.status === 404) return null;
-    throw err;
-  }
-}
-
-export async function fetchDemoStatus(): Promise<DemoRunState | null> {
-  try {
-    return await fetchApi<DemoRunState>("/api/demo/status");
-  } catch (err) {
-    if (err instanceof ApiError && err.status === 404) return null;
-    throw err;
-  }
-}
-
-export async function runDemoScenario(
-  scenario: string,
-  duration_s?: number,
-): Promise<DemoRunState> {
-  return fetchApi<DemoRunState>("/api/demo/run", {
-    method: "POST",
-    csrf: true,
-    body: JSON.stringify(duration_s ? { scenario, duration_s } : { scenario }),
-  });
-}
-
-export async function stopDemoScenario(): Promise<DemoRunState> {
-  return fetchApi<DemoRunState>("/api/demo/stop", { method: "POST", csrf: true });
 }
 
 // ── 사용자 관리 (AUTH-10, 이슈 #140) ────────────────────────────────

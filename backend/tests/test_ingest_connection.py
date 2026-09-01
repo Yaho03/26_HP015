@@ -201,6 +201,21 @@ async def test_recovery_callback_not_fired_for_offline_message(monkeypatch):
 
 
 @pytest.mark.asyncio
+async def test_connection_callback_fires_for_live_dashboard_update(monkeypatch):
+    conn = FakeConn(previous_status="offline")
+    monkeypatch.setattr(ingest, "get_pool", lambda: FakePool(conn))
+    updates: list[tuple[str, str]] = []
+
+    async def _on_connection(node_id: str, status: str, _timestamp) -> None:
+        updates.append((node_id, status))
+    monkeypatch.setattr(ingest, "_connection_callback", _on_connection)
+
+    await ingest.ingest_connection(_connection_payload(status="online", reason="connect"))
+
+    assert updates == [("sensor-01", "online")]
+
+
+@pytest.mark.asyncio
 async def test_connection_message_missing_node_id_still_rejected(monkeypatch):
     """node_id 가 없으면 여전히 InvalidMessage."""
     conn = FakeConn()

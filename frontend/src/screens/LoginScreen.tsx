@@ -34,7 +34,7 @@ export function LoginScreen({ overlay = false }: { overlay?: boolean }) {
   return (
     <div className={"login-screen" + (overlay ? " login-screen--overlay" : "")}>
       <form className="login-card" onSubmit={onSubmit}>
-        <h1 className="login-title">HP015 Console</h1>
+        <h1 className="login-title">Soom-GiL Console</h1>
         <p className="login-subtitle">밀폐공간 모니터링 시스템</p>
 
         <label className="login-field">

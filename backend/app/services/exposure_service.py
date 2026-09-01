@@ -449,7 +449,15 @@ def _trust_of(window: _Window, now: datetime) -> str:
 
 # ── 적산 ────────────────────────────────────────────────────────────────
 
-async def on_reading(node_id: str, metric: str, value: float, sampled_at: datetime) -> None:
+async def on_reading(
+    node_id: str,
+    metric: str,
+    value: float,
+    sampled_at: datetime,
+    *,
+    source_mode: str = "live",
+    scenario_id: Optional[str] = None,
+) -> None:
     """센서 샘플 하나를 적산한다. ingest 가 metric 저장 직후 호출한다 (§4.1).
 
     고정 tick 이 아니라 이벤트 구동인 이유는 §4.1 이 Δt 를 실제 샘플 간격으로
@@ -494,8 +502,20 @@ async def on_reading(node_id: str, metric: str, value: float, sampled_at: dateti
         window.source = "nearest_node"
         window.source_node_id = source_id
         window.source_distance_m = distance
+        # 촬영용 누적 노출 시나리오만 시간을 압축해 보여준다. 실측·다른 시뮬레이션은
+        # 기존 적산식(배율 1)을 그대로 사용한다. 순간 농도와 peak/STEL 값은 조작하지
+        # 않고 누적 dose 증가분에만 배율을 적용한다.
+        dose_scale = (
+            6000.0
+            if source_mode == "simulation" and scenario_id == "exposure_h2s_danger"
+            else 1.0
+        )
         window.state = integrate(
-            window.state, value, sampled_at, gap_max_s=settings.exposure_gap_max_s
+            window.state,
+            value,
+            sampled_at,
+            gap_max_s=settings.exposure_gap_max_s,
+            dose_scale=dose_scale,
         )
         window.dirty = True
         touched.add(wearable_id)

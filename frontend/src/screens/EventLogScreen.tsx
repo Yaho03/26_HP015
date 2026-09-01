@@ -1,6 +1,13 @@
 import { useEffect, useMemo, useState } from "react";
-import { fetchAlertEvents, type AlertEvent, type AlertEventFilter } from "../services/api";
+import {
+  fetchAlertEvents,
+  fetchSensorData,
+  type AlertEvent,
+  type AlertEventFilter,
+  type SensorDataPoint,
+} from "../services/api";
 import { ALERT_TYPE_LABEL } from "../utils/alertLabels";
+import type { MetricKey } from "../types";
 
 /** Screen 1 ④ 에서 행을 클릭해 넘어올 때 걸고 오는 초기 필터. */
 export interface EventLogFilter {
@@ -42,6 +49,14 @@ const LEVEL_LABEL: Record<string, string> = {
   level2_warning: "L2 경고",
   level3_critical: "L3 위험",
 };
+const REPLAY_METRICS = new Set<MetricKey>([
+  "co2_ppm",
+  "co_ppm",
+  "h2s_ppm",
+  "temperature_c",
+  "humidity_pct",
+  "gas_resistance_ohm",
+]);
 
 function formatTime(iso: string | null): string {
   if (!iso) return "—";
@@ -83,6 +98,42 @@ export function EventLogScreen({ initialFilter }: { initialFilter?: EventLogFilt
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [refreshVersion, setRefreshVersion] = useState(0);
+  const [replayEvent, setReplayEvent] = useState<AlertEvent | null>(null);
+  const [replayPoints, setReplayPoints] = useState<SensorDataPoint[]>([]);
+  const [replayIndex, setReplayIndex] = useState(0);
+  const [replayPlaying, setReplayPlaying] = useState(false);
+  const [replayError, setReplayError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!replayEvent?.metric || !REPLAY_METRICS.has(replayEvent.metric as MetricKey)) return;
+    const center = Date.parse(replayEvent.activated_at);
+    setReplayPlaying(false);
+    setReplayIndex(0);
+    setReplayError(null);
+    fetchSensorData(
+      replayEvent.source_node_id,
+      replayEvent.metric as MetricKey,
+      new Date(center - 5 * 60_000).toISOString(),
+      new Date(center + 10 * 60_000).toISOString(),
+      "1min",
+    )
+      .then(setReplayPoints)
+      .catch((error: unknown) => setReplayError(error instanceof Error ? error.message : String(error)));
+  }, [replayEvent]);
+
+  useEffect(() => {
+    if (!replayPlaying || replayPoints.length < 2) return;
+    const timer = window.setInterval(() => {
+      setReplayIndex((index) => {
+        if (index >= replayPoints.length - 1) {
+          setReplayPlaying(false);
+          return index;
+        }
+        return index + 1;
+      });
+    }, 500);
+    return () => window.clearInterval(timer);
+  }, [replayPlaying, replayPoints.length]);
 
   useEffect(() => {
     const filter: AlertEventFilter = { limit, start: startIsoFor(dateRange) };
@@ -118,6 +169,15 @@ export function EventLogScreen({ initialFilter }: { initialFilter?: EventLogFilt
     [events, level, alertType],
   );
   const activeCount = visibleEvents.filter((event) => event.status === "active").length;
+  const levelCounts = {
+    level1_caution: visibleEvents.filter((event) => event.level === "level1_caution").length,
+    level2_warning: visibleEvents.filter((event) => event.level === "level2_warning").length,
+    level3_critical: visibleEvents.filter((event) => event.level === "level3_critical").length,
+  };
+  const filterCount = [nodeId, alertKey, status, dateRange, level, alertType].filter(Boolean).length;
+  const resetFilters = () => {
+    setNodeId(""); setAlertKey(""); setStatus(""); setDateRange(""); setLevel(""); setAlertType("");
+  };
 
   return (
     <div className="screen event-log-screen">
@@ -127,14 +187,6 @@ export function EventLogScreen({ initialFilter }: { initialFilter?: EventLogFilt
           <h2 className="event-log-title">경보 이벤트 로그</h2>
         </div>
         <div className="event-log-meta" aria-label="이벤트 로그 요약">
-          <span>
-            <small>SHOWN</small>
-            <strong>{visibleEvents.length}</strong>
-          </span>
-          <span>
-            <small>ACTIVE</small>
-            <strong className={activeCount > 0 ? "event-meta-alert" : ""}>{activeCount}</strong>
-          </span>
           <button
             type="button"
             className="event-refresh"
@@ -145,6 +197,14 @@ export function EventLogScreen({ initialFilter }: { initialFilter?: EventLogFilt
           </button>
         </div>
       </div>
+
+      <section className="event-kpi-strip" aria-label="경보 등급별 요약">
+        <div><small>표시 중</small><strong>{visibleEvents.length}</strong></div>
+        <div className="is-active"><small>활성</small><strong>{activeCount}</strong></div>
+        <div className="is-l1"><small>L1 주의</small><strong>{levelCounts.level1_caution}</strong></div>
+        <div className="is-l2"><small>L2 경고</small><strong>{levelCounts.level2_warning}</strong></div>
+        <div className="is-l3"><small>L3 위험</small><strong>{levelCounts.level3_critical}</strong></div>
+      </section>
 
       <section className="panel event-filters">
         <label className="control">
@@ -219,6 +279,9 @@ export function EventLogScreen({ initialFilter }: { initialFilter?: EventLogFilt
             ))}
           </select>
         </label>
+        <button type="button" className="event-filter-reset" onClick={resetFilters} disabled={filterCount === 0}>
+          필터 초기화{filterCount > 0 ? ` · ${filterCount}` : ""}
+        </button>
       </section>
 
       <section className="panel event-list-panel">
@@ -235,6 +298,47 @@ export function EventLogScreen({ initialFilter }: { initialFilter?: EventLogFilt
         {!error && !loading && visibleEvents.length === 0 && (
           <p className="panel-empty">조건에 맞는 이벤트가 없습니다.</p>
         )}
+        {replayEvent && (
+          <div className="incident-replay" aria-label="사고 센서값 재생">
+            <div className="incident-replay__head">
+              <div>
+                <span className="event-kicker">INCIDENT REPLAY</span>
+                <strong>{replayEvent.source_node_id} · {replayEvent.metric ?? replayEvent.alert_key}</strong>
+              </div>
+              <button type="button" onClick={() => setReplayEvent(null)}>닫기</button>
+            </div>
+            {replayError && <p className="panel-error">재생 데이터 조회 실패: {replayError}</p>}
+            {!replayError && replayPoints.length === 0 && <p className="pending">경보 전후 시계열을 불러오는 중…</p>}
+            {replayPoints.length > 0 && (
+              <div className="incident-replay__controls">
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (!replayPlaying && replayIndex >= replayPoints.length - 1) setReplayIndex(0);
+                    setReplayPlaying((playing) => !playing);
+                  }}
+                >
+                  {replayPlaying ? "일시정지" : replayIndex >= replayPoints.length - 1 ? "다시 재생" : "재생"}
+                </button>
+                <input
+                  type="range"
+                  min="0"
+                  max={replayPoints.length - 1}
+                  value={replayIndex}
+                  aria-label="사고 재생 시점"
+                  onChange={(event) => {
+                    setReplayPlaying(false);
+                    setReplayIndex(Number(event.target.value));
+                  }}
+                />
+                <time>{formatTime(replayPoints[replayIndex]?.time ?? null)}</time>
+                <strong>{replayPoints[replayIndex]?.value.toLocaleString("ko-KR") ?? "—"}</strong>
+                <span>임계 {replayEvent.threshold?.toLocaleString("ko-KR") ?? "—"}</span>
+              </div>
+            )}
+            <p className="incident-replay__limit">현재 저장 범위: 센서 시계열 · 작업자 위치와 당시 탈출 경로는 저장 연동 필요</p>
+          </div>
+        )}
         {visibleEvents.length > 0 && (
           <div className="event-table-wrap">
             <table className="event-table">
@@ -249,13 +353,14 @@ export function EventLogScreen({ initialFilter }: { initialFilter?: EventLogFilt
                   <th>상태</th>
                   <th>측정값</th>
                   <th>해제 시각</th>
+                  <th>재생</th>
                 </tr>
               </thead>
               <tbody>
                 {visibleEvents.map((ev) => (
                   <tr
                     key={ev.message_id}
-                    className={ev.status === "active" ? "event-row-active" : ""}
+                    className={`${ev.status === "active" ? "event-row-active " : ""}event-row--${ev.level}`}
                   >
                     <td className="cell-time">{formatTime(ev.activated_at)}</td>
                     <td className="event-node">{ev.source_node_id}</td>
@@ -293,6 +398,16 @@ export function EventLogScreen({ initialFilter }: { initialFilter?: EventLogFilt
                       )}
                     </td>
                     <td className="cell-time">{formatTime(ev.resolved_at)}</td>
+                    <td>
+                      <button
+                        type="button"
+                        className="event-replay-btn"
+                        disabled={!ev.metric || !REPLAY_METRICS.has(ev.metric as MetricKey)}
+                        onClick={() => setReplayEvent(ev)}
+                      >
+                        재생
+                      </button>
+                    </td>
                   </tr>
                 ))}
               </tbody>
