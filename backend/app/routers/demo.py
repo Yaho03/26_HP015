@@ -73,6 +73,14 @@ CATALOG: List[ScenarioInfo] = [
         default_duration_s=160,
     ),
     ScenarioInfo(
+        name="exposure_h2s_danger",
+        label="H₂S 누적 노출 위험",
+        description="4개 센서 분포를 유지하며 작업자의 H₂S 누적 노출을 촬영용으로 가속한다.",
+        default_nodes=SENSOR_NODES,
+        supports_duration=True,
+        default_duration_s=45,
+    ),
+    ScenarioInfo(
         name="worker_walk",
         label="작업자 위치 추적",
         description="웨어러블이 실험 공간을 5Hz 로 순회한다. Scenario 3.",
@@ -141,6 +149,40 @@ class RunState(BaseModel):
     started_at: Optional[str] = None
 
 
+class PlaylistInfo(BaseModel):
+    name: str
+    label: str
+    description: str
+    steps: List[str]
+
+
+PLAYLISTS: List[PlaylistInfo] = [
+    PlaylistInfo(
+        name="demo",
+        label="전체 안전 시연",
+        description="가스 경보, 낙상, 산소 저농도, 노드 단절을 차례로 재생한다.",
+        steps=["co2_warning", "h2s_warning", "fall_detection", "o2_low", "node_offline"],
+    ),
+    PlaylistInfo(
+        name="gas",
+        label="유해가스 경보 시연",
+        description="CO₂와 H₂S 경보를 차례로 재생한다.",
+        steps=["co2_warning", "h2s_warning"],
+    ),
+    PlaylistInfo(
+        name="wearable",
+        label="작업자 안전 시연",
+        description="낙상과 산소 저농도 경보를 차례로 재생한다.",
+        steps=["fall_detection", "o2_low"],
+    ),
+]
+_PLAYLIST_BY_NAME = {item.name: item for item in PLAYLISTS}
+
+
+class PlaylistRunRequest(BaseModel):
+    playlist: str
+
+
 _process: Optional[asyncio.subprocess.Process] = None
 _state = RunState(running=False)
 
@@ -167,6 +209,12 @@ async def list_scenarios() -> List[ScenarioInfo]:
     return CATALOG
 
 
+@router.get("/playlists", response_model=List[PlaylistInfo])
+async def list_playlists() -> List[PlaylistInfo]:
+    _guard()
+    return PLAYLISTS
+
+
 @router.get("/status", response_model=RunState)
 async def status() -> RunState:
     _guard()
@@ -184,6 +232,11 @@ async def _terminate() -> None:
             await _process.wait()
     _process = None
     _state = RunState(running=False)
+
+
+async def shutdown() -> None:
+    """전용 데모 서버 종료 시 실행 중인 주입 프로세스도 함께 정리한다."""
+    await _terminate()
 
 
 @router.post("/stop", response_model=RunState)
@@ -252,4 +305,42 @@ async def run(req: RunRequest, _csrf: None = Depends(verify_csrf)) -> RunState:
         started_at=datetime.now(timezone.utc).isoformat(),
     )
     logger.info("demo scenario started: %s on %s", info.name, nodes)
+    return _state
+
+
+@router.post("/playlist/run", response_model=RunState)
+async def run_playlist(req: PlaylistRunRequest, _csrf: None = Depends(verify_csrf)) -> RunState:
+    _guard()
+    info = _PLAYLIST_BY_NAME.get(req.playlist)
+    if info is None:
+        raise HTTPException(status_code=404, detail=f"unknown playlist: {req.playlist}")
+
+    await _terminate()
+    argv = [
+        sys.executable, "-m", "experiments.inject.cli",
+        "--playlist", info.name,
+        "--host", settings.mqtt_host,
+        "--port", str(settings.mqtt_port),
+    ]
+    global _process, _state
+    try:
+        _process = await asyncio.create_subprocess_exec(
+            *argv,
+            cwd=str(_inject_cwd()),
+            env={**os.environ, "MQTT_USERNAME": settings.mqtt_username,
+                 "MQTT_PASSWORD": settings.mqtt_password},
+            stdout=asyncio.subprocess.DEVNULL,
+            stderr=asyncio.subprocess.DEVNULL,
+        )
+    except OSError as exc:
+        logger.exception("failed to launch demo playlist")
+        raise HTTPException(status_code=500, detail=f"failed to launch: {exc}") from exc
+
+    _state = RunState(
+        running=True,
+        scenario=f"playlist:{info.name}",
+        node_ids=[],
+        started_at=datetime.now(timezone.utc).isoformat(),
+    )
+    logger.info("demo playlist started: %s", info.name)
     return _state
