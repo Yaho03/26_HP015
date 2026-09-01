@@ -15,6 +15,48 @@ export type MetricKey =
 export type AlertLevel =
   "unknown" | "normal" | "level1_caution" | "level2_warning" | "level3_critical";
 export type AlertStatus = "active" | "resolved";
+
+/** AI 이상징후 상태 (연구용). **AlertLevel 과 절대 섞지 않는다.**
+ *
+ *  앞의 넷은 "판단하지 않았다" 이고 normal_pattern 으로 변환되지 않는다.
+ *  두 타입을 서로 변환하는 함수를 만들지 않는다 — 만들면 언젠가 누가 호출하고,
+ *  그 순간 연구용 참고 지표가 산업안전 경보 등급으로 둔갑한다. */
+export type AiAnomalyStatus =
+  | "model_not_ready"
+  | "insufficient_data"
+  | "stale_data"
+  | "feature_mismatch"
+  | "normal_pattern"
+  | "anomaly_candidate"
+  | "anomaly";
+
+/** 판단하지 않은 상태. 화면은 이것을 "정상" 이 아니라 "데이터 부족" 으로 그린다. */
+export const AI_UNDECIDED: readonly AiAnomalyStatus[] = [
+  "model_not_ready",
+  "insufficient_data",
+  "stale_data",
+  "feature_mismatch",
+] as const;
+
+export interface AiContributor {
+  metric: string;
+  error: number;
+}
+
+export interface AiAnomalyState {
+  node_id: NodeId;
+  status: AiAnomalyStatus;
+  /** 판단 불가일 때 null. 0 으로 채우면 "완벽히 정상" 으로 읽힌다. */
+  score: number | null;
+  threshold: number | null;
+  consecutive_exceedances: number;
+  top_contributors: AiContributor[];
+  model_version: string | null;
+  evaluated_at: string;
+  source_mode?: "live" | "simulation" | null;
+  /** 항상 true. 화면이 Research 배지를 그리는 근거다. */
+  is_research_only: boolean;
+}
 export type CoordinateSystem = "model-local" | "demo-local" | "ship-visual";
 export type VisualMapping = "none" | "demo-to-ship-scale";
 

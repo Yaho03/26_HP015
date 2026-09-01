@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useDashboardStore } from "../store/dashboardStore";
+import { AiAnomalyGrid } from "../components/AiAnomalyGrid";
 import { RiskDetailPanel } from "../components/RiskDetailPanel";
 import { RiskLogPanel } from "../components/RiskLogPanel";
 import { SensorSummaryPanel } from "../components/SensorSummaryPanel";
@@ -471,6 +472,9 @@ export function MonitoringScreen({
               projection={banner ? mostUrgentProjection(trends[banner.node_id]) : null}
             />
           </div>
+          {/* 검증되지 않은 참고 지표라 경보 근거(②③④) 아래에 둔다 — 위로 올리면
+              같은 무게의 알림으로 읽힌다 (AiAnomalyGrid 주석 참고). */}
+          <AiAnomalyGrid nodeIds={[...riskIds, ...summaryIds]} />
         </div>
       </div>
     </div>

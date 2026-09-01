@@ -8,6 +8,7 @@ from app import db, migration_runner, observability
 from app.config import settings
 from app.dependencies.auth import enforce_authentication
 from app.routers import (
+    ai_anomalies,
     alert_events,
     audit_log,
     auth,
@@ -22,6 +23,7 @@ from app.routers import (
     workers,
 )
 from app.services import (
+    ai_anomaly_service,
     alert_publisher,
     alert_service,
     auth_service,
@@ -33,6 +35,7 @@ from app.services import (
     retention,
     sensor_broadcast,
     uwb_service,
+    ws_manager,
 )
 
 logger = logging.getLogger(__name__)
@@ -45,6 +48,7 @@ async def lifespan(app: FastAPI):
     started_mqtt = False
     started_retention = False
     started_conn_monitor = False
+    started_ai_anomaly = False
     try:
         await migration_runner.apply_all()
         # alert_service.init() 실패를 여기서 삼키면(기존 except Exception: pass) 임계값
@@ -84,8 +88,18 @@ async def lifespan(app: FastAPI):
         started_retention = True
         await connection_monitor.start()
         started_conn_monitor = True
+        # AI 이상징후 (연구용, §9). 안전 경보와 완전히 별개다.
+        # init() 은 예외를 밖으로 던지지 않는다 — 모델 파일이 없다고 센서 수집과
+        # 안전 경보가 멈추면 연구용 기능 하나 때문에 안전 시스템을 내리는 셈이다.
+        # 모델이 없으면 서비스가 model_not_ready 로 남고 화면이 그대로 표시한다.
+        ai_anomaly_service.init()
+        ai_anomaly_service.set_broadcast(ws_manager.manager.broadcast)
+        await ai_anomaly_service.start()
+        started_ai_anomaly = True
         yield
     finally:
+        if started_ai_anomaly:
+            await ai_anomaly_service.stop()
         if started_conn_monitor:
             await connection_monitor.stop()
         if started_retention:
@@ -128,6 +142,7 @@ app.include_router(users.router)
 app.include_router(thresholds.router)
 app.include_router(sensor_data.router)
 app.include_router(alert_events.router)
+app.include_router(ai_anomalies.router)
 app.include_router(workers.router)
 app.include_router(evacuation.router)
 app.include_router(exposure.router)

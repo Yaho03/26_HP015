@@ -259,7 +259,10 @@ def test_closed_exit_changes_the_route(topology):
 def test_topology_endpoint_returns_the_graph(client, topology):
     evacuation_service.set_topology(topology)
     body = client.get("/api/evacuation/topology").json()
-    assert len(body["nav_nodes"]) == 8
+    # 8(골격) + 6(실측 데모 구역, 이슈 #225) — 커버리지 불변식은
+    # test_topology_coverage.py 가 잠근다.
+    assert len(body["nav_nodes"]) == 14
+    assert len(body["nav_edges"]) == 16
     assert len(body["exits"]) == 2
 
 
@@ -294,3 +297,12 @@ def test_put_topology_rejects_an_invalid_graph(client, topology):
     assert "출구" in json.dumps(resp.json(), ensure_ascii=False)
     # 거부됐으므로 메모리의 그래프는 그대로여야 한다.
     assert len(evacuation_service.get_topology().exits) == 2
+
+
+def test_topology_endpoint_carries_is_provisional(client, topology):
+    """프론트 NavTopology.is_provisional 은 필수 필드다 — 응답에 없으면 배지가
+    라이브 모드에서 절대 뜨지 않는다 (#225, 목 모드에서만 동작하던 잠복 버그)."""
+    evacuation_service.set_topology(topology)
+    body = client.get("/api/evacuation/topology").json()
+    assert "is_provisional" in body
+    assert body["is_provisional"] is True

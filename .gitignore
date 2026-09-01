@@ -56,3 +56,13 @@ docs/HW_TRANSFER_README_*.md
 
 # 에이전트 세션 아티팩트 — .claude/ 와 같은 취급
 .codex/
+
+# LSTM 이상탐지 실험 — 학습 산출물과 전용 venv.
+# 모델 가중치는 저장소에 넣지 않는다 (프롬프트 §8). 재현에 필요한 것은
+# training_manifest.json 이며 공유가 필요하면 실행자가 직접 전달한다.
+experiments/lstm_anomaly/artifacts/
+experiments/lstm_anomaly/.venv/
+experiments/lstm_anomaly/.pytest_cache/
+
+# MQTT tap 원본 — 실측 센서 로그(수십 MB). test_results/ 의 원시 증거와 같은 취급.
+mqtt_*.txt

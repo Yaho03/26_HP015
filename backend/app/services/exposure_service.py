@@ -354,8 +354,22 @@ async def _reconcile() -> None:
             )
             if row is None:
                 # DB 에 이미 활성 윈도우가 있다. 다른 프로세스가 열었거나 복구가
-                # 늦은 것이다 — 다음 조정에서 _recover 없이도 맞춰진다.
-                logger.debug("노출량: 활성 윈도우가 이미 있다 (%s/%s)", *key)
+                # 늦은 것이다 — **메모리로 되찾아 온다.**
+                #
+                # 이 분기를 비우면 close 실패로 _windows 에서만 pop 된 윈도우가
+                # 고립된다: open_window 는 계속 None 을 돌려주고, _recover 는
+                # 기동 시에만 도니 프로세스 수명 동안 적산·브로드캐스트가 조용히
+                # 멈춘다 (#154 패턴). DB 의 활성 행을 조회해 채택한다.
+                orphan = await repo.active_state_for(*key)
+                if orphan is not None:
+                    _windows[key] = _Window(orphan, assignment.name)
+                    logger.warning(
+                        "노출량: DB 에 활성 윈도우가 있어 메모리로 회수한다 (%s/%s, "
+                        "worker=%s) — 이전 close/flush 실패의 잔상일 수 있다",
+                        key[0], key[1], orphan.worker_id,
+                    )
+                else:
+                    logger.debug("노출량: 활성 윈도우가 이미 있다 (%s/%s)", *key)
                 continue
             _windows[key] = _Window(row, assignment.name)
             logger.info("노출량 윈도우 시작 (%s %s, worker=%s)", *key, assignment.name)

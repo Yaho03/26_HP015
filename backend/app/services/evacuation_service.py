@@ -84,18 +84,19 @@ async def init() -> None:
     _status = TopologyStatus(
         enabled=True,
         reason=None,
-        # 실측 도면이 들어오기 전까지는 항상 가정값이다 (OQ-V5). 화면이 이 사실을
-        # 배지로 표시하는 근거가 된다.
-        provisional=True,
+        # 실측 여부는 YAML(is_provisional) 이 말한다 (OQ-V5) — 여기서 참으로
+        # 굳는 순간, 실측 반영 시 코드 수정이 필요해진다.
+        provisional=topology.is_provisional,
         node_count=len(topology.nav_nodes),
         edge_count=len(topology.nav_edges),
         exit_count=len(topology.exits),
     )
     logger.info(
-        "evacuation topology loaded — 노드 %d, 엣지 %d, 출구 %d (실측 미반영 가정값)",
+        "evacuation topology loaded — 노드 %d, 엣지 %d, 출구 %d (is_provisional=%s)",
         _status.node_count,
         _status.edge_count,
         _status.exit_count,
+        topology.is_provisional,
     )
 
     # 토폴로지가 살아 있을 때만 위치를 구독한다. 꺼져 있는데 구독하면 측위마다
