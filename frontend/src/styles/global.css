@@ -4449,7 +4449,8 @@ body {
     minmax(118px, auto)
     minmax(300px, 44fr)
     minmax(125px, 18fr)
-    minmax(96px, 1fr);
+    minmax(96px, 1fr)
+    fit-content(190px);
 }
 .console[data-risk-count="1"] .status-panel {
   position: relative;
@@ -5418,7 +5419,8 @@ body {
       auto
       fit-content(260px)
       var(--panel3-fixed, 310px)
-      minmax(96px, 1fr);
+      minmax(96px, 1fr)
+      fit-content(150px);
   }
   .panel-5 {
     padding: 8px;
@@ -6849,7 +6851,8 @@ body {
       auto
       minmax(220px, 42fr)
       minmax(82px, 15fr)
-      minmax(132px, 24fr);
+      minmax(132px, 24fr)
+      fit-content(150px);
   }
   .console[data-risk-count="1"] .rcard__spark {
     width: 42px;
@@ -6902,6 +6905,30 @@ body {
   grid-template-rows: repeat(2, minmax(0, 1fr));
   align-content: stretch;
   overflow: hidden;
+}
+
+/* 위 2×2 는 "카드 넷을 지킨다" 는 뜻이지 "310px 을 붙든다" 는 뜻이 아니다.
+   승격되면 카드는 ③ 에서 빠져 ② 로 옮겨간다(consoleSplit). 그런데도 ③ 이 두
+   행과 310px 을 그대로 붙들고 있어서, 셋이 올라가고 한 장만 남으면 그 아래가
+   통째로 빈 채 자리만 차지했다. 그 여백은 ④ 로그와 AI 칸에서 빠져나간 것이다.
+   남은 카드 수(4 − riskCount)만큼만 행을 잡는다.
+
+   높이 = 헤더 53 + 그리드 패딩 12 + 카드 119.5×행 + 행간 6×(행−1)
+     2행(카드 4·3장) = 310px  ← 기본값
+     1행(카드 2·1장) = 185px
+     0행(카드 0장)   =  65px  — 헤더의 공간 O₂ 만 남는다
+   riskCount 1 은 아래 전용 규칙이 따로 비율을 잡으므로 건드리지 않는다. */
+.console[data-risk-count="2"],
+.console[data-risk-count="3"] {
+  --panel3-fixed: 185px;
+}
+.console[data-risk-count="4"] {
+  --panel3-fixed: 65px;
+}
+.console[data-risk-count="2"] .panel-3__grid,
+.console[data-risk-count="3"] .panel-3__grid,
+.console[data-risk-count="4"] .panel-3__grid {
+  grid-template-rows: minmax(0, 1fr);
 }
 .console__right .scard {
   min-height: 0;
