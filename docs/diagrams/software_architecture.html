@@ -1,0 +1,273 @@
+<meta charset="utf-8">
+<style>
+  /* 그림 2. 소프트웨어 아키텍처
+     그림 1(system_overview.html)의 조판 규약을 그대로 쓴다 — 같은 보고서에
+     나란히 들어가므로 스타일이 다르면 따로 만든 티가 난다.
+       흰 바탕 · 검은 테두리 실선 = 안전 필수 경로
+       회색 점선                  = 연구 참고 경로 (검증 전)
+       빨강                       = 실패 격리 · 금지 경계 */
+  *{margin:0;padding:0;box-sizing:border-box}
+  body{width:1460px;height:1900px;background:#fff;
+    font-family:"Apple SD Gothic Neo","AppleGothic",sans-serif;color:#111;position:relative}
+  .cap{position:absolute;top:26px;left:0;right:0;text-align:center;font-size:25px;font-weight:800;letter-spacing:-.5px}
+  .cap span{display:block;font-size:14px;font-weight:600;color:#555;margin-top:4px}
+
+  svg.wires{position:absolute;inset:0;z-index:1}
+  .bx{position:absolute;z-index:2;background:#fff;border:2px solid #1a1a1a;border-radius:12px}
+  .bx.dash{border-style:dashed;border-color:#777}
+  .bx.red{border-color:#C0392B}
+  .grp{position:absolute;z-index:0;border:2px solid #1a1a1a;border-radius:16px;background:transparent}
+  .grp.soft{border-color:#8a8a8a}
+  .grp.dash{border-style:dashed;border-color:#8a8a8a}
+  .grp>.gt{position:absolute;top:-14px;left:26px;background:#fff;padding:0 12px;font-size:17px;font-weight:800}
+  .grp>.gt em{font-style:normal;font-weight:600;font-size:13.5px;color:#555}
+
+  .bt{font-size:17px;font-weight:800;text-align:center;line-height:1.25}
+  .bt.sm{font-size:14.6px}
+  .bs{font-size:12.8px;color:#555;text-align:center;font-weight:600;margin-top:2px}
+  .bs.sm{font-size:11.6px;line-height:1.5}
+  .lst{font-size:13px;line-height:1.62;color:#222;font-weight:500}
+  .lst b{font-weight:800}
+  .lst.sm{font-size:12px;line-height:1.6}
+  .ctr{text-align:center}
+  .mut{color:#888;font-weight:600}
+  .mono{font-family:"SF Mono",Menlo,monospace;font-size:12px}
+
+  .chips{display:flex;flex-wrap:wrap;gap:5px;justify-content:center;margin-top:7px}
+  .chip{font-size:12px;font-weight:700;border:1.6px solid #999;border-radius:5px;padding:2px 7px;background:#fff}
+  .chip.d{border-style:dashed;border-color:#aaa;color:#555}
+
+  .alab{position:absolute;z-index:3;background:#fff;font-size:14px;font-weight:700;padding:1px 6px;line-height:1.3;text-align:center}
+  .alab.sm{font-size:12.6px;font-weight:700}
+  .alab.red{color:#C0392B}
+  .alab.mut{color:#666;font-weight:600}
+
+  .rule{position:absolute;z-index:3;font-size:13.4px;font-weight:600;color:#333;line-height:1.6}
+  .rule b{font-weight:800;color:#111}
+  .rule.red{color:#8A3226}
+  .rule.red b{color:#B3382B}
+</style>
+
+<div class="cap">그림 2. 소프트웨어 아키텍처 — 모듈 경계와 의존 방향
+  <span>백엔드 계층 구조 · 프론트엔드 상태 흐름 · 실패 격리</span></div>
+
+<svg class="wires" width="1460" height="1900">
+  <defs>
+    <marker id="a" markerWidth="11" markerHeight="11" refX="9" refY="5.5" orient="auto">
+      <path d="M0 0.5L10 5.5L0 10.5z" fill="#1a1a1a"/></marker>
+    <marker id="ag" markerWidth="11" markerHeight="11" refX="9" refY="5.5" orient="auto">
+      <path d="M0 0.5L10 5.5L0 10.5z" fill="#777"/></marker>
+    <marker id="ar" markerWidth="11" markerHeight="11" refX="9" refY="5.5" orient="auto">
+      <path d="M0 0.5L10 5.5L0 10.5z" fill="#C0392B"/></marker>
+  </defs>
+
+  <!-- 계층 간 의존 : 아래로만 -->
+  <path d="M560 292V336" stroke="#1a1a1a" stroke-width="2.4" fill="none" marker-end="url(#a)"/>
+  <path d="M560 608V648" stroke="#1a1a1a" stroke-width="2.4" fill="none" marker-end="url(#a)"/>
+  <path d="M560 756V796" stroke="#1a1a1a" stroke-width="2.4" fill="none" marker-end="url(#a)"/>
+
+  <!-- ingest 콜백 5종 : 트랜잭션 밖에서 독립 실행 -->
+  <path d="M300 468V500H1060" stroke="#1a1a1a" stroke-width="2" fill="none"/>
+  <path d="M300 500H150" stroke="#1a1a1a" stroke-width="2" fill="none"/>
+  <path d="M150 500V520"  stroke="#1a1a1a" stroke-width="2" fill="none" marker-end="url(#a)"/>
+  <path d="M332 500V520"  stroke="#1a1a1a" stroke-width="2" fill="none" marker-end="url(#a)"/>
+  <path d="M514 500V520"  stroke="#1a1a1a" stroke-width="2" fill="none" marker-end="url(#a)"/>
+  <path d="M696 500V520"  stroke="#1a1a1a" stroke-width="2" fill="none" marker-end="url(#a)"/>
+  <path d="M1060 500V520" stroke="#1a1a1a" stroke-width="2" fill="none" marker-end="url(#a)"/>
+
+  <!-- 연구 경로 : 추론 → 저장소 → 결과 테이블 -->
+  <path d="M1276 496V664" stroke="#777" stroke-width="2" fill="none" stroke-dasharray="7 5" marker-end="url(#ag)"/>
+  <path d="M1276 726V790" stroke="#777" stroke-width="2" fill="none" stroke-dasharray="7 5" marker-end="url(#ag)"/>
+
+  <!-- 구획 구분선 -->
+  <path d="M50 1006H1410" stroke="#c8c8c8" stroke-width="2" fill="none"/>
+  <path d="M50 1420H1410" stroke="#c8c8c8" stroke-width="2" fill="none"/>
+
+  <!-- 프론트엔드 흐름 -->
+  <path d="M318 1200H370" stroke="#1a1a1a" stroke-width="2.4" fill="none" marker-end="url(#a)"/>
+  <path d="M622 1200H674" stroke="#1a1a1a" stroke-width="2.4" fill="none" marker-end="url(#a)"/>
+  <path d="M1004 1200H1056" stroke="#1a1a1a" stroke-width="2.4" fill="none" marker-end="url(#a)"/>
+  <path d="M194 1310V1344H660V1266" stroke="#1a1a1a" stroke-width="2.4" fill="none" marker-end="url(#a)"/>
+</svg>
+
+<!-- ═══════════════ ① 백엔드 계층 ═══════════════ -->
+<div class="grp" style="left:52px;top:196px;width:1076px;height:96px">
+  <div class="gt">라우터 계층 <em>— 외부 노출면 · REST 44종 · WebSocket 8종</em></div>
+</div>
+<div class="bx" style="left:76px;top:222px;width:232px;height:52px;padding:6px">
+  <div class="chips" style="margin-top:1px"><span class="chip">auth</span><span class="chip">users</span><span class="chip">audit_log</span></div>
+  <div class="bs sm" style="margin-top:3px">인증 · 계정 · 감사</div>
+</div>
+<div class="bx" style="left:324px;top:222px;width:340px;height:52px;padding:6px">
+  <div class="chips" style="margin-top:1px"><span class="chip">sensor_data</span><span class="chip">alert_events</span><span class="chip">thresholds</span><span class="chip">exposure</span></div>
+  <div class="bs sm" style="margin-top:3px">측정 · 경보 · 노출량 조회</div>
+</div>
+<div class="bx" style="left:680px;top:222px;width:424px;height:52px;padding:6px">
+  <div class="chips" style="margin-top:1px"><span class="chip">websocket</span><span class="chip">evacuation</span><span class="chip">workers</span><span class="chip">health</span><span class="chip">demo</span></div>
+  <div class="bs sm" style="margin-top:3px">실시간 송출 · 운영</div>
+</div>
+
+<div class="grp" style="left:52px;top:336px;width:1076px;height:272px">
+  <div class="gt">서비스 계층 <em>— 도메인 로직 23종</em></div>
+</div>
+
+<div class="bx" style="left:76px;top:376px;width:448px;height:92px;padding:9px">
+  <div class="bt sm">수집 파이프라인 <span style="font-size:12.6px;font-weight:600">mqtt_subscriber → ingest</span></div>
+  <div class="lst sm ctr" style="margin-top:5px">
+    스키마 검증 12종 · ULID 중복 제거 · 결측/이상값 차단<br>
+    <b>저장을 트랜잭션으로 확정한 뒤</b> 파생 처리를 부른다</div>
+</div>
+<div class="alab sm" style="left:566px;top:400px;width:186px">콜백 5종<br>
+  <span style="font-weight:600;font-size:11.6px;color:#666">트랜잭션 밖 · 독립 실패</span></div>
+
+<div class="bx" style="left:76px;top:520px;width:148px;height:70px;padding:6px">
+  <div class="bt sm" style="font-size:13.6px">경보 판정</div>
+  <div class="bs sm">alert_engine<br>service · publisher</div>
+</div>
+<div class="bx" style="left:258px;top:520px;width:148px;height:70px;padding:6px">
+  <div class="bt sm" style="font-size:13.6px">실시간 송출</div>
+  <div class="bs sm">sensor_broadcast<br>ws_manager</div>
+</div>
+<div class="bx" style="left:440px;top:520px;width:148px;height:70px;padding:6px">
+  <div class="bt sm" style="font-size:13.6px">누적 노출량</div>
+  <div class="bs sm">exposure_service<br>accumulator</div>
+</div>
+<div class="bx" style="left:622px;top:520px;width:148px;height:70px;padding:6px">
+  <div class="bt sm" style="font-size:13.6px">위치 · 측위</div>
+  <div class="bs sm">location_filter<br>uwb_positioning</div>
+</div>
+<div class="bx" style="left:804px;top:520px;width:148px;height:70px;padding:6px">
+  <div class="bt sm" style="font-size:13.6px">탈출 경로</div>
+  <div class="bs sm">evacuation_router<br>topology · hazards</div>
+</div>
+<div class="bx" style="left:986px;top:520px;width:118px;height:70px;padding:6px">
+  <div class="bt sm" style="font-size:13.6px">연결 감시</div>
+  <div class="bs sm">connection_monitor<br>retention</div>
+</div>
+
+<div class="grp" style="left:52px;top:648px;width:1076px;height:108px">
+  <div class="gt">저장소 계층 <em>— DB 접근 캡슐화 9종</em></div>
+</div>
+<div class="bx" style="left:76px;top:676px;width:1028px;height:60px;padding:9px">
+  <div class="lst ctr" style="font-size:12.6px">
+    <b>sensor_data</b> · <b>alert_events</b> · <b>threshold</b> · <b>exposure</b> · <b>worker</b> · <b>user</b> · <b>audit</b> · <b>nav</b></div>
+  <div class="bs sm" style="margin-top:3px">서비스는 SQL 을 직접 쓰지 않는다 — 스키마 변경 영향이 이 계층에서 멈춘다</div>
+</div>
+
+<div class="bx" style="left:350px;top:796px;width:420px;height:76px;padding:9px">
+  <div class="bt sm">TimescaleDB <span style="font-size:12.6px;font-weight:600">마이그레이션 13</span></div>
+  <div class="lst sm ctr" style="margin-top:4px">하이퍼테이블 · 측정값 · 경보 이력 · 노출량 · 감사 로그</div>
+</div>
+
+<!-- 연구 참고 열 -->
+<div class="grp dash" style="left:1152px;top:336px;width:256px;height:532px">
+  <div class="gt" style="color:#444">연구 참고 경로</div>
+</div>
+<div class="bx dash" style="left:1172px;top:376px;width:216px;height:120px;padding:9px">
+  <div class="bt sm" style="color:#333">LSTM AE <span style="font-size:12.6px">+ 센서값 예측</span></div>
+  <div class="lst sm ctr" style="margin-top:5px;color:#444;font-size:11.6px;line-height:1.66">
+    복원오차 기반 이상징후 탐지<br>
+    n분 후 센서값 예측 <span class="mut">(계획)</span><br>
+    위험 기준 접근 조기 진단 <span class="mut">(계획)</span><br>
+    <b>10초 주기 독립 태스크</b></div>
+</div>
+<div class="bx dash" style="left:1172px;top:664px;width:216px;height:62px;padding:7px">
+  <div class="bt sm" style="font-size:13.4px;color:#333">ai_anomaly_repository</div>
+  <div class="bs sm" style="font-size:11px;margin-top:3px">
+    <span class="mono" style="font-size:11px">sensor_data</span> 읽기 전용<br>결과 기록 · 조회</div>
+</div>
+<div class="bx dash" style="left:1172px;top:790px;width:216px;height:78px;padding:8px">
+  <div class="bt sm" style="font-size:13.6px;color:#333">ai_anomaly_results</div>
+  <div class="lst sm ctr" style="margin-top:4px;color:#444;font-size:11.4px;line-height:1.58">
+    별도 테이블 · <b>등급 컬럼 없음</b><br>30일 후 자동 삭제</div>
+</div>
+<div class="alab sm mut" style="left:1224px;top:572px;width:104px">추론 결과</div>
+<div class="alab sm mut" style="left:1240px;top:746px;width:72px">기록</div>
+
+<div class="rule" style="left:76px;top:900px;width:1310px">
+  <b>수집 경로가 파생 처리에 묶이지 않는다</b> — <span class="mono">ingest</span> 는 저장을 트랜잭션으로 확정한 뒤
+  경보 · 송출 · 노출량 · 측위 · 복귀 콜백을 <b>트랜잭션 밖에서</b> 부른다. 대시보드 한 대가 응답하지 않아도
+  센서 수집이 멈추지 않고, 콜백 하나가 실패해도 나머지와 다음 샘플이 그대로 진행된다.
+</div>
+
+<!-- ═══════════════ ② 프론트엔드 ═══════════════ -->
+<div class="rule" style="left:50px;top:1028px;width:700px;font-size:17px;font-weight:800;color:#111">
+  프론트엔드 상태 흐름 <span style="font-size:13.5px;font-weight:600;color:#555">— 수신 → 검증 → 단일 스토어 → 화면별 선택 구독</span>
+</div>
+
+<div class="bx" style="left:76px;top:1160px;width:242px;height:80px;padding:9px">
+  <div class="bt sm">WebSocket 수신</div>
+  <div class="bs sm" style="margin-top:3px">wsClient · 자동 재연결<br>메시지 8종</div>
+</div>
+<div class="bx" style="left:370px;top:1160px;width:252px;height:80px;padding:9px">
+  <div class="bt sm">스키마 검증</div>
+  <div class="bs sm" style="margin-top:3px">wsValidation<br>계약 위반 메시지 폐기</div>
+</div>
+<div class="bx" style="left:674px;top:1136px;width:330px;height:128px;padding:9px">
+  <div class="bt sm">dashboardStore <span style="font-size:12.6px;font-weight:600">Zustand</span></div>
+  <div class="lst sm" style="margin-top:6px;font-size:11.8px;line-height:1.76">
+    <b>active_alerts</b> — 안전 경보<br>
+    <b>ai_anomalies</b> — 연구 지표 <span class="mut">(별도 슬라이스)</span><br>
+    sensor_nodes · wearable · thresholds<br>
+    worker_exposure · evacuation_route</div>
+</div>
+<div class="bx" style="left:1056px;top:1136px;width:330px;height:128px;padding:9px">
+  <div class="bt sm">화면 7종</div>
+  <div class="lst sm" style="margin-top:6px;font-size:11.8px;line-height:1.76">
+    실시간 관제 · 3D 디지털 트윈 · 시계열 차트<br>
+    이벤트 로그 · 누적 노출량 · 설정 · 로그인<br>
+    <span class="mut">selector 로 필요한 상태만 구독</span></div>
+</div>
+<div class="bx" style="left:76px;top:1254px;width:242px;height:56px;padding:6px">
+  <div class="bt sm" style="font-size:13.6px">REST 조회</div>
+  <div class="bs sm">fetchWithAuth · CSRF 토큰</div>
+</div>
+<div class="alab sm" style="left:370px;top:1318px;width:252px">이력 · 임계값 · 계정 · 작업자<br>
+  <span style="font-weight:600;font-size:11.6px;color:#666">쿠키 세션 · 역할 권한 검사</span></div>
+
+<div class="rule" style="left:76px;top:1348px;width:1310px">
+  <b>안전 경보와 연구 지표가 스토어 수준에서 갈라져 있다</b> — 같은 딕셔너리에 두면 경보 배너 · 요약 집계 · 알림이
+  연구 지표까지 세게 되고, 검증되지 않은 참고값이 산업안전 판단 근거로 화면에 올라간다.
+  두 타입 사이의 변환 함수를 <b>만들지 않는 것</b>이 이 분리를 유지하는 방법이다.
+</div>
+
+<!-- ═══════════════ ③ 실패 격리 ═══════════════ -->
+<div class="rule" style="left:50px;top:1442px;width:700px;font-size:17px;font-weight:800;color:#111">
+  실패 격리 경계 <span style="font-size:13.5px;font-weight:600;color:#555">— 무엇이 멈추면 무엇이 계속 도는가</span>
+</div>
+
+<div class="bx red" style="left:76px;top:1492px;width:640px;height:152px;padding:11px">
+  <div class="bt sm" style="color:#B3382B">연구 경로가 멈춰도 안전 경로는 돈다</div>
+  <div class="lst sm" style="margin-top:7px;line-height:1.86;font-size:12px">
+    <b>모델 파일 없음</b> → 서버 정상 기동 · 화면에 <span class="mut">모델 미준비</span> 표시<br>
+    <b>추론 예외</b> → 카운터 증가 후 다음 주기 · 경보 판정 무관<br>
+    <b>AI 서비스 전체 중단</b> → 임계값 경보 · 진동 · 저장 모두 정상<br>
+    <b>수집 경로 미개입</b> → <span class="mono" style="font-size:11.6px">ingest</span> 는 AI 를 호출하지 않는다</div>
+</div>
+
+<div class="bx" style="left:746px;top:1492px;width:640px;height:152px;padding:11px">
+  <div class="bt sm">안전 경로 내부의 격리</div>
+  <div class="lst sm" style="margin-top:7px;line-height:1.86;font-size:12px">
+    <b>대시보드 무응답</b> → 송출 타임아웃 후 해당 연결만 해제<br>
+    <b>노출량 적산 실패</b> → 경보 판정과 송출은 계속<br>
+    <b>브로커 재시작</b> → 자동 재구독 · 보관 상태로 경보 복구<br>
+    <b>노드 무응답</b> → 타임아웃 감지 후 오프라인 경보 발령</div>
+</div>
+
+<div class="bx dash" style="left:76px;top:1676px;width:1310px;height:92px;padding:10px">
+  <div class="bt sm" style="color:#333">판정 상태 7종 — 판단하지 못한 것을 정상이라 하지 않는다</div>
+  <div class="lst sm ctr" style="margin-top:6px;line-height:1.74">
+    <b>판단됨</b> : 정상 패턴 · 이상 후보 · 이상<br>
+    <b>판단 불가</b> : 모델 미준비 · 데이터 부족 · 데이터 노후 · 특징 불일치
+    &nbsp;— <span class="mut">점수는 0 이 아니라 빈 값으로 남긴다</span></div>
+</div>
+
+<div class="rule red" style="left:76px;top:1790px;width:1310px">
+  밀폐공간에서 센서가 멈췄는데 화면이 <b>&ldquo;정상&rdquo;</b>으로 남는 것은 미검출보다 위험하다.
+  데이터 부족 · 데이터 노후 · 특징 불일치를 정상 상태로 변환하는 경로를 코드에 두지 않으며, 자동화 검사가 이 분리를 회귀 검증한다.
+</div>
+
+<div class="rule ctr" style="left:76px;top:1840px;width:1310px;text-align:center">
+  지속적 통합 <b>1,002건 전량 통과</b> — 백엔드 654 · 프론트엔드 155 · 모델 파이프라인 130 · 주입 도구 63
+  &nbsp;|&nbsp; 계층 간 역방향 의존 없음 · 연구 경로에서 안전 모듈 참조 없음
+</div>

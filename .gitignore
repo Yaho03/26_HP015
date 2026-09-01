@@ -66,3 +66,7 @@ experiments/lstm_anomaly/.pytest_cache/
 
 # MQTT tap 원본 — 실측 센서 로그(수십 MB). test_results/ 의 원시 증거와 같은 취급.
 mqtt_*.txt
+
+# 다이어그램 내보내기 — 옆의 .html 이 소스이고 out/ 은 거기서 뽑은 PNG/PDF(4.6MB).
+# 모델 가중치·DB 덤프와 같은 취급으로 소스만 저장소에 둔다.
+docs/diagrams/out/

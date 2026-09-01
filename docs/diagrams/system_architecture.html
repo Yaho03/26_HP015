@@ -1,0 +1,275 @@
+<meta charset="utf-8">
+<style>
+  *{margin:0;padding:0;box-sizing:border-box}
+  body{
+    width:1600px;height:1136px;
+    font-family:"Apple SD Gothic Neo","AppleGothic",sans-serif;
+    background:linear-gradient(160deg,#EDF6FD 0%,#DCEBF8 55%,#D2E5F5 100%);
+    padding:20px 26px 12px;position:relative;overflow:hidden}
+  .wm{position:absolute;inset:0;
+    background-image:linear-gradient(#9dc4e3 1px,transparent 1px),linear-gradient(90deg,#9dc4e3 1px,transparent 1px);
+    background-size:56px 56px;
+    -webkit-mask-image:radial-gradient(ellipse at 50% 45%,#000 0%,transparent 78%);opacity:.15}
+  .wm2{position:absolute;inset:0;opacity:.11;font-family:"Times New Roman",serif;font-style:italic;
+    color:#2E6FA8;font-size:24px;line-height:170px;padding:70px 40px;white-space:nowrap;overflow:hidden}
+
+  .page{position:relative;z-index:2}
+  .title{position:relative;height:62px;margin-bottom:11px}
+  .title .bar{position:absolute;left:50%;transform:translateX(-50%);
+    background:linear-gradient(180deg,#1670BE,#0A4E92);color:#fff;font-size:27px;font-weight:800;
+    letter-spacing:-.5px;padding:12px 66px;
+    clip-path:polygon(28px 0,calc(100% - 28px) 0,100% 100%,0 100%);
+    box-shadow:0 3px 7px rgba(10,60,110,.26)}
+
+  .sec{border:2px solid #7FB2DA;border-radius:5px;background:rgba(255,255,255,.62);margin-bottom:11px}
+  .sec>.hd{background:linear-gradient(180deg,#1670BE,#0B5296);color:#fff;font-size:19px;font-weight:800;
+    text-align:center;padding:6px 0;letter-spacing:-.3px;border-radius:3px 3px 0 0;margin:-1px -1px 11px}
+  .pad{padding:0 14px 12px}
+
+  .mrow{display:flex;align-items:stretch}
+  .mbox{flex:1;background:#fff;border:2.2px solid #1E7AC4;border-radius:10px;padding:10px 9px 11px;
+    text-align:center;box-shadow:0 2px 4px rgba(20,80,140,.1)}
+  .mbox h3{font-size:18px;font-weight:800;color:#0A4A8A;line-height:1.24;margin-bottom:7px}
+  .mbox p{font-size:13.6px;color:#22496B;line-height:1.68;font-weight:500}
+  .mbox p b{font-weight:800;color:#0C4E8C}
+
+  .ac{width:100px;display:flex;flex-direction:column;justify-content:center;gap:4px;padding:0 4px}
+  .alab{font-size:12px;color:#0C4E8C;font-weight:700;text-align:center;line-height:1.15}
+  .ar{display:block;margin:0 auto}
+
+  .loop{position:relative;height:44px;margin-top:2px}
+  .loop .u{position:absolute;top:0;height:30px;border-left:3px solid #C0392B;
+    border-bottom:3px solid #C0392B;border-right:3px solid #C0392B;border-radius:0 0 7px 7px}
+  .loop .head{position:absolute;width:0;height:0;border-left:8px solid transparent;
+    border-right:8px solid transparent;border-bottom:12px solid #C0392B;top:-11px}
+  .loop .lab{position:absolute;top:18px;left:50%;transform:translateX(-50%);background:#fff;
+    border:2px solid #C0392B;border-radius:14px;padding:2px 14px;font-size:13px;font-weight:800;color:#B3382B}
+
+  /* ---- section 2 : dual track ---- */
+  .src{width:436px;margin:0 auto;background:#fff;border:2.2px solid #0B5296;border-radius:9px;
+    text-align:center;padding:8px 12px}
+  .src b{font-size:16px;color:#0A4A8A;font-weight:800}
+  .src span{display:block;font-size:12.8px;color:#2A5375;font-weight:600;margin-top:2px}
+  .fork{height:34px;position:relative;margin:2px 0 4px}
+  .fork .h{position:absolute;top:12px;left:24.5%;right:24.5%;border-top:3px solid #1670BE}
+  .fork .v{position:absolute;top:0;left:50%;height:12px;border-left:3px solid #1670BE}
+  .fork .d{position:absolute;top:12px;height:14px;border-left:3px solid #1670BE}
+  .fork .t{position:absolute;top:24px;width:0;height:0;border-left:8px solid transparent;
+    border-right:8px solid transparent;border-top:11px solid #1670BE}
+
+  .tracks{display:flex;align-items:stretch;gap:0}
+  .track{flex:1;border-radius:9px;padding:0 0 9px;overflow:hidden}
+  .track>.th{color:#fff;text-align:center;font-size:17px;font-weight:800;padding:6px 0;letter-spacing:-.3px}
+  .track>.th span{display:block;font-size:12px;font-weight:600;opacity:.9;margin-top:1px}
+  .tin{padding:9px 10px 0}
+  .tbox{background:#fff;border-radius:8px;padding:8px 10px 9px;text-align:center}
+  .tbox h4{font-size:15.4px;font-weight:800;line-height:1.25;margin-bottom:4px}
+  .tbox p{font-size:12.6px;line-height:1.58;font-weight:500}
+  .tdn{text-align:center;padding:3px 0 2px}
+
+  .safe{border:2.4px solid #0B5296;background:rgba(230,242,252,.75)}
+  .safe>.th{background:linear-gradient(180deg,#12569B,#083E76)}
+  .safe .tbox{border:2px solid #1E7AC4}
+  .safe .tbox h4{color:#0A4A8A} .safe .tbox p{color:#22496B}
+  .safe .tbox p b{color:#0C4E8C;font-weight:800}
+
+  .res{border:2.4px dashed #6E7C8A;background:rgba(243,245,247,.8)}
+  .res>.th{background:linear-gradient(180deg,#65727F,#4A555F)}
+  .res .tbox{border:2px dashed #8C98A5}
+  .res .tbox h4{color:#3E4A56} .res .tbox p{color:#4E5A66}
+  .res .tbox p b{color:#2F3A45;font-weight:800}
+
+  .barrier{width:186px;flex:none;display:flex;flex-direction:column;align-items:center;
+    justify-content:center;padding:0 8px}
+  .barrier .wall{width:0;border-left:3px dashed #C0392B;height:52px}
+  .barrier .card{background:#fff;border:2.4px solid #C0392B;border-radius:9px;padding:9px 8px;
+    text-align:center;margin:5px 0}
+  .barrier .card b{display:block;font-size:14.6px;font-weight:800;color:#B3382B;line-height:1.3;margin-bottom:4px}
+  .barrier .card p{font-size:11.9px;color:#8A3226;line-height:1.5;font-weight:600}
+  .barrier .no{font-size:23px;color:#C0392B;font-weight:800;line-height:1}
+
+  /* ---- section 3 : offline training ---- */
+  .flow{display:flex;align-items:center}
+  .fbox{flex:1;background:#fff;border:2px dashed #8C98A5;border-radius:9px;text-align:center;
+    padding:9px 5px;font-size:14.6px;font-weight:800;color:#3E4A56;line-height:1.26}
+  .fbox span{display:block;font-size:11.6px;font-weight:600;color:#5C6772;margin-top:2px}
+  .fbox.solid{border:2.2px solid #1E7AC4;color:#0A4A8A}
+  .fbox.solid span{color:#3A6288}
+  .fa{width:48px;text-align:center;flex:none}
+  .note{margin-top:9px;background:#fff;border:2px solid #7FB2DA;border-radius:8px;
+    padding:7px 14px;font-size:13px;color:#22496B;font-weight:600;text-align:center;line-height:1.5}
+  .note b{color:#0A4A8A;font-weight:800}
+
+  .foot{display:flex;justify-content:space-between;font-size:12.4px;color:#3E6B93;font-weight:600;padding:0 4px}
+</style>
+
+<div class="wm"></div>
+<div class="wm2">
+  &nbsp;&nbsp; L(t) = f(v, θ<sub>enter</sub>, Δt<sub>hold</sub>) &nbsp;&nbsp;&nbsp;&nbsp;&nbsp; O₂ ∈ [18.0, 23.5] &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; C(x) = Σ wᵢzᵢ / Σ wᵢ &nbsp;&nbsp;&nbsp;&nbsp;&nbsp; wᵢ = 1/dᵢᵖ<br>
+  &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; s = ‖x − x̂‖ ⊙ m &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; D = ∫ c(t) dt &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; ToF = (T<sub>round</sub> − T<sub>reply</sub>)/2 &nbsp;&nbsp;&nbsp;&nbsp;&nbsp; cost = Σ wₑ · lₑ<br>
+  &nbsp;&nbsp;&nbsp; d = c·ToF &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; (x−xᵢ)² + (y−yᵢ)² = dᵢ² &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; CV = σ/μ × 100 &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; R<sub>s</sub>/R₀ = f(ppm)
+</div>
+
+<div class="page">
+  <div class="title"><div class="bar">조선소 밀폐공간 실시간 안전 모니터링 시스템</div></div>
+
+  <!-- ① -->
+  <div class="sec">
+    <div class="hd">시스템 총괄 아키텍처층</div>
+    <div class="pad">
+      <div class="mrow">
+        <div class="mbox">
+          <h3>현장 IoT 센싱 노드</h3>
+          <p>고정형 센서 노드 <b>4대</b><br>작업자 웨어러블 · 열화상 노드<br>ESP32 · 센서 드라이버 <b>6종</b><br>NTP 시각 동기 · ULID 식별자</p>
+        </div>
+        <div class="ac">
+          <div class="alab">측정 데이터</div>
+          <svg class="ar" width="84" height="15" viewBox="0 0 88 15"><path d="M0 4.4h68V0l20 7.5-20 7.5v-4.4H0z" fill="#1670BE"/></svg>
+          <svg class="ar" width="84" height="15" viewBox="0 0 88 15"><path d="M88 4.4H20V0L0 7.5l20 7.5v-4.4h68z" fill="#5C93C4"/></svg>
+          <div class="alab">경보 지시 · 진동</div>
+        </div>
+        <div class="mbox">
+          <h3>MQTT 통신 계층</h3>
+          <p>발행–구독 메시지 중계<br>표준 토픽 <b>8종</b> 분리<br>JSON Schema <b>12종</b> 계약<br>LWT 비정상 종료 감지</p>
+        </div>
+        <div class="ac">
+          <div class="alab">표준 메시지</div>
+          <svg class="ar" width="84" height="15" viewBox="0 0 88 15"><path d="M0 4.4h68V0l20 7.5-20 7.5v-4.4H0z" fill="#1670BE"/></svg>
+          <svg class="ar" width="84" height="15" viewBox="0 0 88 15"><path d="M88 4.4H20V0L0 7.5l20 7.5v-4.4h68z" fill="#5C93C4"/></svg>
+          <div class="alab">경보 재발행</div>
+        </div>
+        <div class="mbox">
+          <h3>백엔드 처리 서버</h3>
+          <p>수집 · 검증 · 중복 제거<br>전처리 및 표준화<br>REST <b>44종</b> · 계정 권한 인증<br>TimescaleDB 시계열 적재</p>
+        </div>
+        <div class="ac">
+          <div class="alab">WebSocket <b>8종</b></div>
+          <svg class="ar" width="84" height="15" viewBox="0 0 88 15"><path d="M0 4.4h68V0l20 7.5-20 7.5v-4.4H0z" fill="#1670BE"/></svg>
+          <svg class="ar" width="84" height="15" viewBox="0 0 88 15"><path d="M88 4.4H20V0L0 7.5l20 7.5v-4.4h68z" fill="#5C93C4"/></svg>
+          <div class="alab">임계값 · 설정 변경</div>
+        </div>
+        <div class="mbox">
+          <h3>관제 대시보드</h3>
+          <p>실시간 모니터링 · 3D 트윈<br>노출량 · 탈출 경로 표시<br>경보 이력 · 감사 로그<br>안전 기준 설정</p>
+        </div>
+      </div>
+      <div class="loop">
+        <div class="u" style="left:9.4%;right:29%"></div>
+        <div class="head" style="left:calc(9.4% - 8px)"></div>
+        <div class="lab">경보 피드백 경로 — 위험 판정 시 작업자 웨어러블 진동 알림 즉시 발신</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ② -->
+  <div class="sec">
+    <div class="hd">판정 계통 이원화 — 안전 필수 경로와 연구 참고 경로의 분리</div>
+    <div class="pad">
+      <div class="src"><b>정제된 센서 시계열</b><span>스키마 검증 · 중복 제거 · 결측/이상값 처리 후 TimescaleDB 적재</span></div>
+
+      <div class="fork">
+        <div class="v"></div><div class="h"></div>
+        <div class="d" style="left:24.5%"></div><div class="t" style="left:calc(24.5% - 6.5px)"></div>
+        <div class="d" style="left:75.5%"></div><div class="t" style="left:calc(75.5% - 6.5px)"></div>
+      </div>
+
+      <div class="tracks">
+
+        <!-- SAFE -->
+        <div class="track safe">
+          <div class="th">안전 필수 경로<span>규칙 기반 · 결정론적 판정 · 영구 기록</span></div>
+          <div class="tin">
+            <div class="tbox">
+              <h4>규칙 기반 위험 판정 엔진</h4>
+              <p><b>4단계</b> 정상 · 주의 · 경고 · 위험 &nbsp;|&nbsp; 지표별 <b>진입 임계값 + 유지 시간</b> 동시 판정<br>
+                 산소는 상·하한 <b>양방향</b> 판정 &nbsp;|&nbsp; 치명 농도는 유지 시간 없이 즉시 발령</p>
+            </div>
+            <div class="tdn"><svg width="15" height="17" viewBox="0 0 15 17"><path d="M4.5 0h6v9h4L7.5 17 0 9h4.5z" fill="#1670BE"/></svg></div>
+            <div class="tbox">
+              <h4>안전 부가 판정</h4>
+              <p><b>작업자 누적 노출량</b> — 배정 구간 적산 · 결측 구간 분리 계상<br>
+                 <b>비상 탈출 경로</b> — 위험 가중 최소비용 경로 (역방향 다중 소스 Dijkstra)</p>
+            </div>
+            <div class="tdn"><svg width="15" height="17" viewBox="0 0 15 17"><path d="M4.5 0h6v9h4L7.5 17 0 9h4.5z" fill="#1670BE"/></svg></div>
+            <div class="tbox">
+              <h4>경보 발령 및 기록</h4>
+              <p><b>alert_events</b> 영구 보관 — 사고 조사 근거 기록<br>
+                 웨어러블 진동 발신 · 대시보드 경보 표시 · 재기동 시 판정 상태 복구</p>
+            </div>
+          </div>
+        </div>
+
+        <!-- BARRIER -->
+        <div class="barrier">
+          <div class="wall"></div>
+          <div class="no">⊘</div>
+          <div class="card">
+            <b>안전 계통으로의<br>연결 없음</b>
+            <p>경보 서비스 · 발행기 호출 금지<br>
+               위험 등급 변환 함수 미존재<br>
+               결과 테이블에 등급 컬럼 없음<br>
+               모델 적재 실패 시에도<br>안전 경로 정상 동작</p>
+          </div>
+          <div class="no">⊘</div>
+          <div class="wall"></div>
+        </div>
+
+        <!-- RESEARCH -->
+        <div class="track res">
+          <div class="th">연구 참고 경로<span>비지도 학습 · 참고 지표 · 한시 보관</span></div>
+          <div class="tin">
+            <div class="tbox">
+              <h4>LSTM Autoencoder 추론</h4>
+              <p>정상 패턴만 학습 → <b>복원 오차</b>로 이상 판단 &nbsp;|&nbsp; 관측 마스크 병행<br>
+                 <b>10초 주기 독립 태스크</b> · 데이터베이스 읽기 전용 · 수집 경로 미개입</p>
+            </div>
+            <div class="tdn"><svg width="15" height="17" viewBox="0 0 15 17"><path d="M4.5 0h6v9h4L7.5 17 0 9h4.5z" fill="#7A8792"/></svg></div>
+            <div class="tbox">
+              <h4>판정 상태 7종 — 판단 불가를 정상이라 하지 않음</h4>
+              <p>판단됨 : 정상 패턴 · 이상 후보 · 이상<br>
+                 <b>판단 불가</b> : 모델 미준비 · 데이터 부족 · 데이터 노후 · 특징 불일치</p>
+            </div>
+            <div class="tdn"><svg width="15" height="17" viewBox="0 0 15 17"><path d="M4.5 0h6v9h4L7.5 17 0 9h4.5z" fill="#7A8792"/></svg></div>
+            <div class="tbox">
+              <h4>연구 결과 기록</h4>
+              <p><b>ai_anomaly_results</b> 별도 테이블 · <b>30일</b> 후 자동 삭제<br>
+                 대시보드에 <b>&ldquo;연구용 · 실제 안전 경보 아님&rdquo;</b> 배지와 함께 표시</p>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+
+  <!-- ③ -->
+  <div class="sec">
+    <div class="hd">오프라인 모델 학습 및 반입 경로</div>
+    <div class="pad">
+      <div class="flow">
+        <div class="fbox solid">실측 시계열 확보<span>노드 4대 연속 측정</span></div>
+        <div class="fa"><svg width="34" height="17" viewBox="0 0 44 19"><path d="M0 5h28V0l16 9.5L28 19v-5H0z" fill="#8C98A5"/></svg></div>
+        <div class="fbox">데이터 진단<span>채널 유효성 판별</span></div>
+        <div class="fa"><svg width="34" height="17" viewBox="0 0 44 19"><path d="M0 5h28V0l16 9.5L28 19v-5H0z" fill="#8C98A5"/></svg></div>
+        <div class="fbox">전처리 · 윈도잉<span>관측 마스크 유지</span></div>
+        <div class="fa"><svg width="34" height="17" viewBox="0 0 44 19"><path d="M0 5h28V0l16 9.5L28 19v-5H0z" fill="#8C98A5"/></svg></div>
+        <div class="fbox">LSTM AE 학습<span>정상 구간만 사용</span></div>
+        <div class="fa"><svg width="34" height="17" viewBox="0 0 44 19"><path d="M0 5h28V0l16 9.5L28 19v-5H0z" fill="#8C98A5"/></svg></div>
+        <div class="fbox">평가 · 임계값 산정<span>베이스라인 대조</span></div>
+        <div class="fa"><svg width="34" height="17" viewBox="0 0 44 19"><path d="M0 5h28V0l16 9.5L28 19v-5H0z" fill="#8C98A5"/></svg></div>
+        <div class="fbox">가중치 파일 반출<span>행렬 계수만 추출</span></div>
+        <div class="fa"><svg width="34" height="17" viewBox="0 0 44 19"><path d="M0 5h28V0l16 9.5L28 19v-5H0z" fill="#1670BE"/></svg></div>
+        <div class="fbox solid">백엔드 모델 적재<span>기동 시 1회 · 실패 허용</span></div>
+      </div>
+      <div class="note">
+        학습 환경은 백엔드와 <b>분리</b>한다 — 백엔드는 센서 수집과 안전 경보 판정을 담당하는 안전 필수 컨테이너이므로,
+        학습 프레임워크를 넣지 않고 <b>추론에 필요한 행렬 연산만</b> 내장하여 기동 실패 지점을 늘리지 않는다.
+      </div>
+    </div>
+  </div>
+
+  <div class="foot">
+    <span>백엔드 9,920행 · 프론트엔드 12,567행 · 펌웨어 6,732행 · 학습 파이프라인 4,378행 &nbsp;|&nbsp; 자동화 테스트 879개</span>
+    <span>척도 : 없음 &nbsp;&nbsp;·&nbsp;&nbsp; 작성 기준 : 26_HP015 &nbsp;&nbsp;·&nbsp;&nbsp; 2026. 08.</span>
+  </div>
+</div>
