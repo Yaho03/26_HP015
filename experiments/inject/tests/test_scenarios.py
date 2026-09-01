@@ -5,6 +5,7 @@
 """
 from __future__ import annotations
 
+import inspect
 import math
 from datetime import datetime, timezone
 
@@ -174,13 +175,10 @@ def test_normal_steady_splits_gas_and_env_topics():
     messages = normal_steady(start=start, node_id="sensor-02", duration_seconds=10)
     topics = {m[0] for m in messages}
     assert topics == {
-        "nodes/sensor-02/connection",
         "sensors/sensor-02/gas",
         "sensors/sensor-02/env",
     }
     for topic, payload in messages:
-        if topic.endswith("/connection"):
-            continue
         if topic.endswith("/env"):
             assert "co2_ppm" not in payload["data"]
             assert "temperature_c" in payload["data"]
@@ -195,29 +193,27 @@ def test_normal_steady_duration_controls_message_count():
     assert len(long) > len(short)
 
 
-def test_normal_steady_starts_by_restoring_node_online():
-    start = datetime(2026, 8, 10, 12, 0, 0, tzinfo=timezone.utc)
-    topic, payload = normal_steady(
-        start=start, node_id="sensor-01", duration_seconds=10
-    )[0]
-    assert topic == "nodes/sensor-01/connection"
-    assert payload["status"] == "online"
+def test_scenarios_leave_connection_status_to_the_runner():
+    """연결 상태는 ScenarioRunner 가 낸다 (test_injector).
 
-
-def test_normal_steady_refreshes_online_status_before_backend_timeout():
+    시나리오가 각자 내면 새 시나리오를 추가할 때 빠뜨리기 쉽고, 실제로
+    gas_spread 를 포함한 8개가 빠져 노드가 "연결 끊김" 으로 남았다.
+    연결 전이 자체를 시연하는 node_offline 만 예외다.
+    """
     start = datetime(2026, 8, 10, 12, 0, 0, tzinfo=timezone.utc)
-    messages = normal_steady(
-        start=start, node_id="sensor-01", duration_seconds=35
-    )
-    heartbeats = [
-        payload for topic, payload in messages if topic.endswith("/connection")
-    ]
-    assert len(heartbeats) == 4
-    assert {payload["status"] for payload in heartbeats} == {"online"}
-    assert len({payload["boot_id"] for payload in heartbeats}) == 1
-    # schemas/node-connection.schema.json 의 reason enum 은
-    # connect/lwt/timeout/null 뿐이다. 밖의 값을 쓰면 계약 위반이다.
-    assert {payload["reason"] for payload in heartbeats} == {"connect"}
+    for name, fn in SCENARIOS.items():
+        if name == "node_offline":
+            continue
+        params = inspect.signature(fn).parameters
+        kwargs = {"start": start, "run_id": "r"}
+        if "node_id" in params:
+            kwargs["node_id"] = "sensor-01"
+        if "node_ids" in params:
+            kwargs["node_ids"] = ["sensor-01"]
+        if "sec" in params:
+            kwargs["sec"] = 1
+        topics = {topic for topic, _ in fn(**kwargs)}
+        assert not any(t.endswith("/connection") for t in topics), name
 
 
 def test_normal_steady_differs_per_node():

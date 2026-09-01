@@ -53,7 +53,8 @@ async def test_runner_publishes_correct_topics_per_scenario():
     runner = ScenarioRunner(mqtt_client=fake, delay_seconds=0)
     await runner.run_scenario("fall_detection", node_id="wearable-01")
     topics = [t for t, _ in fake.published]
-    assert all("wearable/wearable-01/imu" in t for t in topics)
+    assert topics[0] == "nodes/wearable-01/connection"
+    assert all("wearable/wearable-01/imu" in t for t in topics[1:])
 
 
 @pytest.mark.asyncio
@@ -62,7 +63,8 @@ async def test_runner_run_id_propagates():
     runner = ScenarioRunner(mqtt_client=fake, delay_seconds=0)
     await runner.run_scenario("co2_warning", node_id="sensor-01", run_id="custom-run-001")
     import json
-    first_payload = json.loads(fake.published[0][1])
+    # [0] 은 러너가 앞세우는 연결 알림이라 simulation 블록이 없다.
+    first_payload = json.loads(fake.published[1][1])
     assert first_payload["simulation"]["run_id"] == "custom-run-001"
 
 
@@ -111,3 +113,50 @@ def test_runner_list_scenarios():
     assert "fall_detection" in scenarios
     assert "o2_low" in scenarios
     assert "node_offline" in scenarios
+
+
+@pytest.mark.asyncio
+async def test_runner_announces_node_online_for_every_scenario():
+    """측정값만 흘리면 대시보드는 계속 "연결 끊김" 으로 남는다.
+
+    backend_received_at 은 가스·환경 데이터로 갱신되지 않고 연결/status
+    메시지에만 반응하므로(app/services/ingest.py), 실물 노드처럼 접속 직후
+    online 을 알려야 한다. 시나리오마다 넣으면 빠뜨리므로 러너가 맡는다.
+    """
+    import json
+    for scenario, node in (
+        ("gas_spread", "sensor-01"), ("co2_warning", "sensor-01"),
+        ("o2_low", "wearable-01"), ("normal_steady", "sensor-01"),
+    ):
+        fake = FakeMQTT()
+        runner = ScenarioRunner(mqtt_client=fake, delay_seconds=0)
+        await runner.run_scenario(scenario, node_id=node)
+        topic, raw = fake.published[0]
+        payload = json.loads(raw)
+        assert topic == f"nodes/{node}/connection", scenario
+        assert payload["status"] == "online", scenario
+        # schemas/node-connection.schema.json 의 enum 밖 값은 계약 위반이다.
+        assert payload["reason"] == "connect", scenario
+
+
+@pytest.mark.asyncio
+async def test_runner_refreshes_online_before_backend_timeout(monkeypatch):
+    """30초 타임아웃 전에 같은 boot_id 로 재발행해야 한다.
+
+    boot_id 가 바뀌면 노드가 재부팅한 것처럼 보인다.
+    """
+    import json
+    import injector
+
+    clock = iter([0.0, 0.0, 11.0, 11.0, 22.0, 22.0] + [22.0] * 400)
+    monkeypatch.setattr(injector.time, "monotonic", lambda: next(clock))
+
+    fake = FakeMQTT()
+    runner = ScenarioRunner(mqtt_client=fake, delay_seconds=0)
+    await runner.run_scenario("normal_steady", node_id="sensor-01", duration_seconds=30)
+
+    connections = [json.loads(raw) for topic, raw in fake.published
+                   if topic.endswith("/connection")]
+    assert len(connections) >= 3
+    assert {c["status"] for c in connections} == {"online"}
+    assert len({c["boot_id"] for c in connections}) == 1

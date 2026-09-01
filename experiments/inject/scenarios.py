@@ -100,29 +100,12 @@ def normal_steady(
     노드마다 기준값을 달리해 카드 4장이 서로 구분되게 한다.
     """
     idx = _node_index(node_id)
-    online = build_connection_envelope(
-        node_id=node_id,
-        status="online",
-        reason="connect",
-        timestamp=start,
-    )
-    out: list[tuple[str, dict]] = [(f"nodes/{node_id}/connection", online)]
+    # 연결 상태 발행은 ScenarioRunner 가 맡는다 — 이 시나리오만 online 을 알리면
+    # 나머지 시나리오를 틀 때 노드가 전부 "연결 끊김" 으로 남는다.
+    out: list[tuple[str, dict]] = []
 
     for sec in range(duration_seconds + 1):
         ts = start + timedelta(seconds=sec)
-
-        if sec > 0 and sec % 10 == 0:
-            # 주기 재발행이라도 reason 은 펌웨어와 같은 값을 쓴다. 스키마
-            # (node-connection.schema.json) enum 이 connect/lwt/timeout 뿐이고,
-            # 실제 노드도 online 은 항상 connect 로 낸다 (sensor_node/main.cpp).
-            heartbeat = build_connection_envelope(
-                node_id=node_id,
-                status="online",
-                reason="connect",
-                timestamp=ts,
-                boot_id=online["boot_id"],
-            )
-            out.append((f"nodes/{node_id}/connection", heartbeat))
 
         if sec % _GAS_PERIOD_S == 0:
             gas = build_envelope(
