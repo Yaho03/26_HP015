@@ -215,6 +215,9 @@ def test_normal_steady_refreshes_online_status_before_backend_timeout():
     assert len(heartbeats) == 4
     assert {payload["status"] for payload in heartbeats} == {"online"}
     assert len({payload["boot_id"] for payload in heartbeats}) == 1
+    # schemas/node-connection.schema.json 의 reason enum 은
+    # connect/lwt/timeout/null 뿐이다. 밖의 값을 쓰면 계약 위반이다.
+    assert {payload["reason"] for payload in heartbeats} == {"connect"}
 
 
 def test_normal_steady_differs_per_node():

@@ -112,10 +112,13 @@ def normal_steady(
         ts = start + timedelta(seconds=sec)
 
         if sec > 0 and sec % 10 == 0:
+            # 주기 재발행이라도 reason 은 펌웨어와 같은 값을 쓴다. 스키마
+            # (node-connection.schema.json) enum 이 connect/lwt/timeout 뿐이고,
+            # 실제 노드도 online 은 항상 connect 로 낸다 (sensor_node/main.cpp).
             heartbeat = build_connection_envelope(
                 node_id=node_id,
                 status="online",
-                reason="heartbeat",
+                reason="connect",
                 timestamp=ts,
                 boot_id=online["boot_id"],
             )

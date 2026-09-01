@@ -82,7 +82,14 @@ async def test_dry_run_payloads_are_valid_json_envelopes(capsys):
     lines = [l for l in capsys.readouterr().out.splitlines() if l.startswith("[dry-run]")]
     assert lines
     for line in lines:
-        payload = json.loads(line.split(": ", 1)[1])
+        topic, raw = line[len("[dry-run] "):].split(": ", 1)
+        payload = json.loads(raw)
         assert payload["schema_version"] == "1.1"
+        # 연결 상태는 측정값이 아니라 별도 계약(node-connection.schema.json)이다.
+        # additionalProperties=false 라 source_mode/simulation 을 실을 수 없다.
+        if topic.endswith("/connection"):
+            assert payload["status"] in ("online", "offline")
+            assert payload["boot_id"]
+            continue
         assert payload["source_mode"] == "simulation"
         assert payload["simulation"]["scenario_id"] == "normal_steady"
