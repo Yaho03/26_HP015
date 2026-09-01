@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { AlertState } from "../types";
 import type { Projection } from "../utils/projection";
 import { levelLabel } from "../utils/alerts";
@@ -24,6 +24,28 @@ function num(value: number): string {
   return Number.isFinite(value) ? value.toLocaleString("ko-KR") : String(value);
 }
 
+const SOUND_KEY = "hp015-alert-sound";
+
+function playAlertTone(level: AlertState["level"]): void {
+  const AudioContextClass = window.AudioContext;
+  const context = new AudioContextClass();
+  const count = level === "level3_critical" ? 3 : level === "level2_warning" ? 2 : 1;
+  for (let i = 0; i < count; i += 1) {
+    const oscillator = context.createOscillator();
+    const gain = context.createGain();
+    const start = context.currentTime + i * 0.22;
+    oscillator.type = "sine";
+    oscillator.frequency.value = level === "level3_critical" ? 880 : 660;
+    gain.gain.setValueAtTime(0.0001, start);
+    gain.gain.exponentialRampToValueAtTime(0.12, start + 0.02);
+    gain.gain.exponentialRampToValueAtTime(0.0001, start + 0.16);
+    oscillator.connect(gain).connect(context.destination);
+    oscillator.start(start);
+    oscillator.stop(start + 0.17);
+  }
+  window.setTimeout(() => void context.close(), count * 220 + 250);
+}
+
 /**
  * ② 경보 배너.
  *
@@ -40,14 +62,34 @@ function num(value: number): string {
 export function AlertBanner({ alert, workerName, projection }: AlertBannerProps) {
   // 확인한 경보는 접어 둔다. 등급이 오르거나 다른 노드에서 터지면 alert_key 나
   // level 이 달라지므로 다시 펼쳐진다 — 확인이 다음 경보까지 삼키지 않는다.
-  const [acked, setAcked] = useState<string | null>(null);
+  const [acked, setAcked] = useState<{ stamp: string; at: string } | null>(null);
+  const [soundOn, setSoundOn] = useState(
+    () => typeof window !== "undefined" && window.localStorage.getItem(SOUND_KEY) === "on",
+  );
+  const sounded = useRef<string | null>(null);
+  const alertStamp = alert ? `${alert.alert_key}:${alert.level}` : null;
+  useEffect(() => {
+    if (!soundOn || !alert || !alertStamp || sounded.current === alertStamp) return;
+    sounded.current = alertStamp;
+    playAlertTone(alert.level);
+  }, [alert, alertStamp, soundOn]);
   if (!alert) return null;
 
   const stamp = `${alert.alert_key}:${alert.level}`;
-  if (acked === stamp) return null;
+  if (acked?.stamp === stamp) {
+    return (
+      <div className={"alert-banner alert-banner--acked is-" + alert.level} role="status">
+        <span>경보 확인 완료</span>
+        <strong>{shortNodeLabel(alert.node_id)}</strong>
+        <time>{acked.at}</time>
+        <button type="button" onClick={() => setAcked(null)}>다시 보기</button>
+      </div>
+    );
+  }
 
   const LevelIcon = LEVEL_ICON[alert.level];
   const metric = metricFromAlertKey(alert.alert_key);
+  const announcedLevel = projection?.level ?? alert.level;
 
   return (
     <div className={"alert-banner is-" + alert.level} role="alert" aria-live="assertive">
@@ -59,13 +101,37 @@ export function AlertBanner({ alert, workerName, projection }: AlertBannerProps)
         <span className="alert-banner__time">{formatTime(alert.activated_at)}</span>
         <button
           type="button"
+          className="alert-banner__sound"
+          aria-pressed={soundOn}
+          aria-label={soundOn ? "경보음 끄기" : "경보음 켜기"}
+          onClick={() => {
+            const next = !soundOn;
+            setSoundOn(next);
+            localStorage.setItem(SOUND_KEY, next ? "on" : "off");
+            if (next) playAlertTone(alert.level);
+          }}
+        >
+          {soundOn ? "경보음 켜짐" : "경보음 꺼짐"}
+        </button>
+        <button
+          type="button"
           className="alert-banner__ack"
-          onClick={() => setAcked(stamp)}
+          onClick={() => setAcked({ stamp, at: new Date().toLocaleTimeString("ko-KR", { hour12: false }) })}
           aria-label="경보 확인"
         >
           확인
         </button>
       </div>
+
+      <p className="alert-banner__message">
+        <strong>{levelLabel(announcedLevel)}</strong>
+        <span>
+          {projection ? `${Math.max(1, Math.round(projection.minutes))}분 뒤 ` : "현재 "}
+          {workerName ? `${workerName} 작업자에게 배정된` : "작업자 미배정"}{" "}
+          {shortNodeLabel(alert.node_id)} 센서가 {levelLabel(announcedLevel)} 단계로
+          {projection ? " 변경될 예정입니다." : " 변경되었습니다."}
+        </span>
+      </p>
 
       {/* 원인 지표와 임계값. 이게 없으면 무엇을 해야 할지 정할 수 없다. */}
       <div className="alert-banner__cause">

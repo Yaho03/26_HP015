@@ -25,6 +25,7 @@ import {
 interface TwinSceneProps {
   nodes?: { id: string; x: number; y: number; level: AlertLevel }[];
   wearable?: { x: number; y: number; z: number; fall_detected?: boolean } | null;
+  wearables?: { id: string; x: number; y: number; z: number; fall_detected?: boolean }[];
   heatmap?: { samples: SensorSample[]; metric: MetricKey } | null;
   /** 제어 모드. 주면 내부 상태 대신 이 값을 쓰고 토글이 사라진다. */
   mode?: CamMode;
@@ -44,6 +45,7 @@ interface TwinSceneProps {
    * 서로 다른 그래프에서 나오게 된다 (§2.4).
    */
   escapeRoute?: RouteOverlay | null;
+  escapeRoutes?: { id: string; route: RouteOverlay }[];
   /**
    * 카메라가 향할 센서 노드. ③ 카드를 누르면 그 노드로 시선이 옮겨간다.
    *
@@ -51,6 +53,17 @@ interface TwinSceneProps {
    * 방금 보던 곳이 어디였는지 잃는다. null 이면 기본 시점으로 되돌아온다.
    */
   focusNodeId?: string | null;
+  /** ⑤ 작업자를 고르면 그 작업자 위치로 카메라가 이동한다. */
+  focusWearableId?: string | null;
+}
+
+export function shouldShowEstimatedPeak(levels: AlertLevel[]): boolean {
+  return levels.some(
+    (level) =>
+      level === "level1_caution" ||
+      level === "level2_warning" ||
+      level === "level3_critical",
+  );
 }
 
 const LEVEL_COLOR: Record<AlertLevel, string> = {
@@ -805,11 +818,13 @@ function SensorMarker({
 }
 
 function WearableMarker({
+  id,
   x,
   y,
   z,
   fall_detected,
 }: {
+  id: string;
   x: number;
   y: number;
   z: number;
@@ -833,7 +848,7 @@ function WearableMarker({
             "twin-node-label " + (fall_detected ? "twin-node-level3_critical" : "twin-wearable")
           }
         >
-          <span className="twin-node-id">wearable</span>
+          <span className="twin-node-id">{id}</span>
           {fall_detected && <span className="twin-node-level">낙하</span>}
         </div>
       </Html>
@@ -909,7 +924,15 @@ function RouteArrows({
   );
 }
 
-function EscapeRoute({ route }: { route: RouteOverlay }) {
+function EscapeRoute({
+  route,
+  label,
+  lane = 0,
+}: {
+  route: RouteOverlay;
+  label?: string;
+  lane?: number;
+}) {
   const points = useMemo(() => routePoints(route.waypoints), [route.waypoints]);
 
   // 구간이 없으면 곡선을 만들 수 없다. unavailable 이 정확히 이 상태다 —
@@ -930,7 +953,12 @@ function EscapeRoute({ route }: { route: RouteOverlay }) {
   const exitLabel = route.waypoints[route.waypoints.length - 1]?.label;
 
   return (
-    <group>
+    <group position={[0, lane * 0.12, 0]}>
+      {label && (
+        <Html position={points[0]} center distanceFactor={30}>
+          <div className="twin-route-label">{label} 탈출로</div>
+        </Html>
+      )}
       {points.slice(0, -1).map((a, i) => {
         const b = points[i + 1];
         if (!dashed) return <RouteSegment key={i} a={a} b={b} color={color} />;
@@ -979,7 +1007,7 @@ function EstimatedPeak({ sample }: { sample: SensorSample }) {
       </mesh>
       <Html position={[0, 1.1, 0]} center distanceFactor={28}>
         <div className="twin-peak-label">
-          <strong>추정 고농도</strong>
+          <strong>최고 농도 추정</strong>
           <span>{Math.round(sample.value).toLocaleString("ko-KR")} ppm</span>
         </div>
       </Html>
@@ -991,19 +1019,25 @@ function EstimatedPeak({ sample }: { sample: SensorSample }) {
 function SceneContent({
   nodes,
   wearable,
+  wearables,
   heatmap,
   mode,
   interactive,
   escapeRoute,
+  escapeRoutes,
   focusNodeId,
+  focusWearableId,
 }: {
   nodes: NonNullable<TwinSceneProps["nodes"]>;
   wearable: TwinSceneProps["wearable"];
+  wearables: NonNullable<TwinSceneProps["wearables"]>;
   heatmap: TwinSceneProps["heatmap"];
   mode: CamMode;
   interactive: boolean;
   escapeRoute: RouteOverlay | null;
+  escapeRoutes: NonNullable<TwinSceneProps["escapeRoutes"]>;
   focusNodeId: string | null;
+  focusWearableId: string | null;
 }) {
   // 카메라 쪽 측벽을 잘라내야 바닥이 보인다. 내부 시점일 때만 벽을 세운다 —
   // 벽 안에서 보는 시점이므로 절개하면 화물창 밖이 뚫려 보인다.
@@ -1011,14 +1045,21 @@ function SceneContent({
   // 고른 노드의 Three 좌표. 노드가 목록에 없으면 포커스를 걸지 않는다 —
   // 없는 자리로 카메라를 보내면 화면이 빈 곳을 비춘다.
   const focused = focusNodeId ? (nodes ?? []).find((n) => n.id === focusNodeId) : undefined;
+  const focusedWearable = focusWearableId
+    ? wearables.find((item) => item.id === focusWearableId)
+    : undefined;
   const focusTarget: [number, number, number] | null = focused
     ? toThreeGroundPosition(focused.x, focused.y, 0)
-    : null;
+    : focusedWearable
+      ? toThreeGroundPosition(focusedWearable.x, focusedWearable.y, focusedWearable.z)
+      : null;
   const peakSample = useMemo(() => {
     const samples = heatmap?.samples ?? [];
-    if (samples.length === 0) return null;
+    if (samples.length === 0 || !shouldShowEstimatedPeak(nodes.map((node) => node.level))) {
+      return null;
+    }
     return samples.reduce((peak, sample) => (sample.value > peak.value ? sample : peak));
-  }, [heatmap?.samples]);
+  }, [heatmap?.samples, nodes]);
   const controlsRef = useRef<OrbitControlsImpl>(null);
   return (
     <>
@@ -1084,13 +1125,29 @@ function SceneContent({
       ))}
       {wearable && (
         <WearableMarker
+          id="wearable"
           x={wearable.x}
           y={wearable.y}
           z={wearable.z}
           fall_detected={!!wearable.fall_detected}
         />
       )}
+      {wearables.map((item) => (
+        <WearableMarker
+          key={item.id}
+          id={item.id}
+          x={item.x}
+          y={item.y}
+          z={item.z}
+          fall_detected={!!item.fall_detected}
+        />
+      ))}
       {escapeRoute && <EscapeRoute route={escapeRoute} />}
+      {escapeRoutes.map(({ id, route }, index) => (
+        <group key={id}>
+          <EscapeRoute route={route} label={id} lane={index} />
+        </group>
+      ))}
       {/* 고정 크롭에서는 조작을 막는다. 관제사가 실수로 시점을 돌려놓으면
           노드의 화면 위치가 ⑤ 2×2 격자와 어긋나 위치 판독이 깨진다.
           컨트롤 자체는 유지해야 CameraController 가 타깃을 잡을 수 있다. */}
@@ -1135,12 +1192,15 @@ function ReleaseContextOnUnmount() {
 export function TwinScene({
   nodes = [],
   wearable = null,
+  wearables = [],
   heatmap = null,
   mode: modeProp,
   showModeToggle = true,
   interactive = true,
   escapeRoute = null,
+  escapeRoutes = [],
   focusNodeId = null,
+  focusWearableId = null,
 }: TwinSceneProps) {
   const [internalMode, setInternalMode] = useState<CamMode>("overview");
   // 제어 prop 이 오면 그것이 우선이다. Screen 1 ① 은 plan 고정으로 쓴다.
@@ -1173,11 +1233,14 @@ export function TwinScene({
         <SceneContent
           nodes={nodes}
           wearable={wearable}
+          wearables={wearables}
           heatmap={heatmap}
           mode={mode}
           interactive={interactive}
           escapeRoute={escapeRoute}
+          escapeRoutes={escapeRoutes}
           focusNodeId={focusNodeId}
+          focusWearableId={focusWearableId}
         />
       </Canvas>
     </div>

@@ -77,6 +77,19 @@ export function gasRamp(metric: MetricKey, value: number): [number, number, numb
   // 안에서 "덜 위험한 빨강" 이 생긴다.
   if (value >= last.at) return last.rgb;
 
+  // 정상 범위는 농도가 높아져도 주의색(노랑)을 미리 섞지 않는다. 같은 정상
+  // 등급 안에서는 초록의 밝기만 올려 공간적인 농도 차이를 표현한다.
+  const firstThreshold = stops[1];
+  if (firstThreshold && value < firstThreshold.at) {
+    const raw = Math.max(0, Math.min(1, value / firstThreshold.at));
+    const brightness = 1 + raw * 0.45;
+    return LEVEL_RGB.normal.map((channel) => Math.min(1, channel * brightness)) as [
+      number,
+      number,
+      number,
+    ];
+  }
+
   for (let i = 1; i < stops.length; i++) {
     const lo = stops[i - 1];
     const hi = stops[i];

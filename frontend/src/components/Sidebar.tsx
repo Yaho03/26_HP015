@@ -44,7 +44,7 @@ export function Sidebar({
   return (
     <aside className="sidebar">
       <div className="sidebar-brand">
-        <span className="sidebar-brand-mark">HP015</span>
+        <span className="sidebar-brand-mark">Soom-GiL</span>
         <span className="sidebar-brand-sub">console</span>
       </div>
       <nav className="sidebar-nav">

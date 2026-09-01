@@ -44,15 +44,13 @@ describe("gasRamp", () => {
     near(gasRamp("co2_ppm", 5000), LEVEL_RGB.level3_critical);
   });
 
-  it("구간 안에서는 연속으로 변한다", () => {
-    // 이게 이 함수의 존재 이유다 — 예전에는 둘 다 같은 초록이었다.
+  it("정상 구간 안에서는 초록 농담만 연속으로 변한다", () => {
     const low = gasRamp("co2_ppm", 600);
     const high = gasRamp("co2_ppm", 990);
     expect(low).not.toEqual(high);
-    // 990 은 1000(주의)에 거의 닿았으므로 주의 색에 훨씬 가깝다.
-    expect(Math.abs(high[0] - LEVEL_RGB.level1_caution[0])).toBeLessThan(
-      Math.abs(low[0] - LEVEL_RGB.level1_caution[0]),
-    );
+    expect(low[1]).toBeGreaterThan(low[0]);
+    expect(high[1]).toBeGreaterThan(high[0]);
+    expect(high[1]).toBeGreaterThan(low[1]);
   });
 
   it("0 은 정상 색이다", () => {
@@ -88,8 +86,8 @@ describe("gasRamp — 구간 앞부분은 제 등급 색을 지킨다", () => {
     expect(dNormal).toBeLessThan(dCaution);
   });
 
-  it("임계값 직전에는 다음 등급 색에 바짝 붙는다", () => {
-    const near = gasRamp("co2_ppm", 980);
-    near.forEach((v, i) => expect(v).toBeCloseTo(LEVEL_RGB.level1_caution[i], 1));
+  it("임계값 직전까지 노란색으로 바뀌지 않는다", () => {
+    const near = gasRamp("co2_ppm", 999);
+    expect(near[1]).toBeGreaterThan(near[0]);
   });
 });

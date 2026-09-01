@@ -1,4 +1,4 @@
-import type { ComponentType } from "react";
+import { useEffect, useMemo, useState, type ComponentType } from "react";
 import type { AlertLevel, WearableState } from "../types";
 import type { AssignedWorker } from "../services/api";
 import { classifyO2High, classifyO2Low, levelLabel, maxLevel } from "../utils/alerts";
@@ -19,6 +19,8 @@ interface WearableStripProps {
   node_id: string;
   wearable: WearableState | null;
   worker: AssignedWorker | null;
+  selected?: boolean;
+  onSelect?: () => void;
 }
 
 /** 위치 품질 구간 (10_UI_FLOW §3.3). UWB 미연동이면 "대기". */
@@ -48,7 +50,7 @@ function batteryClass(pct: number | null): string {
  * **사람**이고, 축이 다르다 (O₂·심박·낙상 vs CO₂·CO·H₂S). 같은 격자에 넣으면
  * 센서 노드와 같은 종류의 것으로 읽혀서 비교 대상이 아닌 값끼리 비교하게 된다.
  */
-export function WearableStrip({ node_id, wearable, worker }: WearableStripProps) {
+export function WearableStrip({ node_id, wearable, worker, selected = false, onSelect }: WearableStripProps) {
   const o2 = wearable?.o2_pct ?? null;
   // 값이 없으면 판정 불가다 (이슈 #165). 측정 못 한 것을 정상이라 하면 안 된다.
   const o2Level: AlertLevel =
@@ -72,13 +74,25 @@ export function WearableStrip({ node_id, wearable, worker }: WearableStripProps)
   // 가장 많이 소진된 지표. **자리를 바꾸지 않고 이 칸만 강조한다** — 순위대로
   // 재정렬하면 "CO₂ 는 항상 맨 왼쪽" 이라는 공간 기억이 깨져서, 볼 때마다 라벨을
   // 다시 읽어야 한다. 경계에서 순위가 흔들리면 표가 초 단위로 뒤바뀌기도 한다.
-  const worstKey = worstDoseKey(exposure);
 
   return (
     <>
     <div
-      className={"wstrip is-" + stripLevel + (fall ? " wstrip--fall" : "")}
+      className={
+        "wstrip is-" + stripLevel + (fall ? " wstrip--fall" : "") +
+        (selected ? " wstrip--selected" : "")
+      }
       aria-label={`${worker ? worker.name : node_id} ${fall ? "낙상 감지" : levelLabel(o2Level)}`}
+      role={onSelect ? "button" : undefined}
+      tabIndex={onSelect ? 0 : undefined}
+      aria-pressed={onSelect ? selected : undefined}
+      onClick={onSelect}
+      onKeyDown={onSelect ? (event) => {
+        if (event.key === "Enter" || event.key === " ") {
+          event.preventDefault();
+          onSelect();
+        }
+      } : undefined}
     >
       <span className="wstrip__who">
         <Icon size={13} />
@@ -161,29 +175,12 @@ export function WearableStrip({ node_id, wearable, worker }: WearableStripProps)
       )}
     </div>
 
-    <ExposureDoseRow exposure={exposure} worstKey={worstKey} />
+    <ExposureDoseRow exposure={exposure} />
     </>
   );
 }
 
 /** 소진율이 가장 높은 지표. 활성 지표가 없으면 null. */
-function worstDoseKey(msg: WorkerExposureMessage | null): ExposureDoseKey | null {
-  if (!msg) return null;
-  let key: ExposureDoseKey | null = null;
-  let worst = -1;
-  for (const { key: k } of EXPOSURE_DOSE_METRICS) {
-    const m = msg.metrics[k];
-    if (!m || m.status !== "active") continue;
-    const f = m.dose_fraction;
-    if (typeof f !== "number") continue;
-    if (f > worst) {
-      worst = f;
-      key = k;
-    }
-  }
-  return key;
-}
-
 function formatClock(iso: string): string {
   return new Date(iso).toLocaleTimeString("ko-KR", {
     hour12: false,
@@ -206,12 +203,50 @@ function formatClock(iso: string): string {
  */
 export function ExposureDoseRow({
   exposure,
-  worstKey,
 }: {
   exposure: WorkerExposureMessage | null;
-  worstKey: ExposureDoseKey | null;
 }) {
   const o2 = exposure?.metrics.o2_pct;
+  const requestedOrder = useMemo(() => {
+    const gas = EXPOSURE_DOSE_METRICS.map(({ key }) => {
+      const metric = exposure?.metrics[key];
+      const score =
+        metric?.status === "active" && typeof metric.dose_fraction === "number"
+          ? metric.dose_fraction
+          : -1;
+      return { key, score };
+    });
+    const o2Score =
+      o2?.status === "active"
+        ? Math.max(
+            (o2.o2_deficient_s ?? 0) / 900,
+            (o2.o2_severe_s ?? 0) / 60,
+            (o2.o2_enriched_s ?? 0) / 900,
+          )
+        : -1;
+    return [...gas, { key: "o2_pct" as const, score: o2Score }]
+      .sort((a, b) => b.score - a.score)
+      .map(({ key }) => key);
+  }, [exposure, o2]);
+  // 경계값 근처에서 순위가 초 단위로 뒤집히지 않게 새 순위가 3초 유지된 뒤
+  // 반영한다. 최초 화면은 즉시 위험순으로 그린다.
+  const [stableOrder, setStableOrder] = useState(requestedOrder);
+  useEffect(() => {
+    if (stableOrder.join("|") === requestedOrder.join("|")) return;
+    const timer = window.setTimeout(() => setStableOrder(requestedOrder), 3000);
+    return () => window.clearTimeout(timer);
+  }, [requestedOrder, stableOrder]);
+  const orderOf = (key: ExposureDoseKey | "o2_pct") => stableOrder.indexOf(key);
+  const hasRankableDose =
+    EXPOSURE_DOSE_METRICS.some(({ key }) => {
+      const metric = exposure?.metrics[key];
+      return metric?.status === "active" && typeof metric.dose_fraction === "number";
+    }) ||
+    (o2?.status === "active" &&
+      Math.max(o2.o2_deficient_s ?? 0, o2.o2_severe_s ?? 0, o2.o2_enriched_s ?? 0) > 0);
+  const topKey = hasRankableDose ? (stableOrder[0] ?? null) : null;
+  const rankLabel = (key: ExposureDoseKey | "o2_pct") =>
+    hasRankableDose ? String(orderOf(key) + 1) : "—";
 
   return (
     <div className="dose-row" aria-label="누적 노출량 4종">
@@ -220,7 +255,7 @@ export function ExposureDoseRow({
         const level = doseLevel(m);
         const active = m?.status === "active";
         const fraction = active && typeof m.dose_fraction === "number" ? m.dose_fraction : null;
-        const isWorst = key === worstKey;
+        const isWorst = key === topKey;
         // 소진 예상은 가장 위험한 한 칸에만 붙인다. 네 칸 전부에 붙이면 글자가
         // 많아져 오히려 안 읽힌다.
         const eta = isWorst ? doseProjection(m, exposure?.accumulated_s ?? 0) : null;
@@ -231,8 +266,15 @@ export function ExposureDoseRow({
             className={
               "dose-cell is-" + level + (isWorst ? " dose-cell--worst" : "")
             }
+            style={{ order: orderOf(key) }}
           >
             <div className="dose-cell__head">
+              <span
+                className="dose-cell__rank"
+                aria-label={hasRankableDose ? `위험 순위 ${orderOf(key) + 1}위` : "위험 순위 산출 불가"}
+              >
+                {rankLabel(key)}
+              </span>
               <span className="dose-cell__label">{label}</span>
               {isWorst && <span className="dose-cell__flag">주요인</span>}
               <span className="dose-cell__pct">
@@ -262,9 +304,27 @@ export function ExposureDoseRow({
         );
       })}
 
-      <div className={"dose-cell dose-cell--o2 is-" + doseLevel(o2)}>
+      <div
+        className={
+          "dose-cell dose-cell--o2 is-" +
+          doseLevel(o2) +
+          (topKey === "o2_pct" ? " dose-cell--worst" : "")
+        }
+        style={{ order: orderOf("o2_pct") }}
+      >
         <div className="dose-cell__head">
+          <span
+            className="dose-cell__rank"
+            aria-label={
+              hasRankableDose
+                ? `위험 순위 ${orderOf("o2_pct") + 1}위`
+                : "위험 순위 산출 불가"
+            }
+          >
+            {rankLabel("o2_pct")}
+          </span>
           <span className="dose-cell__label">O₂</span>
+          {topKey === "o2_pct" && <span className="dose-cell__flag">주요인</span>}
           <span className="dose-cell__pct">
             {o2?.status === "active" && typeof o2.o2_min_pct === "number"
               ? `최저 ${o2.o2_min_pct.toFixed(1)}%`

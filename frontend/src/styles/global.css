@@ -324,8 +324,12 @@ button {
 }
 .app-content {
   flex: 1;
+  min-height: 0;
   overflow: auto;
   padding: var(--s5);
+}
+.app-content--monitoring {
+  overflow: hidden;
 }
 
 .sidebar {
@@ -1290,6 +1294,326 @@ button {
   }
 }
 
+/* Six-channel chart overview: default is a comparable 2×3 small-multiple view. */
+.chart-controls--overview {
+  flex-wrap: nowrap;
+  align-items: flex-end;
+  padding: 14px 16px;
+}
+.chart-metric-filter {
+  display: flex;
+  min-width: 0;
+  flex: 1;
+  flex-direction: column;
+  gap: 5px;
+}
+.chart-metric-chips {
+  display: flex;
+  gap: 5px;
+  overflow-x: auto;
+}
+.chart-metric-chips button,
+.event-filter-reset {
+  min-height: 42px;
+  padding: 0 12px;
+  border: 1px solid var(--rule-strong);
+  border-radius: 8px;
+  background: var(--raise);
+  color: var(--ink-2);
+  white-space: nowrap;
+}
+.chart-metric-chips button.is-active {
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 13%, var(--raise));
+  color: var(--accent);
+  box-shadow: inset 0 -2px 0 var(--accent);
+}
+.chart-overview-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+.chart-overview-grid.is-single {
+  grid-template-columns: minmax(0, 1fr);
+}
+.chart-metric-card {
+  min-width: 0;
+  padding: 14px 16px 10px;
+  overflow: hidden;
+}
+.chart-metric-card__head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 16px;
+}
+.chart-metric-card__head > div {
+  display: flex;
+  align-items: baseline;
+  gap: 7px;
+  color: var(--ink-1);
+  font-weight: 700;
+}
+.chart-metric-card__head small { color: var(--ink-3); font-size: 10px; }
+.chart-metric-card__head strong {
+  color: var(--ink-1);
+  font-family: var(--font-num);
+  font-size: 22px;
+  font-variant-numeric: tabular-nums;
+}
+.chart-metric-card__stats {
+  display: flex;
+  gap: 12px;
+  margin: 8px 0 2px;
+  color: var(--ink-3);
+  font-size: 10px;
+}
+.chart-metric-card__stats b { color: var(--ink-2); font-weight: 600; }
+
+/* Event history keeps filters compact and severity visible before reading text. */
+.event-kpi-strip {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  border: 1px solid var(--rule);
+  border-radius: 10px;
+  background: var(--panel);
+  overflow: hidden;
+}
+.event-kpi-strip > div {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  padding: 12px 16px;
+  border-right: 1px solid var(--rule);
+}
+.event-kpi-strip > div:last-child { border-right: 0; }
+.event-kpi-strip small { color: var(--ink-3); }
+.event-kpi-strip strong { font: 700 22px var(--font-num); }
+.event-kpi-strip .is-active strong,
+.event-kpi-strip .is-l3 strong { color: var(--l3); }
+.event-kpi-strip .is-l1 strong { color: var(--l1); }
+.event-kpi-strip .is-l2 strong { color: var(--l2); }
+.event-filters { padding: 14px 16px; gap: 10px; }
+.event-filter-reset { align-self: flex-end; }
+.event-filter-reset:disabled { opacity: 0.45; }
+.event-table tbody tr { box-shadow: inset 3px 0 0 transparent; }
+.event-table tbody tr.event-row--level1_caution { box-shadow: inset 3px 0 0 var(--l1); }
+.event-table tbody tr.event-row--level2_warning { box-shadow: inset 3px 0 0 var(--l2); }
+.event-table tbody tr.event-row--level3_critical { box-shadow: inset 3px 0 0 var(--l3); }
+
+@media (max-width: 1180px) {
+  .chart-controls--overview { flex-wrap: wrap; }
+  .chart-metric-filter { flex-basis: 100%; order: 2; }
+  .chart-overview-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
+/* ④ 전용 경고층. 오른쪽 그리드에서 차지하는 칸은 RiskLogPanel 한 개와 같고,
+   팝업은 이 칸의 경계 밖으로 나가지 않는다. */
+.risk-log-slot {
+  position: relative;
+  min-height: 0;
+  overflow: hidden;
+  border-radius: var(--r3);
+}
+.risk-log-slot > .panel-4 {
+  height: 100%;
+}
+.risk-log-slot > .alert-banner {
+  position: absolute;
+  inset: 0;
+  z-index: 4;
+  justify-content: center;
+  padding: 16px;
+  border: 1px solid var(--lv, var(--rule));
+  border-radius: var(--r3);
+  /* 아래 로그 글자가 비치면 팝업 문장과 겹쳐 읽힌다. ④만 완전히 가리되 다른
+     칸은 건드리지 않도록 이 슬롯 안에서 불투명 표면을 쓴다. */
+  background: color-mix(in srgb, var(--lv, var(--rule)) 10%, #111624 90%);
+  box-shadow: inset 3px 0 0 var(--lv, var(--rule));
+}
+.risk-log-slot:has(> .alert-banner) > .panel-4 {
+  visibility: hidden;
+}
+.risk-log-slot .alert-banner__message {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 8px 0;
+  padding: 9px 10px;
+  border-left: 3px solid var(--lv, var(--rule-strong));
+  background: color-mix(in srgb, var(--lv, var(--raise)) 8%, var(--raise));
+}
+.risk-log-slot .alert-banner__message strong {
+  color: var(--lv, var(--ink-1));
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.12em;
+}
+.risk-log-slot .alert-banner__message span {
+  color: var(--ink-1);
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.45;
+}
+.alert-banner__sound {
+  margin-left: auto;
+  padding: 3px 7px;
+  border: 1px solid var(--rule-strong);
+  background: transparent;
+  color: var(--ink-2);
+  font: inherit;
+  font-family: var(--font-mono);
+  font-size: 9px;
+  cursor: pointer;
+}
+.alert-banner__sound[aria-pressed="true"] {
+  border-color: var(--lv, var(--l2));
+  color: var(--lv, var(--ink-1));
+}
+
+/* 위험순이 확정된 뒤 DOM을 다시 만들지 않고 CSS order만 바꾼다. 3초 유지 규칙은
+   컴포넌트가 담당하고, 여기서는 바뀐 위치가 눈에 걸리지 않게 표면을 안정시킨다. */
+.dose-cell {
+  transition:
+    border-color 220ms ease-out,
+    box-shadow 220ms ease-out,
+    background-color 220ms ease-out;
+}
+.dose-cell__rank {
+  display: inline-grid;
+  place-items: center;
+  flex: 0 0 auto;
+  width: 16px;
+  height: 16px;
+  border: 1px solid var(--rule-strong);
+  border-radius: 50%;
+  color: var(--ink-2);
+  font-family: var(--font-num);
+  font-size: 9px;
+  font-weight: 700;
+  line-height: 1;
+}
+.dose-cell--worst .dose-cell__rank {
+  border-color: var(--lv, var(--ink-1));
+  background: var(--lv-wash, var(--raise));
+  color: var(--lv, var(--ink-1));
+}
+
+/* 수치 방향은 짧은 이동과 화살표로 함께 전달한다. 색만으로 상승·하락을 구분하지
+   않으며 420ms 뒤 사라져 경보 표시와 경쟁하지 않는다. */
+.scard__co2-value--up,
+.scard__co2-value--down {
+  animation: measured-value-shift 420ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+.scard__co2-value--up::after,
+.scard__co2-value--down::after {
+  margin-left: 4px;
+  font-family: var(--font-mono);
+  font-size: 9px;
+  vertical-align: middle;
+}
+.scard__co2-value--up::after {
+  content: "↑";
+  color: var(--l2);
+}
+.scard__co2-value--down::after {
+  content: "↓";
+  color: var(--normal);
+}
+@keyframes measured-value-shift {
+  from {
+    opacity: 0.55;
+    transform: translateY(var(--value-shift, 2px));
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+.scard__co2-value--up {
+  --value-shift: 3px;
+}
+.scard__co2-value--down {
+  --value-shift: -3px;
+}
+
+.panel-1__metric:not(:disabled) {
+  cursor: pointer;
+  transition:
+    color 160ms ease-out,
+    border-color 160ms ease-out,
+    background-color 160ms ease-out;
+}
+.panel-1__metric:not(:disabled):hover {
+  border-color: var(--ink-2);
+  color: var(--ink-1);
+}
+.screen-loading {
+  display: grid;
+  place-items: center;
+  min-height: 240px;
+  color: var(--ink-2);
+  font-family: var(--font-mono);
+  font-size: 12px;
+}
+.incident-replay {
+  margin: 0 12px 10px;
+  padding: 10px 12px;
+  border: 1px solid var(--accent);
+  background: var(--raise);
+}
+.incident-replay__head,
+.incident-replay__controls {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.incident-replay__head {
+  justify-content: space-between;
+  margin-bottom: 9px;
+}
+.incident-replay__head > div {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.incident-replay button,
+.event-replay-btn {
+  min-height: 28px;
+  padding: 3px 9px;
+  border: 1px solid var(--rule-strong);
+  background: var(--panel);
+  color: var(--ink-1);
+  font: inherit;
+  font-size: 10px;
+  cursor: pointer;
+}
+.incident-replay button:disabled,
+.event-replay-btn:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+}
+.incident-replay__controls input {
+  flex: 1;
+  min-width: 120px;
+}
+.incident-replay__controls time,
+.incident-replay__controls span {
+  color: var(--ink-2);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  white-space: nowrap;
+}
+.incident-replay__controls strong {
+  color: var(--l2);
+  font-family: var(--font-num);
+  font-size: 16px;
+}
+.incident-replay__limit {
+  margin: 8px 0 0;
+  color: var(--ink-3);
+  font-size: 9px;
+}
 /* ── Responsive (10_UI_FLOW §12) ── */
 @media (max-width: 1279px) {
   .app {
@@ -1363,6 +1687,21 @@ button {
   color: var(--ink-2);
   font-family: var(--font-mono);
   font-size: 11px;
+}
+.chart-heading-tools {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 10px 18px;
+}
+.chart-export-actions {
+  display: flex;
+  gap: 8px;
+}
+.chart-action--export {
+  border-color: var(--accent);
+  color: var(--accent);
 }
 .chart-heading-meta span,
 .event-log-meta > span {
@@ -2269,86 +2608,6 @@ body {
   color: var(--ink-2);
 }
 
-/* 데모 시나리오 제어 (09_DEMO_SCENARIOS 4절). */
-.demo-running {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 10px;
-  padding: 10px 12px;
-  border: 1px solid var(--rule);
-  background: var(--raise);
-  font-size: 12px;
-}
-.demo-running--active {
-  border-color: var(--l1);
-}
-.demo-running__label {
-  color: var(--ink-3);
-  font-family: var(--font-mono);
-  font-size: 9px;
-  letter-spacing: 0.14em;
-}
-.demo-running__nodes {
-  color: var(--ink-2);
-  font-family: var(--font-num);
-}
-.demo-running button {
-  margin-left: auto;
-}
-
-.demo-list {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-.demo-item {
-  display: flex;
-  align-items: center;
-  gap: 14px;
-  padding: 11px 13px;
-  border: 1px solid var(--rule);
-  background: var(--panel);
-}
-.demo-item--active {
-  border-color: var(--l1);
-}
-.demo-item__text {
-  display: flex;
-  flex-direction: column;
-  gap: 3px;
-  min-width: 0;
-}
-.demo-item__label {
-  display: flex;
-  align-items: baseline;
-  gap: 8px;
-  font-size: 13px;
-  font-weight: 600;
-}
-.demo-item__label code {
-  color: var(--ink-3);
-  font-family: var(--font-mono);
-  font-size: 10px;
-  font-weight: 400;
-}
-.demo-item__desc {
-  color: var(--ink-2);
-  font-size: 12px;
-}
-.demo-item__meta {
-  color: var(--ink-3);
-  font-family: var(--font-mono);
-  font-size: 10px;
-}
-.demo-item button {
-  margin-left: auto;
-  flex: none;
-}
-
 /* 추세 예측 배지 (06_ALERT_RULES 8.2). 경보가 아니라 선제 표시라 카드 등급색을
    그대로 쓰지 않고 한 단계 약한 배경에 아이콘 + 텍스트로 전달한다. */
 .sensor-card__projection {
@@ -2710,6 +2969,21 @@ body {
 .settings-refresh:hover:not(:disabled) {
   border-color: var(--accent);
   background: var(--accent-soft);
+}
+.settings-logout {
+  min-height: 40px;
+  padding: 0 14px;
+  border: 1px solid var(--l3);
+  border-radius: 8px;
+  background: var(--l3-wash);
+  color: var(--l3);
+  font: inherit;
+  font-size: 11px;
+  font-weight: 700;
+}
+.settings-logout:hover:not(:disabled) {
+  background: var(--l3);
+  color: #fff;
 }
 .settings-tabs {
   display: flex;
@@ -3840,11 +4114,46 @@ body {
 }
 
 .console {
+  position: relative;
   display: flex;
   flex: 1;
   flex-direction: column;
   gap: 12px;
   min-height: 0;
+}
+.console--sim .panel-1,
+.console--sim .panel-2,
+.console--sim .panel-3,
+.console--sim .panel-4,
+.console--sim .panel-5 {
+  border-style: dashed;
+  border-color: color-mix(in srgb, var(--l1) 46%, var(--rule));
+}
+.simulation-watermark {
+  position: absolute;
+  z-index: 12;
+  top: 7px;
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 4px 10px;
+  border: 1px solid var(--l1);
+  background: rgba(7, 10, 18, 0.92);
+  color: var(--l1);
+  font-family: var(--font-mono);
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  pointer-events: none;
+}
+.twin-route-label {
+  padding: 3px 6px;
+  border: 1px solid currentColor;
+  background: rgba(7, 10, 18, 0.9);
+  color: #dce3f1;
+  font-family: var(--font-mono);
+  font-size: 8px;
+  font-weight: 700;
+  white-space: nowrap;
 }
 .console__grid {
   display: grid;
@@ -3852,6 +4161,7 @@ body {
   gap: 14px;
   flex: 1;
   min-height: 0;
+  overflow: hidden;
 }
 .console__left {
   display: grid;
@@ -3993,7 +4303,14 @@ body {
 .panel-1__legend-ramp {
   display: block;
   height: 6px;
-  background: linear-gradient(90deg, var(--normal), var(--l1), var(--l2), var(--l3));
+  background: linear-gradient(
+    90deg,
+    var(--normal) 0%,
+    #3fd79a 19.8%,
+    var(--l1) 20%,
+    var(--l2) 40%,
+    var(--l3) 100%
+  );
 }
 .panel-1__legend-scale {
   display: flex;
@@ -4003,6 +4320,13 @@ body {
   font-variant-numeric: tabular-nums;
   font-size: 8px;
   color: rgba(220, 227, 241, 0.62);
+}
+.panel-1__legend-confidence {
+  display: block;
+  margin-top: 4px;
+  color: rgba(220, 227, 241, 0.52);
+  font-family: var(--font-mono);
+  font-size: 8px;
 }
 .twin-peak-label {
   display: flex;
@@ -4057,7 +4381,6 @@ body {
   color: var(--ink-2);
   font-size: 11px;
 }
-
 .panel-1__foot {
   display: flex;
   align-items: center;
@@ -4115,6 +4438,93 @@ body {
   min-height: 0;
   overflow-y: auto;
   padding: 10px;
+}
+
+/* 위험 노드 하나가 승격되면 그 카드가 이 열의 주인공이다. 정상 요약이 310px을
+   계속 차지해 위험 카드에 스크롤을 만드는 대신, 위험 상세에 고정 판독 높이를
+   주고 정상 노드 셋은 아래 한 줄로 압축한다. */
+.console[data-risk-count="1"] .console__right {
+  grid-template-rows:
+    minmax(118px, auto)
+    minmax(300px, 44fr)
+    minmax(125px, 18fr)
+    minmax(96px, 1fr);
+}
+.console[data-risk-count="1"] .status-panel {
+  position: relative;
+  z-index: 3;
+  background: var(--ground);
+}
+.console[data-risk-count="1"] .panel-2 {
+  position: relative;
+  z-index: 1;
+}
+.console[data-risk-count="1"] .panel-2__body {
+  overflow: hidden;
+  padding: 7px;
+}
+.console[data-risk-count="1"] .rcard {
+  height: 100%;
+  padding: 8px 10px;
+  overflow: hidden;
+}
+.console[data-risk-count="1"] .rcard__head {
+  margin-bottom: 5px;
+}
+.console[data-risk-count="1"] .rcard__row > * {
+  padding-top: 2px;
+  padding-bottom: 2px;
+}
+.console[data-risk-count="1"] .rcard__foot {
+  margin-top: 5px;
+}
+.console[data-risk-count="1"] .rcard__alerts {
+  margin: 3px 0;
+}
+.console[data-risk-count="1"] .rcard__alert {
+  padding-top: 2px;
+  padding-bottom: 2px;
+  margin-bottom: 2px;
+}
+
+.console[data-risk-count="1"] .panel-3__head {
+  flex-wrap: nowrap;
+  padding: 5px 9px;
+}
+.console[data-risk-count="1"] .panel-3__o2-note {
+  display: none;
+}
+.console[data-risk-count="1"] .panel-3__grid {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-rows: minmax(0, 1fr);
+  gap: 5px;
+  padding: 5px;
+}
+.console[data-risk-count="1"] .panel-3 .scard {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-rows: auto auto;
+  align-content: center;
+  gap: 2px 6px;
+  padding: 5px 7px;
+}
+.console[data-risk-count="1"] .panel-3 .scard__head {
+  grid-column: 1 / -1;
+  margin: 0;
+}
+.console[data-risk-count="1"] .panel-3 .scard__co2 {
+  min-width: 0;
+}
+.console[data-risk-count="1"] .panel-3 .scard__co2-value {
+  font-size: 17px;
+}
+.console[data-risk-count="1"] .panel-3 .scard__co2-spark {
+  width: 62px;
+}
+.console[data-risk-count="1"] .panel-3 .scard__chips,
+.console[data-risk-count="1"] .panel-3 .scard__projection,
+.console[data-risk-count="1"] .panel-3 .scard__all {
+  display: none;
 }
 /* n=0 일 때 이 칸은 15% 로 줄어든다. 카드 여백을 그대로 두면 "주의 이상 노드
    없음" 한 줄이 잘려서, 아무 문제 없는 상태가 오히려 고장처럼 보인다. */
@@ -5995,6 +6405,29 @@ body {
   outline: 2px solid var(--lv, var(--ink-1));
   outline-offset: 1px;
 }
+.alert-banner--acked {
+  flex-direction: row;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  font-size: 11px;
+  color: var(--ink-2);
+}
+.alert-banner--acked strong {
+  color: var(--lv, var(--ink-1));
+}
+.alert-banner--acked time {
+  margin-left: auto;
+  font-family: var(--font-mono);
+  color: var(--ink-3);
+}
+.alert-banner--acked button {
+  border: 0;
+  background: transparent;
+  color: var(--ink-2);
+  font: inherit;
+  cursor: pointer;
+}
 
 /* 원인 지표 — 값과 임계값을 같은 줄에 붙여 둔다. 떨어뜨리면 "무엇에 비해
    높은가" 를 눈이 다시 이어붙여야 한다. */
@@ -6335,6 +6768,123 @@ body {
   flex: none;
 }
 
+.wstrip[role="button"] {
+  cursor: pointer;
+  transition: border-color 180ms ease-out, box-shadow 180ms ease-out, background 180ms ease-out;
+}
+.wstrip[role="button"]:hover,
+.wstrip[role="button"]:focus-visible,
+.wstrip--selected {
+  border-color: var(--ink-2);
+  box-shadow: inset 0 0 0 1px var(--ink-2);
+}
+.panel-5:has(.wstrip--selected) .wstrip:not(.wstrip--selected) {
+  opacity: 0.62;
+}
+
+.console__fullscreen {
+  position: absolute;
+  z-index: 20;
+  /* 우측 상태표 위에 두면 위험 발생 시 '위험' 숫자와 겹친다. 좌측 트윈의
+     우상단으로 옮겨 상태 정보의 판독 영역을 비운다. */
+  right: calc(32% + 24px);
+  top: 8px;
+  padding: 4px 8px;
+  border: 1px solid var(--rule-strong, var(--rule));
+  background: color-mix(in srgb, var(--ground) 88%, transparent);
+  color: var(--ink-2);
+  font-family: var(--font-mono);
+  font-size: 9px;
+  letter-spacing: 0.06em;
+  cursor: pointer;
+}
+.console:fullscreen {
+  width: 100vw;
+  height: 100vh;
+  padding: 8px;
+  overflow: hidden;
+  background: var(--ground);
+}
+
+/* 관제 화면은 브라우저의 남은 높이를 넘지 않는다. 다른 설정·이력 화면은 기존
+   스크롤을 유지하고, 실시간 모니터링에서만 ①~⑤를 현재 뷰포트 안에 고정한다. */
+@media (min-width: 1280px) {
+  .app-content--monitoring .safety-workspace {
+    max-width: none;
+    height: 100%;
+    overflow: hidden;
+  }
+  .app-content--monitoring .safety-workspace__stage,
+  .app-content--monitoring .safety-workspace__view,
+  .app-content--monitoring .console,
+  .app-content--monitoring .console__grid {
+    min-height: 0;
+  }
+}
+
+/* MacBook처럼 세로 공간이 제한된 화면. 보조 여백과 작은 그래프를 먼저 줄이고
+   상태·6종 값·경보 문장·작업자 정보는 남긴다. */
+@media (max-height: 900px) and (min-width: 1280px) {
+  .app-content--monitoring {
+    padding: 10px 12px;
+  }
+  .app-content--monitoring .safety-workspace {
+    gap: 7px;
+  }
+  .app-content--monitoring .safety-tabs {
+    flex: 0 0 34px;
+  }
+  .app-content--monitoring .safety-tab {
+    min-height: 34px;
+    padding-inline: 11px;
+  }
+  .console__grid,
+  .console__left,
+  .console__right {
+    gap: 8px;
+  }
+  .console[data-risk-count="1"] .console__right {
+    grid-template-rows:
+      auto
+      minmax(220px, 42fr)
+      minmax(82px, 15fr)
+      minmax(132px, 24fr);
+  }
+  .console[data-risk-count="1"] .rcard__spark {
+    width: 42px;
+    padding-left: 5px;
+  }
+  .console[data-risk-count="1"] .rcard__spark .spark {
+    width: 42px;
+    height: 12px;
+  }
+  .console[data-risk-count="1"] .rcard__row > * {
+    padding-top: 1px;
+    padding-bottom: 1px;
+  }
+  .console[data-risk-count="1"] .rcard__head,
+  .console[data-risk-count="1"] .rcard__projection {
+    margin-bottom: 3px;
+  }
+  .console[data-risk-count="1"] .rcard__alerts {
+    margin: 2px 0;
+  }
+  .risk-log-slot > .alert-banner {
+    gap: 2px;
+    padding: 8px 10px;
+  }
+  .risk-log-slot .alert-banner__message {
+    margin: 3px 0;
+    padding: 5px 7px;
+  }
+  .risk-log-slot .alert-banner__cause {
+    line-height: 1;
+  }
+  .risk-log-slot .alert-banner__proj {
+    padding-block: 2px;
+  }
+}
+
 /* ═══════════════════════════════════════════════════════════════════════════
    ③ 센서 카드는 절대 스크롤하지 않는다
    ───────────────────────────────────────────────────────────────────────────
@@ -6415,4 +6965,132 @@ body {
    색으로 표시하면 "선택" 이 "위험" 으로 읽힌다. */
 .console__right .scard--focused {
   box-shadow: inset 0 0 0 2px var(--ink-2);
+}
+
+/* ═══ Dynamic monitoring feedback ══════════════════════════════════════════
+   화면의 ①~⑤ 배치는 고정한다. 움직임은 상태 변화의 원인과 결과를 잇는 데만
+   사용한다: ③ 선택 → ① 포커스, ③ 정상 카드 → ② 위험 카드 승격, 경보 갱신.
+   transform/opacity 만 움직여 레이아웃 재계산과 카드 밀림을 만들지 않는다. */
+.console .panel-1,
+.console .panel-2,
+.console .panel-3,
+.console .panel-4,
+.console .panel-5,
+.console .status-panel {
+  transition:
+    border-color 220ms ease-out,
+    box-shadow 220ms ease-out,
+    background-color 220ms ease-out;
+}
+
+/* 주의는 우측 판단 영역만, 경고 이상은 탈출 판단이 이뤄지는 트윈까지 연결한다. */
+.console--level1_caution .status-panel,
+.console--level1_caution .panel-2 {
+  filter: drop-shadow(0 0 8px color-mix(in srgb, var(--l1) 18%, transparent));
+}
+.console--level2_warning .panel-1,
+.console--level2_warning .status-panel,
+.console--level2_warning .panel-2 {
+  border-color: color-mix(in srgb, var(--l2) 62%, var(--rule));
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--l2) 16%, transparent), var(--shadow-console);
+}
+.console--level3_critical .panel-1,
+.console--level3_critical .status-panel,
+.console--level3_critical .panel-2 {
+  border-color: color-mix(in srgb, var(--l3) 70%, var(--rule));
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--l3) 22%, transparent), var(--shadow-console);
+}
+
+/* ③에서 선택한 센서는 앞쪽으로 오고, 나머지는 없어지지 않는 선에서 물러난다. */
+.panel-3__grid:has(.scard--focused) .scard:not(.scard--focused) {
+  opacity: 0.62;
+  filter: saturate(0.65);
+}
+.console__right .scard[role="button"] {
+  transform: translateZ(0);
+  transition:
+    transform 180ms cubic-bezier(0.22, 1, 0.36, 1),
+    opacity 180ms ease-out,
+    filter 180ms ease-out,
+    border-color 180ms ease-out,
+    box-shadow 180ms ease-out;
+}
+.console__right .scard[role="button"]:hover {
+  transform: translateY(-2px);
+}
+.console__right .scard[role="button"]:active {
+  transform: translateY(0) scale(0.985);
+  transition-duration: 70ms;
+}
+.console__right .scard--focused {
+  z-index: 1;
+  transform: translateY(-2px);
+  box-shadow:
+    inset 0 0 0 2px var(--ink-2),
+    0 8px 20px rgba(0, 0, 0, 0.24);
+}
+
+/* 주의 이상 노드가 ②로 승격될 때 위험도가 높은 카드부터 차례로 들어온다. */
+.panel-2:not(.panel-2--none) .rcard {
+  animation: risk-card-promote 320ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+.panel-2:not(.panel-2--none) .rcard:nth-child(2) {
+  animation-delay: 45ms;
+}
+.panel-2:not(.panel-2--none) .rcard:nth-child(3) {
+  animation-delay: 90ms;
+}
+.panel-2:not(.panel-2--none) .rcard:nth-child(4) {
+  animation-delay: 135ms;
+}
+@keyframes risk-card-promote {
+  from {
+    opacity: 0;
+    transform: translateY(10px) scale(0.985);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+/* O₂ 실측값은 값이 바뀐 순간만 반응한다. 상시 점멸은 경보와 혼동되므로 금지한다. */
+.panel-3__o2 strong {
+  animation: live-value-update 240ms ease-out both;
+}
+@keyframes live-value-update {
+  from {
+    opacity: 0.45;
+    transform: translateY(2px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* 경보는 들어올 때만 한 번 강조하고 계속 번쩍이지 않는다. */
+.alert-banner {
+  animation: alert-enter 280ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+@keyframes alert-enter {
+  from {
+    opacity: 0;
+    transform: translateY(-8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .console *,
+  .console *::before,
+  .console *::after {
+    scroll-behavior: auto !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
 }

@@ -1,9 +1,9 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { DemoControlPanel } from "../components/DemoControlPanel";
 import { EvacuationTopologyPanel } from "../components/EvacuationTopologyPanel";
 import { WorkerRoster } from "../components/WorkerRoster";
 import { UserAdmin } from "../components/UserAdmin";
 import { hasRole, useAuthStore, type Role } from "../store/authStore";
+import { logout } from "../services/authApi";
 import { useThresholds } from "../hooks/useThresholds";
 import {
   fetchHealth,
@@ -16,7 +16,7 @@ import {
   type ThresholdLevel,
 } from "../services/api";
 
-type SettingsTab = "thresholds" | "workers" | "hazards" | "topology" | "system" | "demo" | "users";
+type SettingsTab = "thresholds" | "workers" | "hazards" | "topology" | "system" | "users";
 type RowStatus = { key: string; tone: "success" | "error"; message: string } | null;
 
 interface MetricMeta {
@@ -58,7 +58,6 @@ const TAB_ITEMS: { key: SettingsTab; label: string; hint: string; minRole?: Role
   { key: "topology", label: "통행 구조", hint: "EGRESS TOPOLOGY" },
   { key: "system", label: "시스템", hint: "HEALTH & METRICS" },
   { key: "users", label: "사용자", hint: "ACCOUNTS", minRole: "admin" },
-  { key: "demo", label: "데모 제어", hint: "SCENARIO INJECTION", minRole: "admin" },
 ];
 
 function rowKey(metric: string, level: ThresholdLevel): string {
@@ -90,6 +89,7 @@ export function SettingsScreen() {
   const [metrics, setMetrics] = useState<Record<string, number>>({});
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [loggingOut, setLoggingOut] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [rowStatus, setRowStatus] = useState<RowStatus>(null);
   const [savingKey, setSavingKey] = useState<string | null>(null);
@@ -205,6 +205,18 @@ export function SettingsScreen() {
     setRowStatus(null);
   }
 
+  async function handleLogout() {
+    setLoggingOut(true);
+    setError(null);
+    try {
+      await logout();
+      window.location.reload();
+    } catch {
+      setError("로그아웃하지 못했습니다. 백엔드 연결 상태를 확인하세요.");
+      setLoggingOut(false);
+    }
+  }
+
   return (
     <div className="settings-screen">
       <div className="settings-heading">
@@ -229,6 +241,14 @@ export function SettingsScreen() {
             disabled={refreshing}
           >
             {refreshing ? "확인 중…" : "↻ 새로고침"}
+          </button>
+          <button
+            type="button"
+            className="settings-logout"
+            onClick={() => void handleLogout()}
+            disabled={loggingOut}
+          >
+            {loggingOut ? "로그아웃 중…" : "로그아웃"}
           </button>
         </div>
       </div>
@@ -540,7 +560,6 @@ export function SettingsScreen() {
       {tab === "workers" && hasRole(userRole, "supervisor") && <WorkerRoster />}
       {tab === "users" && hasRole(userRole, "admin") && <UserAdmin />}
 
-      {tab === "demo" && <DemoControlPanel />}
     </div>
   );
 }

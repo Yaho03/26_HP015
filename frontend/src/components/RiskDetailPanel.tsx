@@ -213,8 +213,8 @@ export function RiskDetailPanel({
 
   return (
     <section className="panel-2" aria-label="위험 센서 상세">
-      {/* n 이 3~4 로 커지면 카드가 세로로 다 안 들어간다. 내부 스크롤로 받고
-          위험도 높은 순으로 정렬해, 잘리는 쪽이 항상 덜 위험한 카드가 되게 한다. */}
+      {/* 가장 위험한 카드부터 배치한다. 한 개가 승격된 일반적인 경보 상황에서는
+          아래 정상 요약을 압축해 이 카드의 6종·경보 근거·작업자를 한 화면에 보인다. */}
       <div className="panel-2__body">
         {(
           nodeIds.map((id) => (

@@ -1,4 +1,4 @@
-import { memo, type ComponentType } from "react";
+import { memo, useEffect, useRef, useState, type ComponentType } from "react";
 import type { AlertLevel, SensorNodeState, WearableState } from "../types";
 import type { TrendPoint, TrendMetric } from "../store/dashboardStore";
 import {
@@ -32,6 +32,20 @@ const CHIP_METRICS = ASPHYXIANT_METRICS.filter((m) => m.key !== "co2_ppm");
 
 type Trends = Partial<Record<TrendMetric, TrendPoint[]>>;
 
+function useValueDirection(value: number | null): "up" | "down" | null {
+  const previous = useRef<number | null>(null);
+  const [direction, setDirection] = useState<"up" | "down" | null>(null);
+  useEffect(() => {
+    const before = previous.current;
+    previous.current = value;
+    if (before === null || value === null || before === value) return;
+    setDirection(value > before ? "up" : "down");
+    const timer = window.setTimeout(() => setDirection(null), 420);
+    return () => window.clearTimeout(timer);
+  }, [value]);
+  return direction;
+}
+
 interface SensorSummaryPanelProps {
   /** ② 로 승격되지 않은 노드만 온다. 두 칸에 중복 표시하지 않는다. */
   nodeIds: string[];
@@ -43,6 +57,8 @@ interface SensorSummaryPanelProps {
   focusNodeId?: string | null;
   /** 카드를 누르면 ① 트윈 카메라가 그 노드로 향한다. */
   onFocusNode?: (nodeId: string) => void;
+  /** 포인터가 머무는 동안 ① 트윈에서 위치를 미리 보여준다. */
+  onPreviewNode?: (nodeId: string | null) => void;
 }
 
 /**
@@ -99,6 +115,7 @@ const SummaryCard = memo(function SummaryCard({
   level,
   focused,
   onFocus,
+  onPreview,
 }: {
   nodeId: string;
   node: SensorNodeState | null;
@@ -106,10 +123,12 @@ const SummaryCard = memo(function SummaryCard({
   level: AlertLevel;
   focused: boolean;
   onFocus?: (nodeId: string) => void;
+  onPreview?: (nodeId: string | null) => void;
 }) {
   const offline = node?.connection_status === "offline";
   const sim = node?.source_mode === "simulation";
   const co2 = node?.readings.co2_ppm ?? null;
+  const co2Direction = useValueDirection(co2?.value ?? null);
   const LevelIcon = LEVEL_ICON[level] as ComponentType<{
     size?: number | string;
   }>;
@@ -140,6 +159,10 @@ const SummaryCard = memo(function SummaryCard({
       // 카드를 누르면 ① 트윈이 이 노드를 비춘다. "S2 가 위험" 과 "S2 가 저기"
       // 사이를 한 동작으로 잇는다. 나중에 노드 상세 화면으로 가는 자리이기도 하다.
       onClick={onFocus ? () => onFocus(nodeId) : undefined}
+      onMouseEnter={onPreview ? () => onPreview(nodeId) : undefined}
+      onMouseLeave={onPreview ? () => onPreview(null) : undefined}
+      onFocus={onPreview ? () => onPreview(nodeId) : undefined}
+      onBlur={onPreview ? () => onPreview(null) : undefined}
       onKeyDown={
         onFocus
           ? (e) => {
@@ -180,7 +203,13 @@ const SummaryCard = memo(function SummaryCard({
 
       {/* 유일하게 교정된 값이라 이것만 큰 수치로 띄운다. */}
       <div className="scard__co2">
-        <span className="scard__co2-value">{co2 ? formatMetricValue(CO2, co2.value) : "—"}</span>
+        <span
+          className={
+            "scard__co2-value" + (co2Direction ? ` scard__co2-value--${co2Direction}` : "")
+          }
+        >
+          {co2 ? formatMetricValue(CO2, co2.value) : "—"}
+        </span>
         <span className="scard__co2-unit">ppm</span>
         {/* 실측은 실선, 외삽은 점선, 도달 임계값은 가로선. 같은 선으로 그리면
             "지금 570ppm 인데 왜 경고인가" 를 화면에서 되짚을 수 없다. */}
@@ -236,6 +265,7 @@ export function SensorSummaryPanel({
   levelOf,
   focusNodeId = null,
   onFocusNode,
+  onPreviewNode,
 }: SensorSummaryPanelProps) {
   const o2 = wearable?.o2_pct ?? null;
   // O₂ 값이 없으면 판정 불가다 (이슈 #165). 측정 못 한 것을 정상이라 하면 안 된다.
@@ -254,7 +284,9 @@ export function SensorSummaryPanel({
         <span className="panel-3__o2">
           <O2Icon size={13} />
           <span className="panel-3__o2-label">공간 O₂</span>
-          <strong>{o2 !== null ? `${o2.toFixed(1)}%` : "—"}</strong>
+          <strong key={o2 !== null ? o2.toFixed(1) : "unknown"}>
+            {o2 !== null ? `${o2.toFixed(1)}%` : "—"}
+          </strong>
           <span className="panel-3__o2-level">{levelLabel(o2Level)}</span>
         </span>
         <span className="panel-3__o2-note">센서 응답 지연 가능성 (최대 15초)</span>
@@ -270,6 +302,7 @@ export function SensorSummaryPanel({
             level={levelOf(id)}
             focused={focusNodeId === id}
             onFocus={onFocusNode}
+            onPreview={onPreviewNode}
           />
         ))}
         {nodeIds.length === 0 && (
