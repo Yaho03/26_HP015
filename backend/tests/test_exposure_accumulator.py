@@ -57,6 +57,17 @@ def test_constant_concentration_matches_analytic_dose():
     )
 
 
+def test_demo_dose_scale_changes_only_accumulated_dose_not_peak():
+    state = integrate(DoseState(), 4.0, T0, gap_max_s=GAP_MAX, dose_scale=6000.0)
+    state = integrate(
+        state, 4.0, T0 + timedelta(seconds=15),
+        gap_max_s=GAP_MAX, dose_scale=6000.0,
+    )
+    assert state.dose_ppm_min == 6000.0
+    assert state.peak_ppm == 4.0
+    assert state.accumulated_s == 15.0
+
+
 def test_linear_ramp_is_exact():
     """사다리꼴 적분은 선형 구간에 대해 오차가 없다.
 
