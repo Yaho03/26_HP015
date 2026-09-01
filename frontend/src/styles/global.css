@@ -6997,7 +6997,10 @@ body {
 .console[data-risk-count="4"] .rcard__row.is-normal {
   display: none;
 }
-/* 경보 발생 시각은 바로 아래 ④ 이력이 같은 것을 더 자세히 말한다. */
+/* 경보 발생 시각은 바로 아래 ④ 이력이 같은 것을 더 자세히 말한다. 셋이 뜬
+   상태에서도 마찬가지인데, 여기서는 접지 않으면 카드가 74px 이라 발밑 두 줄이
+   17px 잘려 "배정 작업자" 가 반쯤 보인다 — 반쯤 보이는 값이 없는 값보다 나쁘다. */
+.console[data-risk-count="3"] .rcard__foot,
 .console[data-risk-count="4"] .rcard__foot {
   display: none;
 }
