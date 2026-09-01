@@ -33,7 +33,10 @@ from demo_runner import PLAYLISTS, DemoPlaylistRunner
 logger = logging.getLogger("inject")
 
 # --duration 을 받는 시나리오. 나머지는 길이가 고정되어 있다.
-DURATION_SCENARIOS = {"normal_steady", "worker_walk", "worker_walk_uwb", "gas_spread"}
+DURATION_SCENARIOS = {
+    "normal_steady", "worker_walk", "worker_walk_uwb", "gas_spread",
+    "exposure_h2s_danger",
+}
 
 CONNECT_TIMEOUT_SECONDS = 5.0
 

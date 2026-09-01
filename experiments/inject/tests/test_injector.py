@@ -34,7 +34,9 @@ async def test_runner_publishes_all_messages_in_scenario():
     await runner.run_scenario("co2_warning", node_id="sensor-01")
     assert len(fake.published) > 0
     topics = [t for t, _ in fake.published]
-    assert all("sensor-01" in t for t in topics)
+    assert "sensors/sensor-01/gas" in topics
+    assert "wearable/wearable-01/location" in topics
+    assert "wearable/wearable-01/vital" in topics
 
 
 @pytest.mark.asyncio
@@ -83,6 +85,21 @@ async def test_runner_forwards_scenario_kwargs():
     await short.run_scenario("normal_steady", node_id="sensor-01", duration_seconds=5)
     await long.run_scenario("normal_steady", node_id="sensor-01", duration_seconds=30)
     assert len(long._mqtt.published) > len(short._mqtt.published)
+
+
+@pytest.mark.asyncio
+async def test_runner_does_not_delay_between_messages_sampled_at_same_time(monkeypatch):
+    sleep_delays: list[float] = []
+
+    async def record_sleep(delay: float):
+        sleep_delays.append(delay)
+
+    monkeypatch.setattr("injector.asyncio.sleep", record_sleep)
+    runner = ScenarioRunner(mqtt_client=FakeMQTT(), delay_seconds=1)
+    await runner.run_scenario("gas_spread", node_id="sensor-03", duration_seconds=2)
+
+    # 3개 시각(0·1·2초)마다 가스+위치 두 메시지가 있지만 대기는 시각당 한 번이다.
+    assert sleep_delays == [1, 1, 1]
 
 
 def test_runner_list_scenarios():

@@ -39,12 +39,18 @@ class ScenarioRunner:
             "scenario %s started (node=%s, run_id=%s, %d messages)",
             name, node_id, run_id, len(messages),
         )
-        for topic, payload in messages:
+        for index, (topic, payload) in enumerate(messages):
             if self._stopped:
                 logger.info("scenario %s interrupted", name)
                 break
             self._mqtt.publish(topic, json.dumps(payload), qos=1)
-            if self._delay > 0:
+            next_sampled_at = (
+                messages[index + 1][1].get("sampled_at")
+                if index + 1 < len(messages)
+                else None
+            )
+            same_sample_time_follows = next_sampled_at == payload.get("sampled_at")
+            if self._delay > 0 and not same_sample_time_follows:
                 await asyncio.sleep(self._delay)
         logger.info("scenario %s finished", name)
 

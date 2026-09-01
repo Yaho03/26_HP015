@@ -100,10 +100,26 @@ def normal_steady(
     노드마다 기준값을 달리해 카드 4장이 서로 구분되게 한다.
     """
     idx = _node_index(node_id)
-    out: list[tuple[str, dict]] = []
+    online = build_connection_envelope(
+        node_id=node_id,
+        status="online",
+        reason="connect",
+        timestamp=start,
+    )
+    out: list[tuple[str, dict]] = [(f"nodes/{node_id}/connection", online)]
 
     for sec in range(duration_seconds + 1):
         ts = start + timedelta(seconds=sec)
+
+        if sec > 0 and sec % 10 == 0:
+            heartbeat = build_connection_envelope(
+                node_id=node_id,
+                status="online",
+                reason="heartbeat",
+                timestamp=ts,
+                boot_id=online["boot_id"],
+            )
+            out.append((f"nodes/{node_id}/connection", heartbeat))
 
         if sec % _GAS_PERIOD_S == 0:
             gas = build_envelope(
@@ -138,6 +154,11 @@ def normal_steady(
             )
             out.append((f"sensors/{node_id}/env", env))
 
+        if node_id == "sensor-01":
+            out.extend(_worker_exposure_context(
+                ts=ts, sec=sec, run_id=run_id, scenario_id="normal_steady",
+            ))
+
     return out
 
 
@@ -164,6 +185,46 @@ def _point_on_loop(distance_m: float) -> tuple[float, float]:
             return ax + (bx - ax) * f, ay + (by - ay) * f
         remaining -= length
     return segments[0][0]
+
+
+def _worker_exposure_context(
+    *,
+    ts: datetime,
+    sec: int,
+    run_id: str,
+    scenario_id: str,
+    fixed_position: tuple[float, float] | None = None,
+) -> list[tuple[str, dict]]:
+    """가스 데모 중 누적 노출량과 탈출로 계산에 필요한 작업자 입력.
+
+    프론트가 가짜 노출량을 만들지 않도록, 데모도 실제 적산 경로를 통과한다.
+    위치는 최근접 고정 센서를 결정하고 정상 O₂ 값은 네 번째 노출 지표를 채운다.
+    """
+    x, y = fixed_position or _point_on_loop(sec * WALK_SPEED_MPS)
+    location = build_envelope(
+        node_id="wearable-01",
+        data={
+            "x_m": round(x, 3), "y_m": round(y, 3), "z_m": 0.0,
+            "coordinate_system": "model-local", "method": "ds_twr",
+            "anchor_count": 4, "quality_score": 0.9, "is_filtered": True,
+        },
+        sampled_at=ts, source_mode="simulation", run_id=run_id,
+        scenario_id=scenario_id, sequence=sec,
+        quality={
+            "message_status": "complete", "time_synced": True,
+            "sensors": {"dwm1000": "valid"},
+        },
+    )
+    vital = build_envelope(
+        node_id="wearable-01",
+        data={"o2_pct": 20.9, "heart_rate": 75},
+        sampled_at=ts, source_mode="simulation", run_id=run_id,
+        scenario_id=scenario_id, sequence=sec,
+    )
+    return [
+        ("wearable/wearable-01/location", location),
+        ("wearable/wearable-01/vital", vital),
+    ]
 
 
 @scenario("worker_walk")
@@ -262,6 +323,57 @@ def gas_spread(
         )
         out.append((f"sensors/{node_id}/gas", env))
 
+        # 4개 센서 프로세스가 작업자 값을 중복 발행하지 않도록 누출원만 담당한다.
+        if node_id == "sensor-03":
+            out.extend(_worker_exposure_context(
+                ts=start + timedelta(seconds=sec), sec=sec,
+                run_id=run_id, scenario_id="gas_spread",
+            ))
+
+    return out
+
+
+@scenario("exposure_h2s_danger")
+def exposure_h2s_danger(
+    *,
+    start: datetime,
+    node_id: str,
+    run_id: str = "demo",
+    duration_seconds: int = 45,
+) -> list[tuple[str, dict]]:
+    """촬영용 H₂S 누적 노출 위험.
+
+    네 노드가 매초 최신값을 보내므로 3D 분포가 끊기지 않는다. sensor-03만 낮은
+    H₂S 농도에 지속 노출시키고, 누적 시간 압축은 메인 백엔드의 simulation 전용
+    분기에서 적용한다. 실제 센서 적산식에는 영향을 주지 않는다.
+    """
+    idx = _node_index(node_id)
+    out: list[tuple[str, dict]] = []
+    for sec in range(duration_seconds + 1):
+        ts = start + timedelta(seconds=sec)
+        h2s = 4.0 if node_id == "sensor-03" else round(0.05 + idx * 0.04, 2)
+        env = build_envelope(
+            node_id=node_id,
+            data={
+                "co2_ppm": 700 + idx * 35,
+                "co_ppm": round(1.5 + idx * 0.8, 1),
+                "h2s_ppm": h2s,
+                "gas_resistance_ohm": 90000 - idx * 6000,
+            },
+            sampled_at=ts,
+            source_mode="simulation",
+            run_id=run_id,
+            scenario_id="exposure_h2s_danger",
+        )
+        out.append((f"sensors/{node_id}/gas", env))
+        if node_id == "sensor-03":
+            out.extend(_worker_exposure_context(
+                ts=ts,
+                sec=sec,
+                run_id=run_id,
+                scenario_id="exposure_h2s_danger",
+                fixed_position=(2.2, 1.7),
+            ))
     return out
 
 
@@ -286,6 +398,9 @@ def co2_warning(*, start: datetime, node_id: str, run_id: str = "demo") -> list[
             scenario_id="co2_warning",
         )
         out.append((f"sensors/{node_id}/gas", env))
+        out.extend(_worker_exposure_context(
+            ts=ts, sec=sec, run_id=run_id, scenario_id="co2_warning",
+        ))
     return out
 
 
@@ -310,6 +425,9 @@ def h2s_warning(*, start: datetime, node_id: str, run_id: str = "demo") -> list[
             scenario_id="h2s_warning",
         )
         out.append((f"sensors/{node_id}/gas", env))
+        out.extend(_worker_exposure_context(
+            ts=ts, sec=sec, run_id=run_id, scenario_id="h2s_warning",
+        ))
     return out
 
 
