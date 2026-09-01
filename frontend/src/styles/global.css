@@ -4193,9 +4193,9 @@ body {
   grid-template-rows:
     auto
     fit-content(300px)
-    var(--panel3-fixed, 310px)
+    var(--panel3-fixed, 341px)
     minmax(96px, 1fr)
-    fit-content(200px);
+    fit-content(152px);
   gap: 14px;
   min-height: 0;
   transition: grid-template-rows 260ms ease;
@@ -4457,9 +4457,9 @@ body {
   grid-template-rows:
     minmax(118px, auto)
     minmax(300px, 44fr)
-    minmax(125px, 18fr)
+    205px
     minmax(96px, 1fr)
-    fit-content(190px);
+    fit-content(152px);
 }
 .console[data-risk-count="1"] .status-panel {
   position: relative;
@@ -4505,36 +4505,20 @@ body {
 .console[data-risk-count="1"] .panel-3__o2-note {
   display: none;
 }
-.console[data-risk-count="1"] .panel-3__grid {
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  grid-template-rows: minmax(0, 1fr);
-  gap: 5px;
-  padding: 5px;
-}
-.console[data-risk-count="1"] .panel-3 .scard {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  grid-template-rows: auto auto;
-  align-content: center;
-  gap: 2px 6px;
-  padding: 5px 7px;
-}
-.console[data-risk-count="1"] .panel-3 .scard__head {
-  grid-column: 1 / -1;
-  margin: 0;
-}
-.console[data-risk-count="1"] .panel-3 .scard__co2 {
-  min-width: 0;
-}
-.console[data-risk-count="1"] .panel-3 .scard__co2-value {
-  font-size: 17px;
-}
-.console[data-risk-count="1"] .panel-3 .scard__co2-spark {
-  width: 62px;
+/* 승격이 하나라도 생기면 이 열의 주인공은 ② 다. 줄의 생김새는 그대로 두고
+   밀도만 낮춘다 — ② 카드가 등급이 오를수록 스파크·경보목록·정상줄 순으로
+   접히는 것과 같은 규칙이다. 미교정 상태 칩은 ⑤ 표가 늘 같은 것을 말한다. */
+.console[data-risk-count="1"] .panel-3,
+.console[data-risk-count="2"] .panel-3,
+.console[data-risk-count="3"] .panel-3 {
+  --panel3-row: 49px;
 }
 .console[data-risk-count="1"] .panel-3 .scard__chips,
+.console[data-risk-count="2"] .panel-3 .scard__chips,
+.console[data-risk-count="3"] .panel-3 .scard__chips,
 .console[data-risk-count="1"] .panel-3 .scard__projection,
-.console[data-risk-count="1"] .panel-3 .scard__all {
+.console[data-risk-count="2"] .panel-3 .scard__projection,
+.console[data-risk-count="3"] .panel-3 .scard__projection {
   display: none;
 }
 /* n=0 일 때 이 칸은 15% 로 줄어든다. 카드 여백을 그대로 두면 "주의 이상 노드
@@ -4775,15 +4759,20 @@ body {
   letter-spacing: 0.04em;
 }
 
+/* 한 줄에 한 노드. 지금까지 이 칸은 승격 수에 따라 2열·3열·1열로 모양이
+   바뀌었고, 같은 노드가 상태에 따라 카드였다가 행이었다가 했다. 경비가 1초
+   흘깃 보는 화면에서 되찾아야 하는 것은 "S1 이 어디 있나" 가 아니라 "S1 이
+   어떤가" 다 — 줄의 모양을 고정하고, 승격은 위치와 높이와 색으로만 말한다. */
 .panel-3__grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(168px, 1fr));
+  grid-template-columns: minmax(0, 1fr);
+  grid-auto-rows: min-content;
   align-content: start;
-  gap: 8px;
+  gap: 6px;
   flex: 1;
   min-height: 0;
-  overflow-y: auto;
-  padding: 8px;
+  overflow: hidden;
+  padding: 7px;
 }
 .panel-3__empty {
   grid-column: 1 / -1;
@@ -4806,6 +4795,45 @@ body {
 }
 .scard--sim {
   border-style: dashed;
+}
+
+/* ③ 의 카드는 세로로 쌓인 상자가 아니라 가로 행이다. 머리(노드·등급·신선도)가
+   윗줄을 다 쓰고, 아랫줄에서 교정된 수치가 왼쪽·미교정 상태 칩이 오른쪽에
+   선다. 폭이 178px 에서 354px 로 넓어져 칩이 서로 밀착하던 문제가 같이 풀린다. */
+.panel-3 .scard {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-content: center;
+  gap: 3px 8px;
+  padding: 6px 9px;
+}
+.panel-3 .scard__head {
+  grid-column: 1 / -1;
+  margin: 0;
+}
+.panel-3 .scard__co2 {
+  min-width: 0;
+}
+.panel-3 .scard__co2-value {
+  font-size: 18px;
+}
+.panel-3 .scard__co2-spark {
+  width: 54px;
+  flex: none;
+}
+.panel-3 .scard__chips {
+  justify-content: flex-end;
+  flex-wrap: nowrap;
+}
+/* 선제 표시는 등급이 오르기 전에 알리는 유일한 줄이라 접지 않는다 — 대신 행
+   전체를 쓰게 해서 위 두 줄과 자리를 다투지 않는다. */
+.panel-3 .scard__projection {
+  grid-column: 1 / -1;
+}
+/* 6종 전체는 펼치면 행 높이가 변해 이 열 전체를 밀어낸다. 값은 ⑤ 표와 차트
+   화면에 그대로 있다. */
+.panel-3 .scard__all {
+  display: none;
 }
 .scard--offline,
 .scard--pending {
@@ -5427,7 +5455,7 @@ body {
     grid-template-rows:
       auto
       fit-content(260px)
-      var(--panel3-fixed, 310px)
+      var(--panel3-fixed, 341px)
       minmax(96px, 1fr)
       fit-content(150px);
   }
@@ -6859,8 +6887,8 @@ body {
     grid-template-rows:
       auto
       minmax(220px, 42fr)
-      minmax(82px, 15fr)
-      minmax(132px, 24fr)
+      var(--panel3-fixed-1, 205px)
+      minmax(115px, 24fr)
       fit-content(150px);
   }
   .console[data-risk-count="1"] .rcard__spark {
@@ -6905,14 +6933,19 @@ body {
    밀린다 — 그리고 이 칸은 주의 이상 노드가 생길 때마다 실제로 줄어든다
    (RISK_SPLIT). 밀려난 카드는 없는 카드와 같다.
 
-   그래서 2×2 격자의 행을 1fr 로 고정하고 넘침을 잘라 낸다. 칸이 좁아지면
-   카드가 같이 낮아질 뿐, 네 장은 언제나 화면에 있다. 스크롤 막대가 사라지는
-   것이 아니라 스크롤할 이유가 사라지는 것이다.
-   ═══════════════════════════════════════════════════════════════════════════ */
+   그래서 한 줄에 한 노드씩 세우고 행 높이를 고정하고 넘침을 잘라 낸다. 칸이
+   좁아지면 카드가 같이 낮아질 뿐, 네 장은 언제나 화면에 있다. 스크롤 막대가
+   사라지는 것이 아니라 스크롤할 이유가 사라지는 것이다.
+
+   2×2 를 세로 목록으로 바꾼 이유는 따로 있다. 2열일 때 카드 폭이 178px 뿐이라
+   미교정 상태 칩이 서로 밀착했고, 무엇보다 같은 노드가 승격 수에 따라 2열
+   카드·3열 압축 카드·가로 행으로 모양이 세 번 바뀌었다. 모양이 바뀌면 눈이
+   노드를 다시 찾아야 한다 — 승격은 위치와 높이와 색으로만 말하게 하고,
+   줄의 생김새는 어느 상태에서든 같게 둔다. */
 .panel-3__grid {
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  grid-template-rows: repeat(2, minmax(0, 1fr));
-  align-content: stretch;
+  grid-template-columns: minmax(0, 1fr);
+  grid-auto-rows: var(--panel3-row, 64px);
+  align-content: start;
   overflow: hidden;
 }
 
@@ -6922,14 +6955,20 @@ body {
    통째로 빈 채 자리만 차지했다. 그 여백은 ④ 로그와 AI 칸에서 빠져나간 것이다.
    남은 카드 수(4 − riskCount)만큼만 행을 잡는다.
 
-   높이 = 헤더 53 + 그리드 패딩 12 + 카드 119.5×행 + 행간 6×(행−1)
-     2행(카드 4·3장) = 310px  ← 기본값
-     1행(카드 2·1장) = 185px
-     0행(카드 0장)   =  65px  — 헤더의 공간 O₂ 만 남는다
+   높이 = 헤더 53 + 그리드 패딩 14 + 행 64×n + 행간 6×(n−1)
+   즉 61 + 70n 이다.
+     4행 = 341px  ← 기본값 (승격 0, 행 64)
+   승격이 하나라도 생기면 행이 49px 로 낮아지므로 61 + 55n 이다.
+     3행 = 205px (승격 1, 헤더가 한 줄로 줄어 32 → 205)
+     2행 = 171px
+     1행 = 116px
+     0행 =  61px  — 헤더의 공간 O₂ 만 남는다
    riskCount 1 은 아래 전용 규칙이 따로 비율을 잡으므로 건드리지 않는다. */
-.console[data-risk-count="2"],
+.console[data-risk-count="2"] {
+  --panel3-fixed: 171px;
+}
 .console[data-risk-count="3"] {
-  --panel3-fixed: 185px;
+  --panel3-fixed: 116px;
 }
 /* 넷이 모두 승격되면 ③ 에는 카드가 하나도 남지 않고 헤더 한 줄만 남는다.
    그 줄의 공간 O₂ 는 웨어러블 값이고(SensorSummaryPanel 주석, 10_UI_FLOW §8.5)
@@ -6937,10 +6976,6 @@ body {
    그 높이를 ② 에 넘긴다 — 넷이 동시에 위험한 순간에 가장 필요한 자리다. */
 .console[data-risk-count="4"] .panel-3 {
   display: none;
-}
-.console[data-risk-count="2"] .panel-3__grid,
-.console[data-risk-count="3"] .panel-3__grid {
-  grid-template-rows: minmax(0, 1fr);
 }
 
 /* 승격이 둘 이상이면 남는 세로의 주인은 ② 다. 평상시에는 ④ 로그가 흡수하지만
@@ -6954,7 +6989,7 @@ body {
   grid-template-rows:
     auto
     minmax(0, 1fr)
-    var(--panel3-fixed, 310px)
+    var(--panel3-fixed, 341px)
     126px
     fit-content(120px);
 }
@@ -6972,6 +7007,7 @@ body {
    남았다 — 경보 행도 "더보기" 도 화면 밖으로 밀려, 안 보이는 경보에 도달할
    방법이 사라졌다. 여러 노드가 동시에 위험한 동안에는 24칸 집계 이력보다 지금
    뜬 경보 줄이 먼저다. 띠는 승격이 풀리면 돌아온다. */
+.console[data-risk-count="1"] .risk-timeline,
 .console[data-risk-count="2"] .risk-timeline,
 .console[data-risk-count="3"] .risk-timeline,
 .console[data-risk-count="4"] .risk-timeline {
@@ -6997,6 +7033,15 @@ body {
 .console[data-risk-count="4"] .rcard__row.is-normal {
   display: none;
 }
+/* 승격이 하나일 때는 발밑 두 줄만 접는다. 선제 표시(추세 ↗)는 같은 상자 안에
+   있지만 성격이 다르다 — 그것만은 남긴다. 접는 두 줄은 다른 데서 같은 말을
+   한다: 경보 발생 시각은 바로 아래 ④ 이력에, 배정 작업자는 왼쪽 ⑤ 작업자 칸에
+   늘 떠 있다. */
+.console[data-risk-count="1"] .rcard__foot-row,
+.console[data-risk-count="2"] .rcard__foot-row {
+  display: none;
+}
+
 /* 경보 발생 시각은 바로 아래 ④ 이력이 같은 것을 더 자세히 말한다. 셋이 뜬
    상태에서도 마찬가지인데, 여기서는 접지 않으면 카드가 74px 이라 발밑 두 줄이
    17px 잘려 "배정 작업자" 가 반쯤 보인다 — 반쯤 보이는 값이 없는 값보다 나쁘다. */
@@ -7040,16 +7085,62 @@ body {
   display: none;
 }
 
+/* ③ 을 세로 목록으로 바꾸면서 이 열의 세로 수요가 31px 늘었다. 그 자리는
+   참고 지표에서 먼저 가져온다 — 이 파일이 이미 정한 순서다. 문구는 그대로
+   두고 여백만 걷는다: 면책 문장을 지워서 높이를 버는 것은 안전 화면에서
+   할 수 있는 거래가 아니다. */
+.console .ai-grid {
+  padding: 8px 10px;
+  gap: 5px;
+}
+.console .ai-grid__cell {
+  gap: 2px;
+}
+.console .ai-grid .ai-panel {
+  padding: 4px 7px;
+}
+
 /* AI 는 참고 지표다. 좁아졌다고 내부 스크롤을 만들면 경비가 마우스를 잡아야
    하고, 그 손은 경보에서 떨어진다. 승격이 둘 이상인 동안에는 카드를 접고
    머리말만 남긴다 — 이 패널 스스로 "실제 안전 경보 아님" 이라고 적고 있다. */
+.console[data-risk-count="1"] .ai-grid__cards,
 .console[data-risk-count="2"] .ai-grid__cards,
 .console[data-risk-count="3"] .ai-grid__cards,
 .console[data-risk-count="4"] .ai-grid__cards,
+.console[data-risk-count="1"] .ai-grid__note,
 .console[data-risk-count="2"] .ai-grid__note,
 .console[data-risk-count="3"] .ai-grid__note,
 .console[data-risk-count="4"] .ai-grid__note {
   display: none;
+}
+/* 카드를 접은 자리에 한 줄 집계만 남긴다. 머리말만 남기면 이 구획은 높이를
+   쓰면서 아무 말도 하지 않는다 — 같은 높이에서 최소한 몇 개가 이상인지는
+   답하게 한다. 카드가 보이는 동안에는 카드가 같은 말을 더 자세히 하므로 접는다. */
+.ai-grid__tally {
+  display: none;
+  margin: 0;
+  padding: 6px 10px;
+  gap: 12px;
+  color: var(--ink-3);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.04em;
+}
+.ai-grid__tally-flag {
+  color: var(--ink-2);
+  font-weight: 700;
+}
+.console[data-risk-count="1"] .ai-grid__kicker,
+.console[data-risk-count="2"] .ai-grid__kicker,
+.console[data-risk-count="3"] .ai-grid__kicker,
+.console[data-risk-count="4"] .ai-grid__kicker {
+  display: none;
+}
+.console[data-risk-count="1"] .ai-grid__tally,
+.console[data-risk-count="2"] .ai-grid__tally,
+.console[data-risk-count="3"] .ai-grid__tally,
+.console[data-risk-count="4"] .ai-grid__tally {
+  display: flex;
 }
 .console__right .scard {
   min-height: 0;
