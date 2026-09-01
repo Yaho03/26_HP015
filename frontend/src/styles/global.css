@@ -6931,12 +6931,15 @@ body {
 .console[data-risk-count="3"] {
   --panel3-fixed: 185px;
 }
-.console[data-risk-count="4"] {
-  --panel3-fixed: 65px;
+/* 넷이 모두 승격되면 ③ 에는 카드가 하나도 남지 않고 헤더 한 줄만 남는다.
+   그 줄의 공간 O₂ 는 웨어러블 값이고(SensorSummaryPanel 주석, 10_UI_FLOW §8.5)
+   같은 값을 왼쪽 ⑤ 작업자 칸이 이미 늘 보여준다. 잃는 정보 없이 칸째로 접어
+   그 높이를 ② 에 넘긴다 — 넷이 동시에 위험한 순간에 가장 필요한 자리다. */
+.console[data-risk-count="4"] .panel-3 {
+  display: none;
 }
 .console[data-risk-count="2"] .panel-3__grid,
-.console[data-risk-count="3"] .panel-3__grid,
-.console[data-risk-count="4"] .panel-3__grid {
+.console[data-risk-count="3"] .panel-3__grid {
   grid-template-rows: minmax(0, 1fr);
 }
 
@@ -6952,6 +6955,15 @@ body {
     auto
     minmax(0, 1fr)
     var(--panel3-fixed, 310px)
+    126px
+    fit-content(120px);
+}
+
+/* ③ 을 접었으므로 행도 하나 줄어든다. 남기면 AI 칸이 암묵 행으로 밀려 겹친다. */
+.console[data-risk-count="4"] .console__right {
+  grid-template-rows:
+    auto
+    minmax(0, 1fr)
     126px
     fit-content(120px);
 }
