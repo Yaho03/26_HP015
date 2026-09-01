@@ -5,6 +5,7 @@ export type WSMessageType =
   | "alert"
   | "sensor_reading"
   | "node_status"
+  | "node_connection"
   | "location"
   | "worker_exposure"
   | "evacuation_route";
@@ -76,6 +77,13 @@ export interface NodeStatusMessage extends WSBaseMessage {
   wifi_rssi_dbm: number | null;
   sensors_online: string[];
   sensors_error: string[];
+  timestamp: string;
+}
+
+export interface NodeConnectionMessage extends WSBaseMessage {
+  type: "node_connection";
+  node_id: string;
+  connection_status: "online" | "offline";
   timestamp: string;
 }
 
@@ -254,5 +262,6 @@ export type WSMessage =
   | LocationMessage
   | SensorReadingMessage
   | NodeStatusMessage
+  | NodeConnectionMessage
   | WorkerExposureMessage
   | EvacuationRouteMessage;

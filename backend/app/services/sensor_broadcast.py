@@ -28,6 +28,7 @@ def init() -> None:
         return
     ingest.set_reading_callback(_on_reading_ingested)
     ingest.set_status_callback(_on_status_ingested)
+    ingest.set_connection_callback(_on_connection_ingested)
     _callback_registered = True
 
 
@@ -64,4 +65,13 @@ async def _on_status_ingested(node_id: str, data: dict, sampled_at: datetime) ->
         "sensors_online": data["sensors_online"],
         "sensors_error": data["sensors_error"],
         "timestamp": sampled_at.isoformat(),
+    })
+
+
+async def _on_connection_ingested(node_id: str, status: str, timestamp: datetime) -> None:
+    await manager.broadcast({
+        "type": "node_connection",
+        "node_id": node_id,
+        "connection_status": status,
+        "timestamp": timestamp.isoformat(),
     })

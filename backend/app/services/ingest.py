@@ -24,6 +24,7 @@ _location_callback = None
 _ranging_callback = None
 _reading_callback = None
 _status_callback = None
+_connection_callback = None
 _connection_recovery_callback = None
 _exposure_callback = None
 
@@ -60,6 +61,12 @@ def set_status_callback(callback) -> None:
     sensor_broadcast.init() 에서 등록한다 (#106)."""
     global _status_callback
     _status_callback = callback
+
+
+def set_connection_callback(callback) -> None:
+    """connection online/offline 상태를 실시간 화면에 전달하는 콜백."""
+    global _connection_callback
+    _connection_callback = callback
 
 
 def set_ranging_callback(callback) -> None:
@@ -261,7 +268,16 @@ async def ingest_telemetry(payload: bytes) -> None:
                 )
         if _exposure_callback is not None:
             try:
-                await _exposure_callback(node_id, metric, value, sampled_at)
+                simulation = envelope.get("simulation")
+                scenario_id = (
+                    simulation.get("scenario_id")
+                    if isinstance(simulation, dict) else None
+                )
+                await _exposure_callback(
+                    node_id, metric, value, sampled_at,
+                    source_mode=envelope.get("source_mode", "live"),
+                    scenario_id=scenario_id,
+                )
             except Exception:
                 # 적산 실패가 경보 판정과 브로드캐스트를 막으면 안 된다.
                 # 노출량은 누적 지표라 한 샘플을 놓쳐도 다음 샘플에서
@@ -454,6 +470,12 @@ async def ingest_connection(payload: bytes) -> None:
             await _connection_recovery_callback(node_id)
         except Exception:
             logger.exception("connection recovery callback failed (node=%s)", node_id)
+
+    if applied is not None and _connection_callback is not None:
+        try:
+            await _connection_callback(node_id, status, ts)
+        except Exception:
+            logger.exception("connection broadcast failed (node=%s status=%s)", node_id, status)
 
 
 async def ingest_ranging(payload: bytes) -> None:
